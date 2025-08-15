@@ -1,0 +1,499 @@
+"""Test Obsidian functionality"""
+
+import os
+import tempfile
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
+# Set up test environment variables before importing modules
+os.environ.update(
+    {
+        "DISCORD_BOT_TOKEN": "test_token",
+        "DISCORD_GUILD_ID": "123456789",
+        "GEMINI_API_KEY": "test_api_key",
+        "OBSIDIAN_VAULT_PATH": "/tmp/test_vault",
+        "CHANNEL_INBOX": "111111111",
+        "CHANNEL_VOICE": "222222222",
+        "CHANNEL_FILES": "333333333",
+        "CHANNEL_MONEY": "444444444",
+        "CHANNEL_FINANCE_REPORTS": "555555555",
+        "CHANNEL_TASKS": "666666666",
+        "CHANNEL_PRODUCTIVITY_REVIEWS": "777777777",
+        "CHANNEL_NOTIFICATIONS": "888888888",
+        "CHANNEL_COMMANDS": "999999999",
+    }
+)
+
+from src.ai.models import AIProcessingResult, ProcessingCategory
+from src.config import settings
+from src.obsidian.file_manager import ObsidianFileManager
+from src.obsidian.models import (
+    FolderMapping,
+    NoteFilename,
+    NoteFrontmatter,
+    NoteStatus,
+    ObsidianNote,
+    VaultFolder,
+)
+from src.obsidian.templates import DailyNoteTemplate, MessageNoteTemplate
+
+
+class TestObsidianModels:
+    """Test Obsidian data models"""
+
+    def test_note_frontmatter_creation(self):
+        """Test note frontmatter creation"""
+        frontmatter = NoteFrontmatter(
+            discord_message_id=123456789,
+            discord_channel="test-channel",
+            obsidian_folder="00_Inbox",
+            ai_processed=True,
+            ai_tags=["programming", "#ai", "test"],
+            tags=["discord", "#automated"],
+        )
+
+        assert frontmatter.discord_message_id == 123456789
+        assert frontmatter.discord_channel == "test-channel"
+        assert frontmatter.ai_processed is True
+
+        # Test tag validation
+        assert frontmatter.ai_tags == ["#programming", "#ai", "#test"]
+        assert frontmatter.tags == ["discord", "automated"]
+
+    def test_obsidian_note_creation(self):
+        """Test Obsidian note creation"""
+        frontmatter = NoteFrontmatter(obsidian_folder="00_Inbox")
+
+        note = ObsidianNote(
+            filename="test_note.md",
+            file_path=Path("/test/vault/00_Inbox/test_note.md"),
+            frontmatter=frontmatter,
+            content="# Test Note\n\nThis is a test note.",
+        )
+
+        assert note.filename == "test_note.md"
+        assert note.title == "note"  # ファイル名"test_note.md"から"test_"を削除した部分
+        assert "# Test Note" in note.content
+
+    def test_note_filename_generation(self):
+        """Test note filename generation"""
+        timestamp = datetime(2024, 1, 15, 14, 30, 0)
+
+        # Test message note filename
+        filename = NoteFilename.generate_message_note_filename(
+            timestamp=timestamp, category="Work", title="Project Update"
+        )
+
+        expected = "202401151430_Work_Project Update.md"
+        assert filename == expected
+
+        # Test with special characters
+        filename = NoteFilename.generate_message_note_filename(
+            timestamp=timestamp, category="Test", title="File/with\\special:chars"
+        )
+
+        assert "202401151430_Test_" in filename
+        assert ".md" in filename
+        assert "/" not in filename
+        assert "\\" not in filename
+        assert ":" not in filename
+
+    def test_folder_mapping(self):
+        """Test folder mapping functionality"""
+        # Test category mapping
+        work_folder = FolderMapping.get_folder_for_category(ProcessingCategory.WORK)
+        assert work_folder == VaultFolder.WORK
+
+        other_folder = FolderMapping.get_folder_for_category(ProcessingCategory.OTHER)
+        assert other_folder == VaultFolder.INBOX
+
+        # Test file type mapping
+        image_folder = FolderMapping.get_folder_for_file_type("image")
+        assert image_folder == VaultFolder.IMAGES
+
+        other_file_folder = FolderMapping.get_folder_for_file_type("unknown")
+        assert other_file_folder == VaultFolder.OTHER_FILES
+
+
+class TestObsidianTemplates:
+    """Test Obsidian template functionality"""
+
+    def setup_method(self):
+        """Setup test fixtures"""
+        self.temp_dir = Path(tempfile.mkdtemp())
+        self.message_template = MessageNoteTemplate(self.temp_dir)
+        self.daily_template = DailyNoteTemplate(self.temp_dir)
+
+    def test_message_note_template_frontmatter(self):
+        """Test message note frontmatter generation"""
+        message_data = {
+            "metadata": {
+                "basic": {
+                    "id": 123456789,
+                    "author": {
+                        "name": "TestUser",
+                        "discriminator": "1234",
+                        "id": 987654321,
+                    },
+                    "channel": {"name": "test-channel", "id": 111111111},
+                    "guild": {"name": "Test Guild"},
+                },
+                "content": {"raw_content": "Test message content"},
+                "timing": {"created_at": {"iso": "2024-01-15T14:30:00"}},
+            },
+            "channel_info": {"name": "test-channel", "category": "capture"},
+        }
+
+        frontmatter = self.message_template.generate_frontmatter(
+            message_data=message_data
+        )
+
+        assert frontmatter.discord_message_id == 123456789
+        assert frontmatter.discord_channel == "test-channel"
+        assert frontmatter.discord_author == "TestUser#1234"
+        assert "discord" in frontmatter.tags
+        assert "auto-generated" in frontmatter.tags
+
+    def test_message_note_content_generation(self):
+        """Test message note content generation"""
+        message_data = {
+            "metadata": {
+                "basic": {
+                    "id": 123456789,
+                    "author": {"name": "TestUser"},
+                    "channel": {"name": "test-channel"},
+                },
+                "content": {"raw_content": "This is a test message"},
+                "timing": {"created_at": {"iso": "2024-01-15T14:30:00"}},
+                "attachments": [],
+            },
+            "channel_info": {"name": "test-channel"},
+        }
+
+        content = self.message_template.generate_content(message_data=message_data)
+
+        assert "# " in content  # Title
+        assert "## 💬 元メッセージ" in content
+        assert "This is a test message" in content
+        assert "## 📊 メタデータ" in content
+        assert "TestUser" in content
+
+    def test_daily_note_generation(self):
+        """Test daily note generation"""
+        date = datetime(2024, 1, 15)
+        daily_stats = {
+            "total_messages": 25,
+            "processed_messages": 20,
+            "ai_processing_time_total": 15000,
+            "categories": {"work": 10, "learning": 5, "life": 5},
+        }
+
+        daily_note = self.daily_template.generate_note(
+            date=date, daily_stats=daily_stats
+        )
+
+        assert daily_note.filename == "2024-01-15.md"
+        assert "Daily Note - 2024年01月15日" in daily_note.content
+        assert "**総メッセージ数**: 25" in daily_note.content
+        assert "**AI処理済み**: 20" in daily_note.content
+        assert daily_note.frontmatter.total_messages == 25
+
+
+@pytest.mark.asyncio
+class TestObsidianFileManager:
+    """Test Obsidian file manager"""
+
+    def setup_method(self):
+        """Setup test fixtures"""
+        self.temp_dir = Path(tempfile.mkdtemp())
+
+        # Create file manager with temporary directory
+        self.file_manager = ObsidianFileManager(self.temp_dir)
+
+    async def test_vault_initialization(self):
+        """Test vault structure initialization"""
+        success = await self.file_manager.initialize_vault()
+
+        assert success is True
+        assert self.temp_dir.exists()
+
+        # Check that required folders are created
+        inbox_folder = self.temp_dir / VaultFolder.INBOX.value
+        assert inbox_folder.exists()
+
+        daily_notes_folder = self.temp_dir / VaultFolder.DAILY_NOTES.value
+        assert daily_notes_folder.exists()
+
+        templates_folder = self.temp_dir / VaultFolder.TEMPLATES.value
+        assert templates_folder.exists()
+
+    async def test_note_saving_and_loading(self):
+        """Test note saving and loading"""
+        # Initialize vault
+        await self.file_manager.initialize_vault()
+
+        # Create test note
+        frontmatter = NoteFrontmatter(
+            obsidian_folder=VaultFolder.INBOX.value, discord_message_id=123456789
+        )
+
+        note = ObsidianNote(
+            filename="test_note.md",
+            file_path=self.temp_dir / VaultFolder.INBOX.value / "test_note.md",
+            frontmatter=frontmatter,
+            content="# Test Note\n\nThis is a test note content.",
+        )
+
+        # Save note
+        success = await self.file_manager.save_note(note)
+        assert success is True
+        assert note.file_path.exists()
+
+        # Load note
+        loaded_note = await self.file_manager.load_note(note.file_path)
+        assert loaded_note is not None
+        assert loaded_note.filename == "test_note.md"
+        assert loaded_note.frontmatter.discord_message_id == 123456789
+        assert "This is a test note content" in loaded_note.content
+
+    async def test_note_search(self):
+        """Test note search functionality"""
+        # Initialize vault and create test notes
+        await self.file_manager.initialize_vault()
+
+        # Create multiple test notes
+        for i in range(3):
+            frontmatter = NoteFrontmatter(
+                obsidian_folder=VaultFolder.INBOX.value,
+                ai_category="work" if i % 2 == 0 else "learning",
+                tags=["test", f"note{i}"],
+            )
+
+            note = ObsidianNote(
+                filename=f"test_note_{i}.md",
+                file_path=self.temp_dir / VaultFolder.INBOX.value / f"test_note_{i}.md",
+                frontmatter=frontmatter,
+                content=f"# Test Note {i}\n\nContent for note {i}",
+            )
+
+            await self.file_manager.save_note(note)
+
+        # Test search by query
+        results = await self.file_manager.search_notes(query="Test Note")
+        assert len(results) == 3
+
+        # Test search by tags
+        results = await self.file_manager.search_notes(tags=["test"])
+        assert len(results) == 3
+
+        # Test search with limit
+        results = await self.file_manager.search_notes(limit=2)
+        assert len(results) == 2
+
+    async def test_vault_stats(self):
+        """Test vault statistics collection"""
+        # Initialize vault and create test notes
+        await self.file_manager.initialize_vault()
+
+        # Create test notes
+        for i in range(5):
+            frontmatter = NoteFrontmatter(
+                obsidian_folder=VaultFolder.INBOX.value,
+                ai_processed=True,
+                ai_processing_time=100 + i * 10,
+                ai_category="work" if i % 2 == 0 else "learning",
+            )
+
+            note = ObsidianNote(
+                filename=f"test_note_{i}.md",
+                file_path=self.temp_dir / VaultFolder.INBOX.value / f"test_note_{i}.md",
+                frontmatter=frontmatter,
+                content=f"Test content {i}",
+            )
+
+            await self.file_manager.save_note(note)
+
+        # Get stats
+        stats = await self.file_manager.get_vault_stats()
+
+        assert stats.total_notes >= 5
+        assert stats.ai_processed_notes >= 5
+        assert stats.total_ai_processing_time > 0
+        assert stats.average_ai_processing_time > 0
+
+
+@pytest.mark.asyncio
+async def test_obsidian_integration_with_message_handler():
+    """Test Obsidian integration with message handler"""
+    from unittest.mock import Mock
+
+    import discord
+
+    from src.ai.models import (
+        AIProcessingResult,
+        CategoryResult,
+        SummaryResult,
+        TagResult,
+    )
+    from src.bot.channel_config import ChannelConfig
+    from src.bot.handlers import MessageHandler
+
+    # Setup
+    channel_config = ChannelConfig()
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        # Mock settings to use temp directory
+        with patch.object(settings, "obsidian_vault_path", Path(temp_dir)):
+            handler = MessageHandler(channel_config)
+
+            # Verify Obsidian integration is available
+            assert handler.obsidian_manager is not None
+            assert handler.note_template is not None
+
+            # Create mock message
+            mock_message = Mock(spec=discord.Message)
+            mock_message.id = 123456789
+            mock_message.content = (
+                "This is a test message for Obsidian integration testing"
+            )
+            mock_message.author.bot = False
+            mock_message.author.id = 987654321
+            mock_message.author.display_name = "Test User"
+            mock_message.author.name = "testuser"
+            mock_message.author.discriminator = "1234"
+            mock_message.author.avatar = None
+            mock_message.author.mention = "<@987654321>"
+
+            # Get valid channel ID for capture
+            capture_channels = channel_config.get_capture_channels()
+            valid_channel_id = (
+                list(capture_channels)[0]
+                if capture_channels
+                else list(channel_config.channels.keys())[0]
+            )
+
+            mock_message.channel.id = valid_channel_id
+            mock_message.channel.name = "test-channel"
+            mock_message.channel.type = discord.ChannelType.text
+            mock_message.channel.category = None
+            mock_message.created_at = datetime(2024, 1, 15, 14, 30, 0)
+            mock_message.edited_at = None
+            mock_message.guild.id = 111111111
+            mock_message.guild.name = "Test Guild"
+            mock_message.attachments = []
+            mock_message.embeds = []
+            mock_message.mentions = []
+            mock_message.role_mentions = []
+            mock_message.channel_mentions = []
+            mock_message.reactions = []
+            mock_message.stickers = []
+            mock_message.reference = None
+            mock_message.type = discord.MessageType.default
+            mock_message.flags = discord.MessageFlags()
+            mock_message.pinned = False
+            mock_message.tts = False
+            mock_message.mention_everyone = False
+
+            # Mock AI processing
+            with patch.object(handler.ai_processor, "process_text") as mock_ai_process:
+                # Create mock AI result
+                mock_summary = SummaryResult(
+                    summary="Test summary",
+                    processing_time_ms=100,
+                    model_used="test-model",
+                )
+
+                mock_tags = TagResult(
+                    tags=["#test", "#obsidian"],
+                    raw_keywords=["test", "obsidian"],
+                    processing_time_ms=50,
+                    model_used="test-model",
+                )
+
+                mock_category = CategoryResult(
+                    category=ProcessingCategory.WORK,
+                    confidence_score=0.8,
+                    processing_time_ms=75,
+                    model_used="test-model",
+                )
+
+                mock_ai_result = AIProcessingResult(
+                    message_id=123456789,
+                    processed_at=datetime.now(),
+                    summary=mock_summary,
+                    tags=mock_tags,
+                    category=mock_category,
+                    total_processing_time_ms=225,
+                )
+
+                mock_ai_process.return_value = mock_ai_result
+
+                # Process message
+                result = await handler.process_message(mock_message)
+
+                # Verify result
+                assert result is not None
+                assert "metadata" in result
+                assert "ai_processing" in result
+                assert "channel_info" in result
+
+                # Verify AI processing was called
+                mock_ai_process.assert_called_once()
+
+                # Check that Obsidian note should be created
+                # (We can't easily verify file creation in this test without more complex setup)
+                assert result["ai_processing"] is not None
+
+
+def test_obsidian_models_validation():
+    """Test Obsidian models validation"""
+    # Test invalid filename
+    with pytest.raises(ValueError):
+        frontmatter = NoteFrontmatter(obsidian_folder="test")
+        ObsidianNote(
+            filename="invalid<file>name.md",  # Contains invalid characters
+            file_path=Path("/test/invalid<file>name.md"),
+            frontmatter=frontmatter,
+            content="test",
+        )
+
+    # Test valid filename
+    frontmatter = NoteFrontmatter(obsidian_folder="test")
+    note = ObsidianNote(
+        filename="valid_filename.md",
+        file_path=Path("/test/valid_filename.md"),
+        frontmatter=frontmatter,
+        content="test content",
+    )
+    assert note.filename == "valid_filename.md"
+
+
+def test_note_markdown_generation():
+    """Test Markdown generation"""
+    frontmatter = NoteFrontmatter(
+        obsidian_folder="00_Inbox",
+        discord_message_id=123456789,
+        ai_processed=True,
+        ai_tags=["#test", "#generated"],
+    )
+
+    note = ObsidianNote(
+        filename="test.md",
+        file_path=Path("/test/test.md"),
+        frontmatter=frontmatter,
+        content="# Test Note\n\nThis is test content.",
+    )
+
+    markdown = note.to_markdown()
+
+    # Check that markdown contains frontmatter
+    assert "---" in markdown
+    assert "discord_message_id: 123456789" in markdown
+    assert "ai_processed: true" in markdown
+
+    # Check that content is included
+    assert "# Test Note" in markdown
+    assert "This is test content." in markdown

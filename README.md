@@ -1,187 +1,164 @@
 # Discord-Obsidian Memo Bot
 
-Discord上でメモ入力、家計管理、タスク管理を行い、AI処理を経てObsidianに自動保存する包括的なライフログ・ナレッジマネジメントシステム
+DiscordのメッセージをAIで整理し、Obsidianに自動保存する個人用ボット
 
 ## 概要
 
-このボットは、Discordを統合インターフェースとして使用し、Google Gemini APIによるAI処理を経てObsidianに自動保存する包括的なライフログ・ナレッジマネジメントシステムです。ツェッテルカステンとライフログの概念を取り入れ、メモ管理、家計管理、タスク管理を統合した体系的なナレッジ管理を支援します。
+このボットは、Discordに投稿したメッセージや音声ファイルを自動的にAIで分析・整理し、Obsidianのノートとして保存する個人用ナレッジマネジメントツールです。日常のメモ取りからデイリーノート作成まで、効率的な知識管理をサポートします。
 
 ## 主な機能
 
-### 📝 メモ・ナレッジ管理
-- 複数のDiscordチャンネルからのメモ自動取得
-- 🎤 音声メモのテキスト変換（Google Cloud Speech-to-Text）
-- 🤖 AI による要約・分類・関連性分析（Google Gemini API）
-- � GObsidian Vaultへの自動保存と整理
-- 💪 Garmin健康データの統合
+- **テキストメモの自動保存**: 指定したDiscordチャンネルの投稿をObsidianに保存
+- **AIによる自動整理**: Google Gemini APIを使った自動要約・タグ付け・分類
+- **音声メモの文字起こし**: 音声ファイルを自動でテキスト化して保存（オプション）
+- **家計管理**: 支出記録、定期購読管理、家計レポート自動生成
+- **タスク管理**: タスクの作成・追跡、生産性レビュー、スケジュール統合
+- **健康データ統合**: Garmin Connect連携による健康データ追跡（オプション）
+- **デイリーノート連携**: 特定のチャンネルへの投稿を、Obsidianのデイリーノートに追記
+- **柔軟なテンプレート**: 保存するメモのフォーマットを自由にカスタマイズ
+- **Vault統計**: ノート検索やVault全体の統計情報を表示
 
-### 💰 家計管理
-- 定期購入サービス管理（Netflix、Spotify、SaaS等）
-- 支払いリマインダーと自動通知
-- 収支トラッキングと予算管理
-- AI による家計レポート生成
+## 必要なもの
 
-### 📋 タスク・スケジュール管理
-- タスク作成・進捗管理
-- 期限リマインダーシステム
-- スケジュール管理
-- 生産性分析レポート
+- Python 3.10以上
+- [uv](https://github.com/astral-sh/uv) (高速なPythonパッケージ管理ツール)
+- Discord Botトークン ([Discord Developer Portal](https://discord.com/developers/applications)で取得)
+- Google Gemini APIキー ([Google AI Studio](https://aistudio.google.com/)で取得)
+- Obsidian Vault（保管先のフォルダ）
+- （オプション）Google Cloud Speech-to-Text APIの認証情報
 
-### ☁️ インフラ
-- Google Cloud Run での24時間365日稼働（無料枠）
-- 完全な日本語対応
-- セキュアな認証情報管理
+## セットアップ手順
 
-## システム構成
-
-- **Discord Bot**: Discord.py
-- **AI処理**: Google Gemini API Free Tier
-- **音声認識**: Google Cloud Speech-to-Text API
-- **健康データ**: python-garminconnect
-- **デプロイメント**: Google Cloud Run（無料枠）
-
-## Obsidian Vault構造
-
-```
-00_Capture/        # 即座のキャプチャ（未分類メモ）
-01_Process/        # 処理待ちアイテム
-02_Knowledge/      # 永続的な知識ベース
-03_Projects/       # プロジェクト関連
-04_Life/           # ライフログ統合
-  ├── Daily/       # デイリーノート
-  ├── Finance/     # 家計管理
-  ├── Health/      # 健康データ
-  ├── Tasks/       # タスク管理
-  └── Schedule/    # スケジュール管理
-05_Resources/      # リソース・添付ファイル
-99_Meta/           # テンプレート・システム設定
+### 1. リポジトリのダウンロード
+```bash
+git clone https://github.com/kenvexar/discord-obsidian-memo-bot.git
+cd discord-obsidian-memo-bot
 ```
 
-## Discord チャンネル構成
+### 2. 必要なライブラリのインストール
+```bash
+# uvがインストールされていない場合
+pip install uv
 
-### 📝 CAPTURE
-- #inbox: 全般的なメモ・アイデア・活動ログ
-- #voice: 音声メモ専用
-- #files: ファイル添付専用
+# 依存関係のインストール
+uv sync
+```
 
-### 💰 FINANCE
-- #money: 収支記録・定期購入管理
-- #reports: 家計レポート・統計
+### 3. 設定ファイルの準備
+```bash
+cp .env.example .env
+```
 
-### 📋 PRODUCTIVITY
-- #tasks: タスク・スケジュール管理
-- #reviews: 振り返り・統計レポート
+### 4. 設定ファイルの編集
+`.env`ファイルを開き、以下の項目を設定してください：
 
-### ⚙️ SYSTEM
-- #notifications: システム通知・リマインダー
-- #commands: コマンド実行専用
+```env
+# 必須設定
+DISCORD_BOT_TOKEN=your_discord_bot_token
+DISCORD_GUILD_ID=your_guild_id
+GEMINI_API_KEY=your_gemini_api_key
+OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 
-## セットアップ
+# チャンネルID（使用する機能に応じて設定）
+CHANNEL_INBOX=123456789              # メイン用途（テキストメモ）
+CHANNEL_VOICE=123456789              # 音声メモ用
+CHANNEL_FILES=123456789              # ファイル添付メモ用
+CHANNEL_MONEY=123456789              # 家計管理用
+CHANNEL_FINANCE_REPORTS=123456789    # 家計レポート用
+CHANNEL_TASKS=123456789              # タスク管理用
+CHANNEL_PRODUCTIVITY_REVIEWS=123456789 # 生産性レビュー用
+CHANNEL_NOTIFICATIONS=123456789      # システム通知用
+CHANNEL_COMMANDS=123456789           # ボットコマンド用
+CHANNEL_ACTIVITY_LOG=123456789       # アクティビティログ用
+CHANNEL_DAILY_TASKS=123456789        # デイリータスク用
 
-詳細なセットアップ手順は [docs/setup.md](docs/setup.md) を参照してください。
+# オプション設定（音声認識を使う場合）
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+```
 
-## 使用方法
+### 5. ボットの起動
+```bash
+uv run python -m src.main
+```
 
-### 基本的なメモ入力
-指定されたチャンネルにメッセージを投稿するだけで、自動的にAI処理されObsidianに保存されます。
+コンソールに「Bot is ready!」と表示されれば成功です。
 
-### 家計管理
-💰 FINANCEカテゴリの#moneyチャンネルで支出・収入を記録し、定期購入サービスを管理できます。
-- #moneyに「支出 コンビニ 500円 食費」と投稿で支出記録
-- #moneyに「収入 給与 300000円」と投稿で収入記録
-- 定期購入は自動リマインダーで支払い忘れを防止
-- #reportsで月次家計レポートを自動受信
+## 使い方
 
-### タスク・スケジュール管理
-📋 PRODUCTIVITYカテゴリの#tasksチャンネルで効率的なタスク管理とスケジュール管理が可能です。
-- タスクの期限管理と進捗トラッキング
-- 自動リマインダーで重要なタスクを見落とし防止
-- #reviewsで生産性分析レポートを受信し改善点を把握
+### 基本的な使い方
+設定したチャンネルにメッセージを投稿するだけで、自動的に処理されObsidianに保存されます。
 
-### コマンド
+- **テキストメモ**: `#inbox` チャンネルにテキストを投稿
+- **音声メモ**: `#voice` チャンネルに音声ファイルをアップロード
+- **アクティビティログ**: `#activity-log` チャンネルへの投稿が今日のデイリーノートに追記
+- **デイリータスク**: `#daily-tasks` チャンネルへの投稿がタスクとして記録
+
+### Discordコマンド一覧
 
 #### 基本コマンド
-- `/help`: 利用可能なコマンド一覧
-- `/status`: システム状態確認
-- `/search [キーワード]`: Vault内検索
-- `/stats`: 統計情報表示
-- `/random_note`: ランダムノート表示
+- `/help` - ヘルプ情報の表示
+- `/status` - ボットの動作状況を確認
+- `/ping` - 接続テスト
 
-#### 家計管理コマンド
-- `/sub_add [サービス名] [金額] [周期] [次回支払日]`: 定期購入追加
-- `/sub_paid [サービス名]`: 支払い完了報告
-- `/sub_list`: 定期購入一覧表示
-- `/sub_stats [期間]`: 家計統計表示
-- `/budget_set [カテゴリ] [予算]`: 予算設定
-- `/finance_stats [期間]`: 収支バランス表示
+#### Obsidian管理
+- `/vault_search [キーワード]` - Obsidian内のノートを検索
+- `/vault_stats` - Vault統計情報の表示
+- `/daily_note [日付]` - 指定日のデイリーノートを作成・表示
 
-#### タスク管理コマンド
-- `/task_add [タスク名] [期限] [優先度] [説明]`: タスク作成
-- `/task_update [タスク名] [進捗率]`: 進捗更新
-- `/task_done [タスク名]`: タスク完了報告
-- `/task_list`: アクティブタスク一覧
-- `/schedule_add [イベント名] [日時] [場所] [説明]`: スケジュール作成
-- `/task_stats [期間]`: タスク統計表示
+#### テンプレート機能
+- `/list_templates` - 利用可能なテンプレート一覧
+- `/create_from_template [template] [content]` - テンプレートからノート作成
 
-## 開発
+## Obsidian Vaultの構造
 
-### 要件
-- Python 3.9+
-- Discord Bot Token
-- Google Cloud API Keys
-- Garmin Connect アカウント
+ボットによって以下のような構造でファイルが保存されます：
 
-### ローカル開発
-```bash
-pip install -r requirements.txt
-python -m pytest tests/
-python src/main.py
+```
+Obsidian Vault/
+├── 00_Capture/              # 新しいメモの受信箱
+├── 01_Process/              # 処理中のメモ
+├── 02_Knowledge/            # 整理済みの知識
+├── 03_Projects/             # プロジェクト関連
+├── 04_Life/                 # 日常・ライフ関連
+│   ├── Daily/               # デイリーノート
+│   ├── Finance/             # 家計関連
+│   ├── Health/              # 健康関連
+│   ├── Schedule/            # スケジュール
+│   └── Tasks/               # タスク管理
+├── 05_Resources/            # リソース・参考資料
+└── 99_Meta/                 # メタデータ・設定
+    └── Templates/           # カスタムテンプレート
 ```
 
-## ライセンス
+## よくある質問 (FAQ)
 
-MIT License
+### Q: ボットが反応しません
+**A:** 以下を確認してください：
+- `.env`ファイルのDiscordボットトークンが正しいか
+- ボットがDiscordサーバーに参加しているか
+- チャンネルIDが正しく設定されているか
+- ボットに該当チャンネルの読み取り権限があるか
 
-## 貢献
+### Q: 音声認識が機能しません
+**A:** 音声認識はオプション機能です：
+- Google Cloud Speech-to-Text APIの設定が必要
+- `GOOGLE_APPLICATION_CREDENTIALS`の設定が正しいか確認
+- 認証JSONファイルのパスが正しいか確認
 
-プルリクエストやイシューの報告を歓迎します。## 特徴
+### Q: Obsidianにファイルが保存されません
+**A:** 以下を確認してください：
+- `OBSIDIAN_VAULT_PATH`が正しい絶対パスで設定されているか
+- 指定したパスにObsidian Vaultが存在するか
+- ディレクトリに書き込み権限があるか
 
+### Q: Gemini APIの制限に達しました
+**A:** 無料枠の制限に達した可能性があります：
+- 1日1500リクエスト、1分間15リクエストの制限があります
+- しばらく時間を置いてから再度お試しください
+- 必要に応じて有料プランへのアップグレードを検討してください
 
-### 🎯 統合管理
-- メモ、家計、タスクを一つのシステムで統合管理
-- すべてのデータがObsidianで一元化され、横断的な分析が可能
-- デイリーノートで日々の活動を包括的に記録
+## 注意事項
 
-### 🤖 AI支援
-- Google Gemini APIによる自動要約・分類
-- 関連ノートの自動提案
-- 家計・タスクの改善提案
-- 月次レポートの自動生成
-
-### 💸 コスト効率
-- Google Cloud Runの無料枠で24時間稼働
-- Google Gemini API、Speech-to-Text APIの無料枠を活用
-- 追加コストなしで包括的なライフログシステムを構築
-
-### 🔒 セキュリティ
-- Google Cloud Secret Managerによる認証情報管理
-- 個人データの暗号化保存
-- アクセスログの記録
-
-## API使用量管理
-
-システムは無料枠を効率的に活用するよう設計されています：
-
-- **Gemini API**: 月15リクエスト/分、1日1500リクエスト
-- **Speech-to-Text API**: 月60分
-- **Cloud Run**: 月180,000 vCPU秒、200万リクエスト
-
-使用量が80%に達すると自動警告が送信され、制限到達時は基本機能のみで動作を継続します。
-
-## 仕様書
-
-詳細な仕様書は以下をご参照ください：
-
-- [要件定義書](.kiro/specs/discord-obsidian-memo-bot/requirements.md)
-- [設計書](.kiro/specs/discord-obsidian-memo-bot/design.md)
-- [実装計画](.kiro/specs/discord-obsidian-memo-bot/tasks.md)
+- このボットは個人利用を想定して設計されています
+- APIの無料枠を効率的に活用するため、使用量制限が設定されています
+- 音声認識機能は月60分の制限があります（Google Cloud Speech-to-Text無料枠）

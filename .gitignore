@@ -81,6 +81,9 @@ ipython_config.py
 # pipenv
 Pipfile.lock
 
+# uv (package manager)
+# Note: uv.lock is typically committed, but .venv is excluded
+
 # PEP 582
 __pypackages__/
 
@@ -114,6 +117,9 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Ruff cache
+.ruff_cache/
 
 # Pyre type checker
 .pyre/
@@ -160,3 +166,22 @@ obsidian-vault/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Additional project-specific ignores
+logs/
+.tmp/
+tmp/
+*.tmp
+*.temp
+local_config.py
+test_data/
+*.local.*
+google-credentials.json
+
+# Test and runtime directories
+.test_cache/
+backups/
+.config/discord-obsidian-bot/
+
+# Serena MCP cache
+.serena/

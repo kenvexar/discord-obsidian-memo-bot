@@ -1,0 +1,890 @@
+"""
+Discord bot client implementation
+"""
+
+from datetime import datetime, timedelta
+
+import discord
+from discord.ext import commands
+
+from ..config import settings
+from ..utils import LoggerMixin
+from .channel_config import ChannelConfig
+from .commands import setup_commands
+from .handlers import MessageHandler
+
+
+class DiscordBot(LoggerMixin):
+    """Main Discord bot client"""
+
+    def __init__(self) -> None:
+        # Initialize components first
+        self.channel_config = ChannelConfig()
+        self.message_handler = MessageHandler(self.channel_config)
+
+        # Track bot state
+        self.is_ready = False
+        self.guild: discord.Guild | None = None
+        self._start_time = datetime.now()
+
+        # Initialize monitoring systems
+        self.system_metrics = SystemMetrics()
+        self.api_usage_monitor = APIUsageMonitor()
+
+        # Initialize reminder systems
+        self.reminder_systems = []
+        self._initialize_reminder_systems()
+
+        # Initialize notification system
+        self.notification_system = None  # Will be initialized after client setup
+        self.config_manager = None  # Will be initialized after client setup
+
+        # Initialize client based on mock mode
+        if settings.is_mock_mode:
+            self.logger.info("Initializing Discord bot in MOCK mode")
+            from .mock_client import MockDiscordBot
+
+            self.client = MockDiscordBot()
+            self.client._start_time = self._start_time  # Add start time to mock client
+
+            # Register mock event handlers
+            self.client.on_ready(self._on_ready_mock)
+            self.client.on_message(self._on_message_mock)
+            self.client.on_error(self._on_error_mock)
+        else:
+            self.logger.info("Initializing Discord bot in PRODUCTION mode")
+            # Configure Discord intents
+            intents = discord.Intents.default()
+            intents.message_content = True  # Required to read message content
+            intents.guilds = True
+            intents.guild_messages = True
+            intents.voice_states = True  # For voice memo processing
+
+            # Initialize bot client
+            self.client = commands.Bot(
+                command_prefix="/",
+                intents=intents,
+                help_command=None,  # We'll implement custom help
+            )
+            self.client._start_time = self._start_time  # Add start time to client
+
+            # Register event handlers
+            self._register_events()
+
+        # Initialize notification system after client is ready
+        from .notification_system import NotificationSystem
+
+        self.notification_system = NotificationSystem(self.client, self.channel_config)
+
+        # Initialize configuration management system
+        from .config_manager import DynamicConfigManager
+
+        self.config_manager = DynamicConfigManager(
+            self.client, self.notification_system
+        )
+
+        # Initialize backup and review systems
+        from .backup_system import DataBackupSystem
+        from .review_system import AutoReviewSystem
+
+        self.backup_system = DataBackupSystem(self.client, self.notification_system)
+        self.review_system = AutoReviewSystem(self.client, self.notification_system)
+
+        self.logger.info("Discord bot initialized", mock_mode=settings.is_mock_mode)
+
+    def _register_events(self) -> None:
+        """Register Discord event handlers"""
+
+        @self.client.event
+        async def on_ready() -> None:
+            """Handle bot ready event"""
+            self.logger.info(
+                "Bot connected to Discord",
+                bot_user=str(self.client.user),
+                guild_count=len(self.client.guilds),
+            )
+
+            # Get the configured guild
+            self.guild = self.client.get_guild(settings.discord_guild_id)
+            if not self.guild:
+                self.logger.error(
+                    "Configured guild not found", guild_id=settings.discord_guild_id
+                )
+                return
+
+            self.logger.info(
+                "Connected to guild",
+                guild_name=self.guild.name,
+                guild_id=self.guild.id,
+                member_count=self.guild.member_count,
+            )
+
+            # Validate channel configuration
+            await self._validate_channels()
+
+            # Setup commands
+            await setup_commands(self.client, self.channel_config)
+
+            # Setup monitoring integration
+            self.message_handler.set_monitoring_systems(
+                self.system_metrics, self.api_usage_monitor
+            )
+
+            # Start reminder systems
+            await self._start_reminder_systems()
+
+            # Start backup and review systems
+            if self.backup_system:
+                await self.backup_system.start()
+            if self.review_system:
+                await self.review_system.start()
+
+            self.is_ready = True
+            self.logger.info("Bot is ready and operational")
+
+            # Send system startup notification
+            if self.notification_system:
+                await self.notification_system.send_system_event_notification(
+                    event_type="Bot Startup",
+                    description="Discord-Obsidian Bot が正常に起動しました。",
+                    system_info={
+                        "mode": "Production Mode",
+                        "guild": self.guild.name,
+                        "guild_id": self.guild.id,
+                        "member_count": self.guild.member_count,
+                        "channels_validated": True,
+                        "reminder_systems": len(self.reminder_systems),
+                        "startup_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    },
+                )
+
+        @self.client.event
+        async def on_message(message: discord.Message) -> None:
+            """Handle incoming messages"""
+            if not self.is_ready:
+                return
+
+            try:
+                # Process message through handler
+                result = await self.message_handler.process_message(message)
+
+                if result:
+                    self.logger.debug(
+                        "Message processed successfully",
+                        message_id=message.id,
+                        channel_id=message.channel.id,
+                    )
+
+                    # Send processing complete notification if significant processing occurred
+                    if result.get("ai_processed") or result.get("note_created"):
+                        await self._send_processing_notification(message, result)
+
+                # Process commands
+                await self.client.process_commands(message)
+
+            except Exception as e:
+                self.logger.error(
+                    "Error processing message",
+                    message_id=message.id,
+                    channel_id=message.channel.id,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+                # Send error notification for critical errors
+                if self.notification_system:
+                    await self.notification_system.send_error_notification(
+                        error_type="Message Processing Error",
+                        error_message=f"メッセージ処理中にエラーが発生しました: {str(e)[:200]}",
+                        context={
+                            "message_id": message.id,
+                            "channel_id": message.channel.id,
+                            "channel_name": getattr(message.channel, "name", "unknown"),
+                            "author": str(message.author),
+                            "content_length": len(message.content),
+                        },
+                    )
+
+        @self.client.event
+        async def on_error(event: str, *args, **kwargs) -> None:
+            """Handle Discord client errors"""
+            self.logger.error(
+                "Discord client error",
+                event=event,
+                args=args,
+                kwargs=kwargs,
+                exc_info=True,
+            )
+
+            # Send system error notification
+            if self.notification_system:
+                await self.notification_system.send_error_notification(
+                    error_type="Discord Client Error",
+                    error_message=f"Discord クライアントでエラーが発生しました: {event}",
+                    context={
+                        "event": event,
+                        "args": str(args)[:300],
+                        "kwargs": str(kwargs)[:300],
+                    },
+                )
+
+        @self.client.event
+        async def on_command_error(
+            ctx: commands.Context, error: commands.CommandError
+        ) -> None:
+            """Handle command errors"""
+            self.logger.error(
+                "Command error",
+                command=ctx.command.name if ctx.command else "unknown",
+                author=str(ctx.author),
+                channel_id=ctx.channel.id,
+                error=str(error),
+                exc_info=True,
+            )
+
+            # Send command error notification for serious errors
+            if self.notification_system and not isinstance(
+                error, commands.CommandNotFound | commands.MissingRequiredArgument
+            ):
+                await self.notification_system.send_error_notification(
+                    error_type="Command Error",
+                    error_message=f"コマンド実行中にエラーが発生しました: {str(error)[:200]}",
+                    context={
+                        "command": ctx.command.name if ctx.command else "unknown",
+                        "author": str(ctx.author),
+                        "channel": getattr(ctx.channel, "name", "unknown"),
+                        "channel_id": ctx.channel.id,
+                    },
+                    user_mention=ctx.author.mention,
+                )
+
+    async def _send_processing_notification(
+        self, message: discord.Message, result: dict
+    ) -> None:
+        """Send message processing complete notification"""
+        try:
+            if self.notification_system and result.get("note_path"):
+                processing_details = {
+                    "processing_time": result.get("processing_time", "不明"),
+                    "ai_processed": result.get("ai_processed", False),
+                    "categories": result.get("ai_categories", []),
+                    "confidence": result.get("ai_confidence"),
+                    "word_count": len(message.content.split())
+                    if message.content
+                    else 0,
+                }
+
+                await self.notification_system.send_processing_complete_notification(
+                    message_id=message.id,
+                    channel_name=getattr(message.channel, "name", "unknown"),
+                    note_path=result["note_path"],
+                    processing_details=processing_details,
+                )
+        except Exception as e:
+            self.logger.warning("Failed to send processing notification", error=str(e))
+
+    async def _on_ready_mock(self) -> None:
+        """Handle mock bot ready event"""
+        self.logger.info("Mock bot ready event triggered")
+
+        # Set mock guild
+        self.guild = self.client.guild
+
+        self.logger.info(
+            "Connected to mock guild",
+            guild_name=self.guild.name,
+            guild_id=self.guild.id,
+            member_count=self.guild.member_count,
+        )
+
+        # Validate mock channels
+        await self._validate_channels_mock()
+
+        # Setup monitoring integration
+        self.message_handler.set_monitoring_systems(
+            self.system_metrics, self.api_usage_monitor
+        )
+
+        # Start reminder systems
+        await self._start_reminder_systems()
+
+        # Start backup and review systems
+        if self.backup_system:
+            await self.backup_system.start()
+        if self.review_system:
+            await self.review_system.start()
+
+        self.is_ready = True
+        self.logger.info("Mock bot is ready and operational")
+
+        # Send system startup notification
+        if self.notification_system:
+            await self.notification_system.send_system_event_notification(
+                event_type="Bot Startup",
+                description="Discord-Obsidian Bot が正常に起動しました（モックモード）。",
+                system_info={
+                    "mode": "Mock Mode",
+                    "guild": self.guild.name,
+                    "channels_validated": True,
+                    "reminder_systems": len(self.reminder_systems),
+                    "startup_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                },
+            )
+
+    async def _on_message_mock(self, message) -> None:
+        """Handle mock incoming messages"""
+        if not self.is_ready:
+            return
+
+        try:
+            # Process message through handler
+            result = await self.message_handler.process_message(message)
+
+            if result:
+                self.logger.debug(
+                    "Mock message processed successfully",
+                    message_id=message.id,
+                    channel_id=message.channel_id,
+                )
+
+            # Process commands
+            await self.client.process_commands(message)
+
+        except Exception as e:
+            self.logger.error(
+                "Error processing mock message",
+                message_id=message.id,
+                channel_id=message.channel_id,
+                error=str(e),
+                exc_info=True,
+            )
+
+    async def _on_error_mock(self, event: str, *args, **kwargs) -> None:
+        """Handle mock Discord client errors"""
+        self.logger.error(
+            "Mock Discord client error",
+            event=event,
+            args=args,
+            kwargs=kwargs,
+            exc_info=True,
+        )
+
+    async def _validate_channels_mock(self) -> None:
+        """Validate that all configured channels exist in the mock guild"""
+        if not self.guild:
+            return
+
+        missing_channels = []
+
+        for channel_id, channel_info in self.channel_config.channels.items():
+            channel = self.client.get_channel(channel_id)
+            if not channel:
+                missing_channels.append(f"{channel_info.name} (ID: {channel_id})")
+                self.logger.warning(
+                    "Mock configured channel not found",
+                    channel_name=channel_info.name,
+                    channel_id=channel_id,
+                )
+            else:
+                self.logger.debug(
+                    "Mock channel validated",
+                    channel_name=channel.name,
+                    channel_id=channel_id,
+                    category=channel_info.category.value,
+                )
+
+        if missing_channels:
+            self.logger.warning(
+                "Some mock configured channels are missing",
+                missing_channels=missing_channels,
+            )
+        else:
+            self.logger.info("All mock configured channels validated successfully")
+
+    def _initialize_reminder_systems(self) -> None:
+        """Initialize reminder systems for finance and tasks"""
+        try:
+            # Initialize finance reminder system
+            from ..finance import BudgetManager, SubscriptionManager
+            from ..finance.reminder_system import FinanceReminderSystem
+
+            subscription_manager = SubscriptionManager()
+            budget_manager = BudgetManager()
+
+            self.finance_reminder_system = FinanceReminderSystem(
+                bot=self.client,
+                channel_config=self.channel_config,
+                subscription_manager=subscription_manager,
+                budget_manager=budget_manager,
+            )
+            self.reminder_systems.append(self.finance_reminder_system)
+
+            # Initialize task reminder system
+            from ..tasks import ScheduleManager, TaskManager
+            from ..tasks.reminder_system import TaskReminderSystem
+
+            task_manager = TaskManager()
+            schedule_manager = ScheduleManager()
+
+            self.task_reminder_system = TaskReminderSystem(
+                bot=self.client,
+                channel_config=self.channel_config,
+                task_manager=task_manager,
+                schedule_manager=schedule_manager,
+            )
+            self.reminder_systems.append(self.task_reminder_system)
+
+            # Initialize health analysis scheduler (if not in mock mode)
+            if not settings.is_mock_mode:
+                try:
+                    from ..health_analysis.scheduler import HealthAnalysisScheduler
+                    from ..obsidian import ObsidianFileManager
+
+                    obsidian_manager = ObsidianFileManager()
+                    self.health_scheduler = HealthAnalysisScheduler(
+                        obsidian_file_manager=obsidian_manager
+                    )
+                    self.reminder_systems.append(self.health_scheduler)
+                except ImportError:
+                    self.logger.warning("Health analysis scheduler not available")
+
+            self.logger.info(
+                "Reminder systems initialized", count=len(self.reminder_systems)
+            )
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to initialize reminder systems", error=str(e), exc_info=True
+            )
+            self.reminder_systems = []
+
+    async def _start_reminder_systems(self) -> None:
+        """Start all reminder systems"""
+        if not self.reminder_systems:
+            self.logger.warning("No reminder systems to start")
+            return
+
+        started_count = 0
+        for system in self.reminder_systems:
+            try:
+                await system.start()
+                started_count += 1
+            except Exception as e:
+                self.logger.error(
+                    "Failed to start reminder system",
+                    system=type(system).__name__,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+        self.logger.info(
+            "Reminder systems started",
+            started=started_count,
+            total=len(self.reminder_systems),
+        )
+
+    async def _stop_reminder_systems(self) -> None:
+        """Stop all reminder systems"""
+        if not self.reminder_systems:
+            return
+
+        stopped_count = 0
+        for system in self.reminder_systems:
+            try:
+                await system.stop()
+                stopped_count += 1
+            except Exception as e:
+                self.logger.error(
+                    "Failed to stop reminder system",
+                    system=type(system).__name__,
+                    error=str(e),
+                    exc_info=True,
+                )
+
+        self.logger.info(
+            "Reminder systems stopped",
+            stopped=stopped_count,
+            total=len(self.reminder_systems),
+        )
+
+    async def _validate_channels(self) -> None:
+        """Validate that all configured channels exist in the guild"""
+        if not self.guild:
+            return
+
+        missing_channels = []
+
+        for channel_id, channel_info in self.channel_config.channels.items():
+            channel = self.guild.get_channel(channel_id)
+            if not channel:
+                missing_channels.append(f"{channel_info.name} (ID: {channel_id})")
+                self.logger.warning(
+                    "Configured channel not found",
+                    channel_name=channel_info.name,
+                    channel_id=channel_id,
+                )
+            else:
+                self.logger.debug(
+                    "Channel validated",
+                    channel_name=channel.name,
+                    channel_id=channel_id,
+                    category=channel_info.category.value,
+                )
+
+        if missing_channels:
+            self.logger.warning(
+                "Some configured channels are missing",
+                missing_channels=missing_channels,
+            )
+        else:
+            self.logger.info("All configured channels validated successfully")
+
+    async def start(self) -> None:
+        """Start the Discord bot"""
+        self.logger.info("Starting Discord bot")
+
+        try:
+            await self.client.start(settings.discord_bot_token.get_secret_value())
+        except discord.LoginFailure:
+            self.logger.error("Invalid Discord bot token")
+            raise
+        except Exception as e:
+            self.logger.error(
+                "Failed to start Discord bot", error=str(e), exc_info=True
+            )
+            raise
+
+    async def stop(self) -> None:
+        """Stop the Discord bot"""
+        self.logger.info("Stopping Discord bot")
+
+        # Stop reminder systems first
+        await self._stop_reminder_systems()
+
+        # Stop backup and review systems
+        if hasattr(self, "backup_system") and self.backup_system:
+            await self.backup_system.stop()
+        if hasattr(self, "review_system") and self.review_system:
+            await self.review_system.stop()
+
+        # Close Discord client
+        await self.client.close()
+
+    async def send_notification(
+        self, message: str, channel_id: int | None = None
+    ) -> None:
+        """Send a notification message to a channel"""
+        if not self.is_ready or not self.guild:
+            self.logger.warning("Bot not ready, cannot send notification")
+            return
+
+        target_channel_id = channel_id or settings.channel_notifications
+        channel = self.guild.get_channel(target_channel_id)
+
+        if not channel:
+            self.logger.error(
+                "Notification channel not found", channel_id=target_channel_id
+            )
+            return
+
+        try:
+            await channel.send(message)
+            self.logger.info(
+                "Notification sent",
+                channel_id=target_channel_id,
+                message_length=len(message),
+            )
+        except Exception as e:
+            self.logger.error(
+                "Failed to send notification",
+                channel_id=target_channel_id,
+                error=str(e),
+                exc_info=True,
+            )
+
+
+class SystemMetrics(LoggerMixin):
+    """システムメトリクス収集とパフォーマンス監視"""
+
+    def __init__(self):
+        self.metrics = {
+            "total_messages_processed": 0,
+            "successful_ai_requests": 0,
+            "failed_ai_requests": 0,
+            "api_usage_minutes": 0.0,
+            "obsidian_files_created": 0,
+            "errors_last_hour": 0,
+            "warnings_last_hour": 0,
+            "system_start_time": datetime.now(),
+        }
+        self.hourly_stats = {}
+        self.error_history = []
+        self.performance_history = []
+
+    def record_message_processed(self):
+        """メッセージ処理の記録"""
+        self.metrics["total_messages_processed"] += 1
+
+    def record_ai_request(self, success: bool, processing_time_ms: int):
+        """AI リクエストの記録"""
+        if success:
+            self.metrics["successful_ai_requests"] += 1
+        else:
+            self.metrics["failed_ai_requests"] += 1
+
+        self.performance_history.append(
+            {
+                "timestamp": datetime.now(),
+                "type": "ai_request",
+                "success": success,
+                "processing_time_ms": processing_time_ms,
+            }
+        )
+
+    def record_api_usage(self, minutes: float):
+        """API使用時間の記録"""
+        self.metrics["api_usage_minutes"] += minutes
+
+    def record_file_created(self):
+        """Obsidianファイル作成の記録"""
+        self.metrics["obsidian_files_created"] += 1
+
+    def record_error(self, error_type: str, message: str):
+        """エラーの記録"""
+        self.metrics["errors_last_hour"] += 1
+        self.error_history.append(
+            {"timestamp": datetime.now(), "type": error_type, "message": message}
+        )
+        # 古いエラー履歴を削除（過去1時間のみ保持）
+        cutoff = datetime.now() - timedelta(hours=1)
+        self.error_history = [e for e in self.error_history if e["timestamp"] > cutoff]
+
+    def record_warning(self, warning_type: str, message: str):
+        """警告の記録"""
+        self.metrics["warnings_last_hour"] += 1
+
+    def get_system_health_status(self) -> dict:
+        """システム健康状態の取得"""
+        uptime = datetime.now() - self.metrics["system_start_time"]
+
+        # 最近のパフォーマンス分析
+        recent_performance = [
+            p
+            for p in self.performance_history
+            if p["timestamp"] > datetime.now() - timedelta(hours=1)
+        ]
+
+        avg_response_time = 0
+        if recent_performance:
+            avg_response_time = sum(
+                p["processing_time_ms"] for p in recent_performance
+            ) / len(recent_performance)
+
+        return {
+            "system_uptime": str(uptime),
+            "discord_status": "connected",
+            "total_messages_processed": self.metrics["total_messages_processed"],
+            "recent_errors": len(
+                [
+                    e
+                    for e in self.error_history
+                    if e["timestamp"] > datetime.now() - timedelta(hours=1)
+                ]
+            ),
+            "recent_warnings": self.metrics["warnings_last_hour"],
+            "avg_response_time_ms": int(avg_response_time),
+            "ai_success_rate": (
+                self.metrics["successful_ai_requests"]
+                / max(
+                    1,
+                    self.metrics["successful_ai_requests"]
+                    + self.metrics["failed_ai_requests"],
+                )
+            )
+            * 100,
+            "api_usage_minutes": self.metrics["api_usage_minutes"],
+            "files_created": self.metrics["obsidian_files_created"],
+            "performance_score": self._calculate_performance_score(),
+        }
+
+    def _calculate_performance_score(self) -> int:
+        """パフォーマンススコアの計算（0-100）"""
+        score = 100
+
+        # エラー率による減点
+        total_requests = (
+            self.metrics["successful_ai_requests"] + self.metrics["failed_ai_requests"]
+        )
+        if total_requests > 0:
+            error_rate = self.metrics["failed_ai_requests"] / total_requests
+            score -= int(error_rate * 50)  # 最大50点減点
+
+        # 最近のエラー数による減点
+        recent_errors = len(self.error_history)
+        if recent_errors > 10:
+            score -= min(30, recent_errors - 10)  # 最大30点減点
+
+        # 警告数による減点
+        if self.metrics["warnings_last_hour"] > 5:
+            score -= min(
+                20, (self.metrics["warnings_last_hour"] - 5) * 2
+            )  # 最大20点減点
+
+        return max(0, score)
+
+    def get_hourly_report(self) -> dict:
+        """時間別レポートの生成"""
+        current_hour = datetime.now().hour
+        if current_hour not in self.hourly_stats:
+            self.hourly_stats[current_hour] = {
+                "messages": 0,
+                "ai_requests": 0,
+                "errors": 0,
+                "files_created": 0,
+                "start_time": datetime.now().replace(minute=0, second=0, microsecond=0),
+            }
+
+        return self.hourly_stats
+
+    def reset_hourly_metrics(self):
+        """時間別メトリクスのリセット"""
+        self.metrics["errors_last_hour"] = 0
+        self.metrics["warnings_last_hour"] = 0
+        # 古いパフォーマンス履歴を削除
+        cutoff = datetime.now() - timedelta(hours=24)
+        self.performance_history = [
+            p for p in self.performance_history if p["timestamp"] > cutoff
+        ]
+
+
+class APIUsageMonitor(LoggerMixin):
+    """API使用量の監視とダッシュボード"""
+
+    def __init__(self):
+        self.gemini_usage = {"requests": 0, "tokens": 0, "errors": 0}
+        self.speech_usage = {"requests": 0, "minutes": 0.0, "errors": 0}
+        self.daily_limits = {"gemini_requests": 10000, "speech_minutes": 60.0}
+        self.monthly_usage = {}
+        self.usage_warnings_sent = set()
+
+    def track_gemini_usage(self, tokens: int, success: bool):
+        """Gemini API使用量の記録"""
+        self.gemini_usage["requests"] += 1
+        if success:
+            self.gemini_usage["tokens"] += tokens
+        else:
+            self.gemini_usage["errors"] += 1
+
+        self._check_usage_limits()
+
+    def track_speech_usage(self, minutes: float, success: bool):
+        """Speech API使用量の記録"""
+        self.speech_usage["requests"] += 1
+        if success:
+            self.speech_usage["minutes"] += minutes
+        else:
+            self.speech_usage["errors"] += 1
+
+        self._check_usage_limits()
+
+    def _check_usage_limits(self):
+        """使用量制限のチェックと警告"""
+        # Gemini API制限チェック（80%に達した場合）
+        gemini_usage_percent = (
+            self.gemini_usage["requests"] / self.daily_limits["gemini_requests"]
+        ) * 100
+        if gemini_usage_percent >= 80 and "gemini_80" not in self.usage_warnings_sent:
+            self.logger.warning(
+                "Gemini API usage approaching limit",
+                usage_percent=gemini_usage_percent,
+                requests=self.gemini_usage["requests"],
+                limit=self.daily_limits["gemini_requests"],
+            )
+            self.usage_warnings_sent.add("gemini_80")
+
+        # Speech API制限チェック（80%に達した場合）
+        speech_usage_percent = (
+            self.speech_usage["minutes"] / self.daily_limits["speech_minutes"]
+        ) * 100
+        if speech_usage_percent >= 80 and "speech_80" not in self.usage_warnings_sent:
+            self.logger.warning(
+                "Speech API usage approaching limit",
+                usage_percent=speech_usage_percent,
+                minutes=self.speech_usage["minutes"],
+                limit=self.daily_limits["speech_minutes"],
+            )
+            self.usage_warnings_sent.add("speech_80")
+
+    def get_usage_dashboard(self) -> dict:
+        """API使用量ダッシュボードデータの取得"""
+        return {
+            "gemini_api": {
+                "requests_used": self.gemini_usage["requests"],
+                "requests_limit": self.daily_limits["gemini_requests"],
+                "usage_percentage": (
+                    self.gemini_usage["requests"] / self.daily_limits["gemini_requests"]
+                )
+                * 100,
+                "tokens_processed": self.gemini_usage["tokens"],
+                "error_count": self.gemini_usage["errors"],
+                "success_rate": (
+                    (self.gemini_usage["requests"] - self.gemini_usage["errors"])
+                    / max(1, self.gemini_usage["requests"])
+                )
+                * 100,
+            },
+            "speech_api": {
+                "minutes_used": self.speech_usage["minutes"],
+                "minutes_limit": self.daily_limits["speech_minutes"],
+                "usage_percentage": (
+                    self.speech_usage["minutes"] / self.daily_limits["speech_minutes"]
+                )
+                * 100,
+                "requests_made": self.speech_usage["requests"],
+                "error_count": self.speech_usage["errors"],
+                "success_rate": (
+                    (self.speech_usage["requests"] - self.speech_usage["errors"])
+                    / max(1, self.speech_usage["requests"])
+                )
+                * 100,
+            },
+        }
+
+    def reset_daily_usage(self):
+        """日次使用量のリセット"""
+        self.gemini_usage = {"requests": 0, "tokens": 0, "errors": 0}
+        self.speech_usage = {"requests": 0, "minutes": 0.0, "errors": 0}
+        self.usage_warnings_sent.clear()
+        self.logger.info("Daily API usage metrics reset")
+
+    def export_usage_report(self) -> dict:
+        """使用量レポートのエクスポート"""
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "period": "daily",
+            "apis": self.get_usage_dashboard(),
+            "summary": {
+                "total_requests": self.gemini_usage["requests"]
+                + self.speech_usage["requests"],
+                "total_errors": self.gemini_usage["errors"]
+                + self.speech_usage["errors"],
+                "cost_estimation": self._estimate_costs(),
+            },
+        }
+        return report
+
+    def _estimate_costs(self) -> dict:
+        """コスト見積もり（概算）"""
+        # Google Cloud Speech-to-Text: $0.006 per 15 seconds
+        speech_cost = (self.speech_usage["minutes"] * 60 / 15) * 0.006
+
+        # Gemini API: 大まかな見積もり（トークン数ベース）
+        gemini_cost = (
+            self.gemini_usage["tokens"] / 1000
+        ) * 0.001  # $0.001 per 1K tokens (概算)
+
+        return {
+            "speech_api_usd": round(speech_cost, 4),
+            "gemini_api_usd": round(gemini_cost, 4),
+            "total_estimated_usd": round(speech_cost + gemini_cost, 4),
+        }

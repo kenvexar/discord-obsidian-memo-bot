@@ -1,0 +1,173 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # Create GitHub Release
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Extract version from tag
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Generate changelog
+      id: changelog
+      run: |
+        # Get the previous tag
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+        
+        if [ -n "$PREVIOUS_TAG" ]; then
+          echo "## Changes since $PREVIOUS_TAG" > CHANGELOG.md
+          git log --pretty=format:"- %s (%an)" $PREVIOUS_TAG..HEAD >> CHANGELOG.md
+        else
+          echo "## Initial Release" > CHANGELOG.md
+          echo "First release of Discord Obsidian Memo Bot" >> CHANGELOG.md
+        fi
+        
+        # Set multiline output for GitHub Actions
+        echo "changelog<<EOF" >> $GITHUB_OUTPUT
+        cat CHANGELOG.md >> $GITHUB_OUTPUT
+        echo "EOF" >> $GITHUB_OUTPUT
+
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release v${{ env.VERSION }}
+        body: |
+          # Discord Obsidian Memo Bot v${{ env.VERSION }}
+          
+          ${{ steps.changelog.outputs.changelog }}
+          
+          ## Installation
+          
+          ### Docker
+          ```bash
+          docker pull gcr.io/${{ secrets.GCP_PROJECT_ID }}/discord-obsidian-memo-bot:v${{ env.VERSION }}
+          ```
+          
+          ### From Source
+          ```bash
+          git clone https://github.com/${{ github.repository }}.git
+          cd discord-obsidian-memo-bot
+          git checkout v${{ env.VERSION }}
+          uv sync
+          ```
+          
+          ## Configuration
+          
+          See the [README.md](https://github.com/${{ github.repository }}/blob/v${{ env.VERSION }}/README.md) for detailed setup instructions.
+        draft: false
+        prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+
+  # Build and push production Docker image
+  build-and-push:
+    runs-on: ubuntu-latest
+    needs: [create-release]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Extract version from tag
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Setup Google Cloud CLI
+      uses: google-github-actions/setup-gcloud@v2
+      with:
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        export_default_credentials: true
+
+    - name: Configure Docker for Google Cloud
+      run: |
+        gcloud auth configure-docker gcr.io
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build and push release Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        tags: |
+          gcr.io/${{ secrets.GCP_PROJECT_ID }}/discord-obsidian-memo-bot:v${{ env.VERSION }}
+          gcr.io/${{ secrets.GCP_PROJECT_ID }}/discord-obsidian-memo-bot:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        platforms: linux/amd64
+
+    - name: Update production deployment
+      run: |
+        gcloud run deploy discord-obsidian-memo-bot \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/discord-obsidian-memo-bot:v${{ env.VERSION }} \
+          --region asia-northeast1 \
+          --platform managed
+
+    - name: Verify production deployment
+      run: |
+        SERVICE_URL=$(gcloud run services describe discord-obsidian-memo-bot \
+          --region asia-northeast1 \
+          --format='value(status.url)')
+        
+        echo "Production service URL: $SERVICE_URL"
+        
+        # Wait for deployment to stabilize
+        sleep 30
+        
+        # Health check
+        if curl -f "$SERVICE_URL/health" --max-time 30; then
+          echo "✅ Production deployment successful! v${{ env.VERSION }} is live."
+        else
+          echo "❌ Production health check failed."
+          gcloud logs read "resource.type=cloud_run_revision" --limit=20
+          exit 1
+        fi
+
+  # Notify successful release
+  notify-release:
+    runs-on: ubuntu-latest
+    needs: [build-and-push]
+    if: always()
+
+    steps:
+    - name: Extract version from tag
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+    - name: Notify release success
+      if: needs.build-and-push.result == 'success'
+      run: |
+        echo "🚀 Release v${{ env.VERSION }} deployed successfully!"
+        echo "Production service is now running the new version."
+        # Add Discord webhook or other notification logic here
+
+    - name: Notify release failure
+      if: needs.build-and-push.result == 'failure'
+      run: |
+        echo "🚨 Release v${{ env.VERSION }} deployment failed!"
+        echo "Check the logs and rollback if necessary."
+        # Add Discord webhook or other notification logic here
