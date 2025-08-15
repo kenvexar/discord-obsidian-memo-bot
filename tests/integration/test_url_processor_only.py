@@ -49,7 +49,7 @@ class SimpleURLExtractor:
                     ),
                 ]
             )
-        except:
+        except Exception:
             return False
 
 

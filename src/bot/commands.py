@@ -3,6 +3,7 @@ Discord bot commands implementation
 """
 
 import discord
+from datetime import datetime
 from discord.ext import commands
 
 from ..ai import AIProcessor, ProcessingSettings
@@ -453,7 +454,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 minutes = (uptime_delta.total_seconds() % 3600) // 60
                 return f"{int(hours)}時間{int(minutes)}分"
             return "不明"
-        except:
+        except Exception:
             return "不明"
 
     @commands.command(name="random_note")

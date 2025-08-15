@@ -8,7 +8,6 @@ from typing import Any
 
 try:
     import google.generativeai as genai
-    from google.generativeai.types import GenerateContentResponse
 
     GENAI_AVAILABLE = True
 except ImportError:
@@ -132,7 +131,7 @@ class GeminiClient(LoggerMixin):
 
         except Exception as e:
             self.logger.error("Failed to initialize Gemini client", error=str(e))
-            raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}")
+            raise GeminiAPIError(f"Failed to initialize Gemini client: {str(e)}") from e
 
     async def _rate_limit_check(self) -> None:
         """レート制限チェックと待機"""
@@ -210,7 +209,7 @@ class GeminiClient(LoggerMixin):
                         await asyncio.sleep(wait_time)
                         continue
                     else:
-                        raise RateLimitExceeded()
+                        raise RateLimitExceeded() from e
 
                 # その他のAPIエラー
                 self.logger.error(
@@ -220,7 +219,7 @@ class GeminiClient(LoggerMixin):
                 if attempt == retry_count:
                     raise GeminiAPIError(
                         f"API call failed after {retry_count + 1} attempts: {error_msg}"
-                    )
+                    ) from e
 
                 # リトライ前の待機
                 await asyncio.sleep(1 * (attempt + 1))
@@ -478,7 +477,7 @@ class GeminiClient(LoggerMixin):
 
         except Exception as e:
             self.logger.error("Parallel processing failed", error=str(e))
-            raise GeminiAPIError(f"Parallel processing failed: {str(e)}")
+            raise GeminiAPIError(f"Parallel processing failed: {str(e)}") from e
 
     def get_usage_info(self) -> APIUsageInfo:
         """API使用量情報を取得"""

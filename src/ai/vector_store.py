@@ -6,7 +6,7 @@ import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import aiofiles
 
@@ -122,7 +122,7 @@ class VectorStore(LoggerMixin):
     def __init__(
         self,
         obsidian_file_manager: "ObsidianFileManager",
-        ai_processor: Optional["AIProcessor"] = None,
+        ai_processor: Any | None = None,
     ):
         """
         初期化
@@ -512,7 +512,7 @@ class VectorStore(LoggerMixin):
                         frontmatter = content[3:frontmatter_end]
                         metadata = yaml.safe_load(frontmatter)
                         content = content[frontmatter_end + 3 :].strip()
-                except:
+                except Exception:
                     pass
 
             # 埋め込み生成
@@ -618,7 +618,7 @@ class VectorStore(LoggerMixin):
 
                         documents.append(content)
                         self.file_paths_index.append(file_path)
-                except:
+                except Exception:
                     continue
 
             if documents:

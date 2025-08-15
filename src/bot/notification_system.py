@@ -393,5 +393,5 @@ class NotificationSystem(LoggerMixin):
                 minutes = int((uptime_delta.total_seconds() % 3600) // 60)
                 return f"{hours}時間{minutes}分"
             return "不明"
-        except:
+        except Exception:
             return "不明"

@@ -363,5 +363,5 @@ class URLContentExtractor(LoggerMixin):
                     ),
                 ]
             )
-        except:
+        except Exception:
             return False
