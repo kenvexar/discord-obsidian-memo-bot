@@ -380,9 +380,12 @@ class SpeechProcessor(LoggerMixin):
             api_key = settings.google_cloud_speech_api_key.get_secret_value()
             url = f"https://speech.googleapis.com/v1/speech:recognize?key={api_key}"
 
-            async with aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(total=30)
-            ) as session, session.post(url, json=request_data) as response:
+            async with (
+                aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as session,
+                session.post(url, json=request_data) as response,
+            ):
                 # HTTPステータスコードに基づく分岐処理
                 if response.status == 200:
                     result = await response.json()

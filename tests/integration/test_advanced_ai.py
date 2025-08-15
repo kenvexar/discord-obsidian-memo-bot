@@ -2,6 +2,7 @@
 """
 Advanced AI features test script
 """
+
 import asyncio
 import sys
 from datetime import datetime
@@ -136,7 +137,8 @@ async def test_vector_store():
     try:
         # モック設定でベクトルストアを作成
         vector_store = VectorStore(
-            obsidian_file_manager=None, ai_processor=None  # Mock mode  # Mock mode
+            obsidian_file_manager=None,
+            ai_processor=None,  # Mock mode  # Mock mode
         )
 
         # 統計情報の取得
@@ -227,7 +229,8 @@ async def test_note_analyzer_integration():
     try:
         # モック設定でノート分析器を作成
         note_analyzer = AdvancedNoteAnalyzer(
-            obsidian_file_manager=None, ai_processor=AIProcessor()  # Mock mode
+            obsidian_file_manager=None,
+            ai_processor=AIProcessor(),  # Mock mode
         )
 
         # システム統計情報の取得

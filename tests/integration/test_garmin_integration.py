@@ -2,6 +2,7 @@
 """
 Garmin integration test script
 """
+
 import asyncio
 import os
 import sys

@@ -2,6 +2,7 @@
 """
 URL processor standalone test
 """
+
 import asyncio
 import logging
 
@@ -79,7 +80,7 @@ async def test_url_extraction():
         ]
 
         for i, text in enumerate(test_texts):
-            print(f"\nTest {i+1}:")
+            print(f"\nTest {i + 1}:")
             print(f"Text: {text.strip()}")
 
             urls = extractor.extract_urls_from_text(text)

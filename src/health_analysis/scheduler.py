@@ -127,7 +127,9 @@ class HealthAnalysisScheduler(LoggerMixin):
         # 今週すでに実行済みかチェック
         week_start = now.date() - timedelta(days=now.weekday())
 
-        return not (self.last_weekly_analysis and self.last_weekly_analysis >= week_start)
+        return not (
+            self.last_weekly_analysis and self.last_weekly_analysis >= week_start
+        )
 
     async def _run_weekly_analysis(self, current_date: date) -> None:
         """週次分析を実行"""

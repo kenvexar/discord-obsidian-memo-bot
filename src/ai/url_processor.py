@@ -77,9 +77,12 @@ class URLContentExtractor(LoggerMixin):
         try:
             self.logger.debug("Fetching URL content", url=url)
 
-            async with aiohttp.ClientSession(
-                timeout=self.timeout, headers=self.headers
-            ) as session, session.get(url) as response:
+            async with (
+                aiohttp.ClientSession(
+                    timeout=self.timeout, headers=self.headers
+                ) as session,
+                session.get(url) as response,
+            ):
                 if response.status != 200:
                     self.logger.warning(
                         "HTTP error when fetching URL",

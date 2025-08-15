@@ -73,15 +73,15 @@ class TestChannelConfig:
             capture_channels = config.get_capture_channels()
             finance_channels = config.get_finance_channels()
 
-            assert (
-                len(capture_channels) > 0
-            ), f"capture_channels is empty: {capture_channels}"
-            assert (
-                len(finance_channels) > 0
-            ), f"finance_channels is empty: {finance_channels}"
-            assert capture_channels.isdisjoint(
-                finance_channels
-            ), "Capture and finance channels should not overlap"
+            assert len(capture_channels) > 0, (
+                f"capture_channels is empty: {capture_channels}"
+            )
+            assert len(finance_channels) > 0, (
+                f"finance_channels is empty: {finance_channels}"
+            )
+            assert capture_channels.isdisjoint(finance_channels), (
+                "Capture and finance channels should not overlap"
+            )
 
             # 具体的なチャンネルIDを確認
             expected_capture = {111111111, 222222222, 333333333}

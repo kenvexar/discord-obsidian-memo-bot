@@ -165,7 +165,6 @@ def _format_activities_data(activities: list[ActivityData]) -> str:
     lines = ["### 🏋️ アクティビティ"]
 
     for activity in activities:
-
         # アクティビティタイプとアイコン
         activity_icon = _get_activity_icon(activity.activity_type)
         activity_name = (

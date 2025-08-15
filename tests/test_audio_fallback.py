@@ -194,7 +194,6 @@ class TestSpeechProcessorFallback:
             mock_modules.__getitem__.return_value = mock_whisper
 
             with patch("tempfile.NamedTemporaryFile") as mock_temp, patch("os.unlink"):
-
                 # 一時ファイル設定
                 mock_temp_file = MagicMock()
                 mock_temp_file.name = "/tmp/test_audio.mp3"

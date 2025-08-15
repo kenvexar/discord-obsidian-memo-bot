@@ -2,6 +2,7 @@
 """
 Health analysis integration test script
 """
+
 import asyncio
 import sys
 from datetime import date, timedelta

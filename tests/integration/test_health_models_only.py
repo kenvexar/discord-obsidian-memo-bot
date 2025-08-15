@@ -2,6 +2,7 @@
 """
 Health analysis models test script (standalone)
 """
+
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
