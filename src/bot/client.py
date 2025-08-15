@@ -48,7 +48,7 @@ class DiscordBot(LoggerMixin):
             self.client: commands.Bot | Any = (
                 MockDiscordBot()
             )  # Use Any for MockDiscordBot
-            self.client._start_time = self._start_time  # Add start time to mock client
+            self.client._start_time = self._start_time
 
             # Register mock event handlers
             self.client.on_ready(self._on_ready_mock)
@@ -69,8 +69,8 @@ class DiscordBot(LoggerMixin):
                 intents=intents,
                 help_command=None,  # We'll implement custom help
             )
-            # Add start time to client using setattr to avoid type checking
-            self.client._start_time = self._start_time
+            # Add start time to client using type ignore to avoid type checking
+            self.client._start_time = self._start_time  # type: ignore[attr-defined]
 
             # Register event handlers
             self._register_events()
@@ -84,16 +84,16 @@ class DiscordBot(LoggerMixin):
         from .config_manager import DynamicConfigManager
 
         self.config_manager = DynamicConfigManager(
-            self.client,
-            self.notification_system,  # type: ignore
+            self.client,  # type: ignore[arg-type]
+            self.notification_system,
         )
 
         # Initialize backup and review systems
         from .backup_system import DataBackupSystem
         from .review_system import AutoReviewSystem
 
-        self.backup_system = DataBackupSystem(self.client, self.notification_system)  # type: ignore
-        self.review_system = AutoReviewSystem(self.client, self.notification_system)  # type: ignore
+        self.backup_system = DataBackupSystem(self.client, self.notification_system)  # type: ignore[arg-type]
+        self.review_system = AutoReviewSystem(self.client, self.notification_system)  # type: ignore[arg-type]
 
         self.logger.info("Discord bot initialized", mock_mode=settings.is_mock_mode)
 

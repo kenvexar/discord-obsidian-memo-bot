@@ -517,11 +517,11 @@ class VaultOrganizer(LoggerMixin):
                     if (
                         hasattr(note.frontmatter, "ai_processing_time")
                         and note.frontmatter.ai_processing_time
+                        and isinstance(stats["ai_processing_time_total"], int)
                     ):
-                        if isinstance(stats["ai_processing_time_total"], int):
-                            stats["ai_processing_time_total"] += int(
-                                note.frontmatter.ai_processing_time
-                            )
+                        stats["ai_processing_time_total"] += int(
+                            note.frontmatter.ai_processing_time
+                        )
 
                 # カテゴリ統計
                 if (

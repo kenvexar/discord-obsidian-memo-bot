@@ -236,7 +236,7 @@ class MockDiscordBot(LoggerMixin):
                 author_id=12345,
                 author_name=str(msg_data["author"]),
                 channel_id=int(msg_data["channel_id"])
-                if isinstance(msg_data["channel_id"], (str, int))
+                if isinstance(msg_data["channel_id"], str | int)
                 else 0,
                 guild_id=self.guild.id,
                 timestamp=datetime.now(),

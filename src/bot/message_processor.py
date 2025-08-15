@@ -126,7 +126,7 @@ class MessageProcessor(LoggerMixin):
             url_count=(
                 len(metadata["content"]["urls"])
                 if "urls" in metadata["content"]
-                and isinstance(metadata["content"]["urls"], (list, tuple))
+                and isinstance(metadata["content"]["urls"], list | tuple)
                 else 0
             ),
         )

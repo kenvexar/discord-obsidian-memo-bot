@@ -23,7 +23,7 @@ from health_analysis.models import (
 )
 
 
-async def test_health_analysis_models():
+async def test_health_analysis_models() -> None:
     """健康分析モデルのテスト"""
     print("=== Testing Health Analysis Models ===")
 

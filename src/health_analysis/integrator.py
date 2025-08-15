@@ -160,10 +160,13 @@ class HealthActivityIntegrator(LoggerMixin):
 
             for note in daily_notes:
                 # メッセージ時間の抽出
-                if hasattr(note.frontmatter, "created") and note.frontmatter.created:
-                    if hasattr(note.frontmatter.created, "hour"):
-                        hour = note.frontmatter.created.hour
-                        activity_summary["active_hours"].add(hour)
+                if (
+                    hasattr(note.frontmatter, "created")
+                    and note.frontmatter.created
+                    and hasattr(note.frontmatter.created, "hour")
+                ):
+                    hour = note.frontmatter.created.hour
+                    activity_summary["active_hours"].add(hour)
 
                 # チャンネル活動
                 if hasattr(note.frontmatter, "channel_name"):

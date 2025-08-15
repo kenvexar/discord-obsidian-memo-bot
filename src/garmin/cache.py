@@ -2,16 +2,14 @@
 Garmin health data caching system
 """
 
+import contextlib
 import pickle
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-try:
+with contextlib.suppress(ImportError):
     from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing, create a mock LoggerMixin
-    pass
 
 
 from .models import HealthData
