@@ -14,12 +14,12 @@ from .utils import get_logger
 class HealthCheckHandler(BaseHTTPRequestHandler):
     """HTTP handler for health check endpoints"""
 
-    def __init__(self, *args, bot_instance=None, **kwargs):
+    def __init__(self, *args: Any, bot_instance: Any = None, **kwargs: Any) -> None:
         self.bot_instance = bot_instance
         self.logger = get_logger("health_server")
         super().__init__(*args, **kwargs)
 
-    def do_GET(self):
+    def do_GET(self) -> None:
         """Handle GET requests"""
         if self.path == "/health":
             self._handle_health()
@@ -30,7 +30,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         else:
             self._send_response(404, {"error": "Not Found"})
 
-    def _handle_health(self):
+    def _handle_health(self) -> None:
         """Basic health check - always returns healthy if server is running"""
         health_data = {
             "status": "healthy",
@@ -40,7 +40,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         }
         self._send_response(200, health_data)
 
-    def _handle_ready(self):
+    def _handle_ready(self) -> None:
         """Readiness check - checks if bot is connected and operational"""
         if not self.bot_instance:
             self._send_response(
@@ -65,7 +65,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         }
         self._send_response(200, ready_data)
 
-    def _handle_metrics(self):
+    def _handle_metrics(self) -> None:
         """Expose basic metrics for monitoring"""
         if not self.bot_instance:
             self._send_response(503, {"error": "bot_not_available"})
@@ -78,9 +78,11 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
             ).total_seconds(),
             "bot_status": {
                 "connected": self.bot_instance.is_ready,
-                "guild_count": len(self.bot_instance.client.guilds)
-                if hasattr(self.bot_instance.client, "guilds")
-                else 0,
+                "guild_count": (
+                    len(self.bot_instance.client.guilds)
+                    if hasattr(self.bot_instance.client, "guilds")
+                    else 0
+                ),
             },
         }
 
@@ -98,7 +100,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 
         self._send_response(200, metrics)
 
-    def _send_response(self, status_code: int, data: dict[str, Any]):
+    def _send_response(self, status_code: int, data: dict[str, Any]) -> None:
         """Send JSON response"""
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json")
@@ -108,7 +110,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         response_body = json.dumps(data, ensure_ascii=False, indent=2)
         self.wfile.write(response_body.encode("utf-8"))
 
-    def log_message(self, format, *args):
+    def log_message(self, format: str, *args: Any) -> None:
         """Override to use our logger instead of stderr"""
         self.logger.debug(f"Health server: {format % args}")
 
@@ -116,17 +118,17 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
 class HealthServer:
     """Health check server for Cloud Run deployment"""
 
-    def __init__(self, bot_instance=None, port: int = 8080):
+    def __init__(self, bot_instance: Any = None, port: int = 8080) -> None:
         self.bot_instance = bot_instance
         self.port = port
-        self.server = None
-        self.thread = None
+        self.server: HTTPServer | None = None
+        self.thread: Thread | None = None
         self.logger = get_logger("health_server")
 
-    def start(self):
+    def start(self) -> None:
         """Start the health check server"""
 
-        def handler(*args, **kwargs):
+        def handler(*args: Any, **kwargs: Any) -> HealthCheckHandler:
             return HealthCheckHandler(*args, bot_instance=self.bot_instance, **kwargs)
 
         try:
@@ -144,7 +146,7 @@ class HealthServer:
             self.logger.error(f"Failed to start health server: {e}")
             raise
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop the health check server"""
         if self.server:
             self.logger.info("Stopping health check server")

@@ -4,39 +4,26 @@ Advanced note analyzer with semantic search and AI-powered features
 
 import re
 from datetime import datetime
-from typing import Any
+from typing import Any, Union
 
-try:
-    from ..config import settings
-    from ..obsidian import ObsidianFileManager
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
-
-    class MockObsidianFileManager:
-        pass
-
-    class MockSettings:
-        obsidian_vault_path = "/tmp/vault"
-
-    settings = MockSettings()
-
+from ..config.settings import get_settings
+from ..obsidian.file_manager import ObsidianFileManager
+from ..utils.logger import LoggerMixin
+from .mock_processor import MockAIProcessor
 from .processor import AIProcessor
 from .url_processor import URLContentExtractor
 from .vector_store import SemanticSearchResult, VectorStore
+
+settings = get_settings()
 
 
 class AdvancedNoteAnalyzer(LoggerMixin):
     """高度なノート分析システム"""
 
     def __init__(
-        self, obsidian_file_manager: "ObsidianFileManager", ai_processor: "AIProcessor"
+        self,
+        obsidian_file_manager: "ObsidianFileManager",
+        ai_processor: Union["AIProcessor", "MockAIProcessor"],
     ):
         """
         初期化
@@ -109,15 +96,17 @@ class AdvancedNoteAnalyzer(LoggerMixin):
                 related_notes = await self._find_related_notes(
                     content, exclude_file=file_path
                 )
-                analysis_results["related_notes"] = [
-                    {
-                        "file_path": note.file_path,
-                        "title": note.title,
-                        "similarity_score": note.similarity_score,
-                        "content_preview": note.content_preview,
-                    }
-                    for note in related_notes
-                ]
+                analysis_results["related_notes"] = {
+                    "results": [
+                        {
+                            "file_path": note.file_path,
+                            "title": note.title,
+                            "similarity_score": note.similarity_score,
+                            "content_preview": note.content_preview,
+                        }
+                        for note in related_notes
+                    ]
+                }
 
             # 3. 内部リンク提案
             internal_links = []
@@ -125,13 +114,13 @@ class AdvancedNoteAnalyzer(LoggerMixin):
                 internal_links = await self._generate_internal_links(
                     content, related_notes
                 )
-                analysis_results["internal_links"] = internal_links
+                analysis_results["internal_links"] = {"suggestions": internal_links}
 
             # 4. コンテンツの最終統合
             enhanced_content = await self._enhance_content_with_links(
                 content, internal_links, analysis_results.get("url_processing", {})
             )
-            analysis_results["enhanced_content"] = enhanced_content
+            analysis_results["enhanced_content"] = {"content": enhanced_content}
 
             # 5. ベクトルストアにノートを追加（新規ノートの場合）
             if file_path and enhanced_content:
@@ -139,10 +128,10 @@ class AdvancedNoteAnalyzer(LoggerMixin):
 
             analysis_results.update(
                 {
-                    "original_content": content,
-                    "title": title,
-                    "file_path": file_path,
-                    "analyzed_at": datetime.now().isoformat(),
+                    "original_content": {"content": content},
+                    "title": {"value": title},
+                    "file_path": {"path": file_path or ""},
+                    "analyzed_at": {"timestamp": datetime.now().isoformat()},
                     "content_stats": self._get_content_stats(content),
                 }
             )

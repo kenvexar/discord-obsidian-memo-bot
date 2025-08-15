@@ -4,11 +4,13 @@ Mock AI processor for development and testing
 
 import asyncio
 import hashlib
+from typing import Any
 
 from ..utils import LoggerMixin
 from .models import (
     CacheInfo,
     CategoryResult,
+    ProcessingCategory,
     ProcessingSettings,
     ProcessingStats,
     SummaryResult,
@@ -22,7 +24,7 @@ class MockAIProcessor(LoggerMixin):
     def __init__(self, settings: ProcessingSettings | None = None):
         self.settings = settings or ProcessingSettings()
         self.stats = ProcessingStats()
-        self.cache = {}
+        self.cache: dict[str, Any] = {}
 
         # Mock responses for different types of content
         self.mock_summaries = [
@@ -42,17 +44,17 @@ class MockAIProcessor(LoggerMixin):
         ]
 
         self.mock_categories = [
-            "📝 INBOX/CAPTURE",
-            "💡 IDEAS/INSIGHTS",
-            "✅ TASKS/LOGS",
-            "🔧 TECH/LEARNING",
-            "📊 DATA/ANALYSIS",
+            ProcessingCategory.WORK,
+            ProcessingCategory.LEARNING,
+            ProcessingCategory.PROJECT,
+            ProcessingCategory.LIFE,
+            ProcessingCategory.IDEA,
         ]
 
         self.logger.info("Mock AI processor initialized")
 
     async def process_text(
-        self, text: str, force_reprocess: bool = False
+        self, text: str, message_id: int | None = None, force_reprocess: bool = False
     ) -> tuple[SummaryResult, TagResult, CategoryResult]:
         """Process text using mock responses"""
 
@@ -72,15 +74,24 @@ class MockAIProcessor(LoggerMixin):
         summary = SummaryResult(
             summary=self.mock_summaries[summary_idx],
             key_points=["重要なポイント1", "重要なポイント2"],
-            confidence=0.85,
+            confidence_score=0.85,
+            processing_time_ms=100,
+            model_used="mock-gemini-pro",
         )
 
-        tags = TagResult(tags=self.mock_tags[tag_idx], confidence=0.80)
+        tags = TagResult(
+            tags=self.mock_tags[tag_idx],
+            confidence_scores={tag: 0.80 for tag in self.mock_tags[tag_idx]},
+            processing_time_ms=50,
+            model_used="mock-gemini-pro",
+        )
 
         category = CategoryResult(
             category=self.mock_categories[category_idx],
-            confidence=0.90,
+            confidence_score=0.90,
             reasoning="Mock categorization based on content analysis",
+            processing_time_ms=70,  # 追加
+            model_used="mock-gemini-pro",  # 追加
         )
 
         # Update stats
@@ -150,3 +161,18 @@ class MockAIProcessor(LoggerMixin):
         """Mock health check - always returns True"""
         self.logger.debug("Mock AI processor health check - OK")
         return True
+
+    async def summarize_url_content(self, content: str, url: str) -> str:
+        """Mock URL content summarization"""
+        await asyncio.sleep(0.1)  # Simulate processing
+        return f"URL要約（モック）: {url[:50]}の内容についてのサマリーです。"
+
+    async def generate_internal_links(
+        self, content: str, related_notes: list[dict[str, Any]]
+    ) -> list[str]:
+        """Mock internal link generation"""
+        await asyncio.sleep(0.1)  # Simulate processing
+        # Extract note titles/names from the related notes dictionaries
+        note_names = [note.get("title", note.get("name", "")) for note in related_notes]
+        # Return first few note names as mock links
+        return [name for name in note_names if name][:3]

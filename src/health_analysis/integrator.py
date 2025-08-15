@@ -7,36 +7,16 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from typing import Any
 
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
-
-
-try:
-    from ..garmin import HealthData
-    from ..obsidian import ObsidianFileManager
-except ImportError:
-    # For standalone testing
-    from garmin.models import HealthData
-
-    class ObsidianFileManager:
-        pass
-
-
+from ..garmin.models import HealthData
+from ..obsidian.file_manager import ObsidianFileManager
+from ..utils.logger import LoggerMixin
 from .models import ActivityCorrelation
 
 
 class HealthActivityIntegrator(LoggerMixin):
     """健康データとDiscord活動の時系列統合システム"""
 
-    def __init__(self, file_manager: ObsidianFileManager):
+    def __init__(self, file_manager: ObsidianFileManager) -> None:
         """
         初期化処理
 
@@ -134,7 +114,7 @@ class HealthActivityIntegrator(LoggerMixin):
     ) -> dict[date, dict[str, Any]]:
         """Discord活動データを収集"""
 
-        activity_data = {}
+        activity_data: dict[date, dict[str, Any]] = {}
 
         try:
             # デイリーノートから活動データを抽出
@@ -168,7 +148,7 @@ class HealthActivityIntegrator(LoggerMixin):
             if not daily_notes:
                 return None
 
-            activity_summary = {
+            activity_summary: dict[str, Any] = {
                 "message_count": len(daily_notes),
                 "active_hours": set(),
                 "channel_activity": defaultdict(int),
@@ -180,9 +160,10 @@ class HealthActivityIntegrator(LoggerMixin):
 
             for note in daily_notes:
                 # メッセージ時間の抽出
-                if note.frontmatter.created_at:
-                    hour = note.frontmatter.created_at.hour
-                    activity_summary["active_hours"].add(hour)
+                if hasattr(note.frontmatter, "created") and note.frontmatter.created:
+                    if hasattr(note.frontmatter.created, "hour"):
+                        hour = note.frontmatter.created.hour
+                        activity_summary["active_hours"].add(hour)
 
                 # チャンネル活動
                 if hasattr(note.frontmatter, "channel_name"):
@@ -195,14 +176,22 @@ class HealthActivityIntegrator(LoggerMixin):
                     activity_summary["content_length_total"] += char_count
 
                 # AI処理済み
-                if note.frontmatter.ai_processed:
+                if (
+                    hasattr(note.frontmatter, "ai_processed")
+                    and note.frontmatter.ai_processed
+                ):
                     activity_summary["ai_processed_count"] += 1
 
                 # カテゴリとタグ
-                if note.frontmatter.ai_category:
+                if (
+                    hasattr(note.frontmatter, "ai_category")
+                    and note.frontmatter.ai_category
+                ):
                     activity_summary["categories"][note.frontmatter.ai_category] += 1
 
-                for tag in note.frontmatter.ai_tags + note.frontmatter.tags:
+                ai_tags = getattr(note.frontmatter, "ai_tags", [])
+                tags = getattr(note.frontmatter, "tags", [])
+                for tag in ai_tags + tags:
                     activity_summary["tags"].add(tag.lstrip("#"))
 
             # データ型を統一
@@ -232,7 +221,7 @@ class HealthActivityIntegrator(LoggerMixin):
     ) -> dict[str, Any]:
         """相関分析を実行"""
 
-        correlations = {
+        correlations: dict[str, Any] = {
             "discord_correlations": {},
             "sleep_steps": None,
             "sleep_hr": None,
@@ -292,11 +281,11 @@ class HealthActivityIntegrator(LoggerMixin):
         return correlations
 
     def _extract_discord_metrics(
-        self, discord_activity: dict[date, dict[str, Any]], common_dates: set
+        self, discord_activity: dict[date, dict[str, Any]], common_dates: set[date]
     ) -> dict[str, list[float]]:
         """Discord活動指標を抽出"""
 
-        metrics = {
+        metrics: dict[str, list[float]] = {
             "message_count": [],
             "active_hours_count": [],
             "content_length_avg": [],
@@ -328,11 +317,11 @@ class HealthActivityIntegrator(LoggerMixin):
         return metrics
 
     def _extract_health_metrics(
-        self, health_by_date: dict[date, HealthData], common_dates: set
+        self, health_by_date: dict[date, HealthData], common_dates: set[date]
     ) -> dict[str, list[float]]:
         """健康指標を抽出"""
 
-        metrics = {
+        metrics: dict[str, list[float]] = {
             "sleep_hours": [],
             "sleep_score": [],
             "daily_steps": [],
@@ -412,7 +401,7 @@ class HealthActivityIntegrator(LoggerMixin):
                 return None
 
             correlation = numerator / denominator
-            return round(correlation, 3)
+            return float(round(correlation, 3))
 
         except Exception as e:
             self.logger.warning(f"Error calculating correlation: {e}")
@@ -425,11 +414,15 @@ class HealthActivityIntegrator(LoggerMixin):
     ) -> dict[str, Any]:
         """活動パターンを分析"""
 
-        patterns = {"peak_hours": [], "low_hours": [], "notable_patterns": []}
+        patterns: dict[str, Any] = {
+            "peak_hours": [],
+            "low_hours": [],
+            "notable_patterns": [],
+        }
 
         try:
             # 時間別活動パターン
-            hour_activity = defaultdict(int)
+            hour_activity: dict[int, int] = defaultdict(int)
 
             for activity in discord_activity.values():
                 for hour in activity["active_hours"]:
@@ -468,7 +461,7 @@ class HealthActivityIntegrator(LoggerMixin):
     ) -> list[str]:
         """注目すべきパターンを検出"""
 
-        patterns = []
+        patterns: list[str] = []
 
         try:
             common_dates = set(health_by_date.keys()) & set(discord_activity.keys())
@@ -491,78 +484,84 @@ class HealthActivityIntegrator(LoggerMixin):
             high_activity_dates = [date for date, _ in activity_levels[-n // 3 :]]
 
             # 睡眠時間の比較
-            low_sleep_hours = [
-                health_by_date[date].sleep.total_sleep_hours
-                for date in low_activity_dates
+            low_sleep_hours = []
+            for date in low_activity_dates:
+                sleep_data = health_by_date[date].sleep
                 if (
-                    health_by_date[date].sleep
-                    and health_by_date[date].sleep.is_valid
-                    and health_by_date[date].sleep.total_sleep_hours
-                )
-            ]
+                    sleep_data is not None
+                    and sleep_data.is_valid
+                    and sleep_data.total_sleep_hours is not None
+                ):
+                    low_sleep_hours.append(sleep_data.total_sleep_hours)
 
-            high_sleep_hours = [
-                health_by_date[date].sleep.total_sleep_hours
-                for date in high_activity_dates
+            high_sleep_hours = []
+            for date in high_activity_dates:
+                sleep_data = health_by_date[date].sleep
                 if (
-                    health_by_date[date].sleep
-                    and health_by_date[date].sleep.is_valid
-                    and health_by_date[date].sleep.total_sleep_hours
-                )
-            ]
+                    sleep_data is not None
+                    and sleep_data.is_valid
+                    and sleep_data.total_sleep_hours is not None
+                ):
+                    high_sleep_hours.append(sleep_data.total_sleep_hours)
 
             if len(low_sleep_hours) >= 2 and len(high_sleep_hours) >= 2:
-                low_avg = statistics.mean(low_sleep_hours)
-                high_avg = statistics.mean(high_sleep_hours)
+                filtered_low = [h for h in low_sleep_hours if h is not None]
+                filtered_high = [h for h in high_sleep_hours if h is not None]
+                if filtered_low and filtered_high:
+                    low_avg = statistics.mean(filtered_low)
+                    high_avg = statistics.mean(filtered_high)
 
-                if abs(high_avg - low_avg) > 0.5:  # 30分以上の差
-                    if high_avg > low_avg:
-                        patterns.append(
-                            f"Discord活動が活発な日は睡眠時間が長い傾向があります "
-                            f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
-                        )
-                    else:
-                        patterns.append(
-                            f"Discord活動が活発な日は睡眠不足の傾向があります "
-                            f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
-                        )
+                    if abs(high_avg - low_avg) > 0.5:  # 30分以上の差
+                        if high_avg > low_avg:
+                            patterns.append(
+                                f"Discord活動が活発な日は睡眠時間が長い傾向があります "
+                                f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
+                            )
+                        else:
+                            patterns.append(
+                                f"Discord活動が活発な日は睡眠不足の傾向があります "
+                                f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
+                            )
 
             # 歩数との関連性
-            low_steps = [
-                health_by_date[date].steps.total_steps
-                for date in low_activity_dates
+            low_steps = []
+            for date in low_activity_dates:
+                steps_data = health_by_date[date].steps
                 if (
-                    health_by_date[date].steps
-                    and health_by_date[date].steps.is_valid
-                    and health_by_date[date].steps.total_steps
-                )
-            ]
+                    steps_data is not None
+                    and steps_data.is_valid
+                    and steps_data.total_steps is not None
+                ):
+                    low_steps.append(steps_data.total_steps)
 
-            high_steps = [
-                health_by_date[date].steps.total_steps
-                for date in high_activity_dates
+            high_steps = []
+            for date in high_activity_dates:
+                steps_data = health_by_date[date].steps
                 if (
-                    health_by_date[date].steps
-                    and health_by_date[date].steps.is_valid
-                    and health_by_date[date].steps.total_steps
-                )
-            ]
+                    steps_data is not None
+                    and steps_data.is_valid
+                    and steps_data.total_steps is not None
+                ):
+                    high_steps.append(steps_data.total_steps)
 
             if len(low_steps) >= 2 and len(high_steps) >= 2:
-                low_avg_steps = statistics.mean(low_steps)
-                high_avg_steps = statistics.mean(high_steps)
+                filtered_low_steps = [s for s in low_steps if s is not None]
+                filtered_high_steps = [s for s in high_steps if s is not None]
+                if filtered_low_steps and filtered_high_steps:
+                    low_avg_steps = statistics.mean(filtered_low_steps)
+                    high_avg_steps = statistics.mean(filtered_high_steps)
 
-                if abs(high_avg_steps - low_avg_steps) > 1000:  # 1000歩以上の差
-                    if high_avg_steps > low_avg_steps:
-                        patterns.append(
-                            f"Discord活動が活発な日は歩数も多い傾向があります "
-                            f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
-                        )
-                    else:
-                        patterns.append(
-                            f"Discord活動が活発な日は歩数が少ない傾向があります "
-                            f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
-                        )
+                    if abs(high_avg_steps - low_avg_steps) > 1000:  # 1000歩以上の差
+                        if high_avg_steps > low_avg_steps:
+                            patterns.append(
+                                f"Discord活動が活発な日は歩数も多い傾向があります "
+                                f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
+                            )
+                        else:
+                            patterns.append(
+                                f"Discord活動が活発な日は歩数が少ない傾向があります "
+                                f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
+                            )
 
         except Exception as e:
             self.logger.error("Error detecting notable patterns", error=str(e))
@@ -582,9 +581,11 @@ class HealthActivityIntegrator(LoggerMixin):
             discord_corr = correlations["discord_correlations"]
 
             for correlation_key, value in discord_corr.items():
-                if (abs(value) > 0.5 and  # 中程度以上の相関
-                    "message_count" in correlation_key and
-                    "sleep" in correlation_key):
+                if (
+                    abs(value) > 0.5  # 中程度以上の相関
+                    and "message_count" in correlation_key
+                    and "sleep" in correlation_key
+                ):
                     if value > 0:
                         recommendations.append(
                             "Discord活動と睡眠時間に正の相関があります。"

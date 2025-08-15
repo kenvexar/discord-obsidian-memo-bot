@@ -4,9 +4,8 @@ from datetime import date, datetime, timedelta
 
 from structlog import get_logger
 
-from ai import GeminiClient
-from obsidian import ObsidianFileManager
-
+from ..ai import GeminiClient
+from ..obsidian import ObsidianFileManager
 from .models import TaskStatus, TaskSummary
 from .schedule_manager import ScheduleManager
 from .task_manager import TaskManager
@@ -167,12 +166,12 @@ class TaskReportGenerator:
         overdue_tasks = []
         due_soon_tasks = []
 
-        total_completion_time = 0
+        total_completion_time = 0.0
         completion_count = 0
 
-        status_breakdown = {}
-        priority_breakdown = {}
-        project_breakdown = {}
+        status_breakdown: dict[str, int] = {}
+        priority_breakdown: dict[str, int] = {}
+        project_breakdown: dict[str, int] = {}
 
         for task in all_tasks:
             # Check if task is relevant to the period
@@ -417,8 +416,9 @@ class TaskReportGenerator:
 """
 
         try:
-            response = await self.gemini_client.generate_content(prompt)
-            return response.text
+            summary_result = await self.gemini_client.generate_summary(prompt)
+            response = summary_result
+            return str(response.summary)
         except Exception as e:
             logger.error("Failed to generate AI insights", error=str(e))
             return "AI分析の生成に失敗しました。"
@@ -452,7 +452,16 @@ tags: [productivity, report, weekly]
 - [[生産性分析]]
 """
 
-            await self.file_manager.create_file(file_path, full_content)
+            # Create ObsidianNote and save it
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                frontmatter=NoteFrontmatter(obsidian_folder="04_Tasks"),
+                content=full_content,
+            )
+            await self.file_manager.save_note(note)
 
             logger.info(
                 "Weekly productivity report saved",
@@ -495,7 +504,16 @@ tags: [productivity, report, monthly]
 - [[生産性分析]]
 """
 
-            await self.file_manager.create_file(file_path, full_content)
+            # Create ObsidianNote and save it
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                frontmatter=NoteFrontmatter(obsidian_folder="04_Tasks"),
+                content=full_content,
+            )
+            await self.file_manager.save_note(note)
 
             logger.info(
                 "Monthly productivity report saved",

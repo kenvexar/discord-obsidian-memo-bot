@@ -186,7 +186,7 @@ gcloud alpha monitoring policies create --policy-from-file=monitoring-policy.yam
 # ボットの健康状態を確認
 curl https://your-service-url.run.app/health
 
-# 詳細なメトリクスを確認  
+# 詳細なメトリクスを確認
 curl https://your-service-url.run.app/metrics
 ```
 

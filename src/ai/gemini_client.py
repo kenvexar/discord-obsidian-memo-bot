@@ -111,12 +111,14 @@ class GeminiClient(LoggerMixin):
             genai.configure(api_key=settings.gemini_api_key.get_secret_value())
 
             # モデル初期化
-            generation_config = {
-                "temperature": self.model_config.temperature,
-                "top_p": self.model_config.top_p,
-                "top_k": self.model_config.top_k,
-                "max_output_tokens": self.model_config.max_tokens,
-            }
+            from google.generativeai.types import GenerationConfig
+
+            generation_config = GenerationConfig(
+                temperature=self.model_config.temperature,
+                top_p=self.model_config.top_p,
+                top_k=self.model_config.top_k,
+                max_output_tokens=self.model_config.max_tokens,
+            )
 
             self._model = genai.GenerativeModel(
                 model_name=self.model_config.model_name,
@@ -143,7 +145,7 @@ class GeminiClient(LoggerMixin):
             self.logger.debug(f"Rate limiting: waiting {wait_time:.2f} seconds")
             await asyncio.sleep(wait_time)
 
-        self._last_request_time = time.time()
+        self._last_request_time = int(time.time())
 
     async def _call_gemini_api(self, prompt: str, retry_count: int = 3) -> str:
         """
@@ -192,7 +194,7 @@ class GeminiClient(LoggerMixin):
                     tokens_used=token_count,
                 )
 
-                return response.text.strip()
+                return response.text.strip() if response.text else ""
 
             except Exception as e:
                 error_msg = str(e)
@@ -237,9 +239,9 @@ class GeminiClient(LoggerMixin):
             トークン数
         """
         try:
-            if hasattr(self._model, "count_tokens_async"):
+            if self._model and hasattr(self._model, "count_tokens_async"):
                 result = await self._model.count_tokens_async(text)
-                return result.total_tokens
+                return int(result.total_tokens)
             else:
                 # フォールバック: 概算計算
                 return len(text.encode("utf-8")) // 4
@@ -466,14 +468,34 @@ class GeminiClient(LoggerMixin):
                     model_used=self.model_config.model_name,
                 )
 
-            self.logger.info(
-                "Parallel AI processing completed",
-                summary_time=summary.processing_time_ms,
-                tags_time=tags.processing_time_ms,
-                category_time=category.processing_time_ms,
+            # 型チェック（例外ではない場合のみ処理時間を記録）
+            summary_time = (
+                summary.processing_time_ms if isinstance(summary, SummaryResult) else 0
+            )
+            tags_time = tags.processing_time_ms if isinstance(tags, TagResult) else 0
+            category_time = (
+                category.processing_time_ms
+                if isinstance(category, CategoryResult)
+                else 0
             )
 
-            return summary, tags, category
+            self.logger.info(
+                "Parallel AI processing completed",
+                summary_time=summary_time,
+                tags_time=tags_time,
+                category_time=category_time,
+            )
+
+            # 例外がない場合のみ正常な結果を返す
+            if (
+                isinstance(summary, SummaryResult)
+                and isinstance(tags, TagResult)
+                and isinstance(category, CategoryResult)
+            ):
+                return summary, tags, category
+            else:
+                # 例外があった場合はエラーを発生
+                raise GeminiAPIError("One or more parallel processing tasks failed")
 
         except Exception as e:
             self.logger.error("Parallel processing failed", error=str(e))

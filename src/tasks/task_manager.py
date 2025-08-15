@@ -4,13 +4,13 @@ import json
 import uuid
 from datetime import date, datetime
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 from structlog import get_logger
 
-from config import get_settings
-from obsidian import ObsidianFileManager
-
+from ..config import get_settings
+from ..obsidian import ObsidianFileManager
 from .models import Task, TaskPriority, TaskStatus
 
 logger = get_logger(__name__)
@@ -46,7 +46,11 @@ class TaskManager:
             priority=priority,
             due_date=due_date,
             estimated_hours=estimated_hours,
+            actual_hours=None,
             tags=tags or [],
+            notes=None,
+            started_at=None,
+            completed_at=None,
             project=project,
             parent_task_id=parent_task_id,
         )
@@ -110,7 +114,7 @@ class TaskManager:
             result.append(task)
 
         # Sort by priority, then due date, then created date
-        def sort_key(task: Task):
+        def sort_key(task: Task) -> tuple[int, date | None, datetime]:
             priority_order = {
                 TaskPriority.URGENT: 0,
                 TaskPriority.HIGH: 1,
@@ -129,7 +133,7 @@ class TaskManager:
     async def update_task(
         self,
         task_id: str,
-        **updates,
+        **updates: Any,
     ) -> Task | None:
         """Update task details."""
         tasks = await self._load_tasks()
@@ -356,7 +360,8 @@ class TaskManager:
                 TaskPriority.URGENT: "🔴",
             }
 
-            content = f"""---
+            # Generate task content for file
+            task_content = f"""---
 task_id: {task.id}
 title: {task.title}
 status: {task.status.value}
@@ -397,7 +402,46 @@ updated: {task.updated_at.isoformat()}
 - [[Project Overview]]
 """
 
-            await self.file_manager.create_file(file_path, content)
+            task_content = f"""# Task: {task.title}
+
+## Description
+{task.description or "No description"}
+
+## Details
+- **Priority**: {task.priority}
+- **Status**: {task.status}
+- **Due Date**: {task.due_date or "Not set"}
+- **Estimated Hours**: {task.estimated_hours or "Not set"}
+- **Tags**: {", ".join(task.tags) if task.tags else "None"}
+- **Project**: {task.project or "None"}
+
+## Progress
+Progress: {task.progress}%
+
+## Links
+- [[Daily Tasks]]
+- [[Project Overview]]
+"""
+
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            frontmatter = NoteFrontmatter(
+                ai_processed=True,
+                ai_summary=f"Task: {task.title}",
+                ai_tags=task.tags,
+                ai_category="task",
+                tags=task.tags,
+                obsidian_folder="Tasks",
+            )
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                content=task_content,
+                frontmatter=frontmatter,
+                created_at=datetime.now(),
+                modified_at=datetime.now(),
+            )
+            await self.file_manager.save_note(note)
 
         except Exception as e:
             logger.error(

@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 from datetime import date, datetime, time
+from typing import Any
 
 import discord
 from structlog import get_logger
@@ -30,7 +31,7 @@ class TaskReminderSystem:
         self.channel_config = channel_config
         self.task_manager = task_manager
         self.schedule_manager = schedule_manager
-        self._reminder_task: asyncio.Task | None = None
+        self._reminder_task: asyncio.Task[Any] | None = None
         self._is_running = False
 
     async def start(self) -> None:
@@ -167,7 +168,9 @@ class TaskReminderSystem:
             )
 
             for task in overdue_tasks:
-                days_overdue = (date.today() - task.due_date).days
+                days_overdue = (
+                    (date.today() - task.due_date).days if task.due_date else 0
+                )
                 embed.add_field(
                     name=f"🔴 {task.title}",
                     value=f"期限: {task.due_date}\n遅延: {days_overdue}日\n進捗: {task.progress}%",
@@ -206,7 +209,7 @@ class TaskReminderSystem:
             today = date.today()
 
             for task in due_soon_tasks:
-                days_until = (task.due_date - today).days
+                days_until = (task.due_date - today).days if task.due_date else 0
                 if days_until == 0:
                     today_tasks.append(task)
                 elif days_until == 1:
@@ -364,8 +367,10 @@ class TaskReminderSystem:
     async def _add_to_daily_note(self) -> None:
         """Add task and schedule information to daily note."""
         try:
-            from obsidian import ObsidianFileManager
-            from obsidian.daily_integration import DailyNoteIntegrator
+            from ..obsidian import ObsidianFileManager
+            from ..obsidian.daily_integration import (
+                DailyNoteIntegration as DailyNoteIntegrator,
+            )
 
             # Get tasks and schedules
             overdue_tasks = await self.task_manager.get_overdue_tasks()
@@ -397,7 +402,9 @@ class TaskReminderSystem:
             if overdue_tasks:
                 content += "### 期限切れタスク ⚠️\n"
                 for task in overdue_tasks:
-                    days_overdue = (date.today() - task.due_date).days
+                    days_overdue = (
+                        (date.today() - task.due_date).days if task.due_date else 0
+                    )
                     content += f"- {task.title} ({days_overdue}日遅延)\n"
                 content += "\n"
 
@@ -406,10 +413,14 @@ class TaskReminderSystem:
 
             # Add to daily note
             daily_integrator = DailyNoteIntegrator(ObsidianFileManager())
-            await daily_integrator.append_to_section(
-                date.today(),
-                "## Daily Overview",
-                content,
+            # Add to daily note using activity log
+            message_data = {
+                "content": content,
+                "category": "Daily Overview",
+                "type": "reminder_summary",
+            }
+            await daily_integrator.add_activity_log_entry(
+                message_data, datetime.combine(date.today(), datetime.min.time())
             )
 
         except Exception as e:

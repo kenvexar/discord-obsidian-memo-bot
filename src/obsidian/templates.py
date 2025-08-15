@@ -23,17 +23,17 @@ class NoteTemplate(ABC, LoggerMixin):
     """ノートテンプレートの基底クラス"""
 
     @abstractmethod
-    def generate_note(self, **kwargs) -> ObsidianNote:
+    def generate_note(self, *args: Any, **kwargs: Any) -> ObsidianNote:
         """ノートを生成する抽象メソッド"""
         pass
 
     @abstractmethod
-    def generate_frontmatter(self, **kwargs) -> NoteFrontmatter:
+    def generate_frontmatter(self, *args: Any, **kwargs: Any) -> NoteFrontmatter:
         """フロントマターを生成する抽象メソッド"""
         pass
 
     @abstractmethod
-    def generate_content(self, **kwargs) -> str:
+    def generate_content(self, *args: Any, **kwargs: Any) -> str:
         """コンテンツを生成する抽象メソッド"""
         pass
 

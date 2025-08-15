@@ -37,7 +37,7 @@ class ConfigCategory(str, Enum):
 class DynamicConfigManager(LoggerMixin):
     """動的設定管理システム"""
 
-    def __init__(self, bot: commands.Bot, notification_system=None):
+    def __init__(self, bot: commands.Bot, notification_system: Any = None) -> None:
         self.bot = bot
         self.notification_system = notification_system
 
@@ -57,36 +57,36 @@ class DynamicConfigManager(LoggerMixin):
 
         # デフォルト設定
         self.default_configs = {
-            ConfigCategory.CHANNELS: {
+            ConfigCategory.CHANNELS.value: {
                 "enable_all_channels": False,
                 "auto_process_attachments": True,
                 "voice_processing_enabled": True,
             },
-            ConfigCategory.AI_PROCESSING: {
+            ConfigCategory.AI_PROCESSING.value: {
                 "ai_processing_enabled": True,
                 "confidence_threshold": 0.7,
                 "max_daily_requests": 1000,
                 "auto_categorization": True,
             },
-            ConfigCategory.NOTIFICATIONS: {
+            ConfigCategory.NOTIFICATIONS.value: {
                 "processing_notifications": False,
                 "error_notifications": True,
                 "reminder_notifications": True,
                 "system_notifications": True,
             },
-            ConfigCategory.REMINDERS: {
+            ConfigCategory.REMINDERS.value: {
                 "finance_reminders": True,
                 "task_reminders": True,
                 "daily_summary": False,
                 "weekly_review": False,
             },
-            ConfigCategory.FILE_MANAGEMENT: {
+            ConfigCategory.FILE_MANAGEMENT.value: {
                 "auto_backup": False,
                 "backup_frequency_hours": 24,
                 "cleanup_old_files": False,
                 "max_file_size_mb": 50,
             },
-            ConfigCategory.SECURITY: {
+            ConfigCategory.SECURITY.value: {
                 "require_permission_for_commands": False,
                 "log_all_interactions": True,
                 "allowed_users": [],
@@ -118,7 +118,13 @@ class DynamicConfigManager(LoggerMixin):
                 return runtime_config[key]
 
             # デフォルト設定を確認
-            default_config = self.default_configs.get(category.value, {})
+            default_config: dict[str, Any] = {}
+            if category.value in self.default_configs:
+                config_value = self.default_configs[category.value]
+            else:
+                config_value = None
+            if isinstance(config_value, dict):
+                default_config = config_value
             if key in default_config:
                 return default_config[key]
 
@@ -214,7 +220,11 @@ class DynamicConfigManager(LoggerMixin):
 
     async def validate_api_key(self, api_name: str, api_key: str) -> dict[str, Any]:
         """APIキーの検証"""
-        validation_result = {"valid": False, "error": None, "details": {}}
+        validation_result: dict[str, Any] = {
+            "valid": False,
+            "error": None,
+            "details": {},
+        }
 
         try:
             if api_name == "gemini":
@@ -309,12 +319,13 @@ class DynamicConfigManager(LoggerMixin):
 
             # 変更通知
             if self.notification_system:
+                channel_name = getattr(channel, "name", f"Private Channel {channel.id}")
                 await self.notification_system.send_system_event_notification(
                     event_type="Channel Configuration Updated",
-                    description=f"チャンネル #{channel.name} の設定が更新されました。",
+                    description=f"チャンネル #{channel_name} の設定が更新されました。",
                     system_info={
                         "channel_id": channel_id,
-                        "channel_name": channel.name,
+                        "channel_name": channel_name,
                         "updates": config_updates,
                         "requester": requester,
                         "timestamp": datetime.now().isoformat(),
@@ -324,7 +335,7 @@ class DynamicConfigManager(LoggerMixin):
             self.logger.info(
                 "Channel configuration updated",
                 channel_id=channel_id,
-                channel_name=channel.name,
+                channel_name=channel_name,
                 updates=config_updates,
                 requester=requester,
             )
@@ -344,7 +355,7 @@ class DynamicConfigManager(LoggerMixin):
     def get_config_summary(self) -> dict[str, Any]:
         """設定概要を取得"""
         try:
-            summary = {
+            summary: dict[str, Any] = {
                 "system_configs": {},
                 "user_config_count": len(self.user_configs),
                 "total_categories": len(self.default_configs),

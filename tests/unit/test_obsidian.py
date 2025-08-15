@@ -341,7 +341,10 @@ async def test_obsidian_integration_with_message_handler():
     # Setup
     channel_config = ChannelConfig()
 
-    with tempfile.TemporaryDirectory() as temp_dir, patch.object(settings, "obsidian_vault_path", Path(temp_dir)):
+    with (
+        tempfile.TemporaryDirectory() as temp_dir,
+        patch.object(settings, "obsidian_vault_path", Path(temp_dir)),
+    ):
         handler = MessageHandler(channel_config)
 
         # Verify Obsidian integration is available
@@ -351,9 +354,7 @@ async def test_obsidian_integration_with_message_handler():
         # Create mock message
         mock_message = Mock(spec=discord.Message)
         mock_message.id = 123456789
-        mock_message.content = (
-            "This is a test message for Obsidian integration testing"
-        )
+        mock_message.content = "This is a test message for Obsidian integration testing"
         mock_message.author.bot = False
         mock_message.author.id = 987654321
         mock_message.author.display_name = "Test User"
@@ -367,7 +368,7 @@ async def test_obsidian_integration_with_message_handler():
         valid_channel_id = (
             list(capture_channels)[0]
             if capture_channels
-                else list(channel_config.channels.keys())[0]
+            else list(channel_config.channels.keys())[0]
         )
 
         mock_message.channel.id = valid_channel_id

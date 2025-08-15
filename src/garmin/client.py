@@ -15,34 +15,14 @@ from garminconnect import (
     GarminConnectTooManyRequestsError,
 )
 from tenacity import (
-    before_sleep_log,
     retry,
     retry_if_exception_type,
     stop_after_attempt,
     wait_exponential,
 )
 
-try:
-    from ..config import settings
-except ImportError:
-    # For standalone testing, create a mock settings object
-    class MockSettings:
-        garmin_email = None
-        garmin_password = None
-
-    settings = MockSettings()
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing, create a mock LoggerMixin
-    class LoggerMixin:
-        @property
-        def logger(self):
-            import logging
-
-            return logging.getLogger(self.__class__.__name__)
-
-
+from ..config.settings import get_settings
+from ..utils.logger import LoggerMixin
 from .cache import GarminDataCache
 from .models import (
     ActivityData,
@@ -60,6 +40,8 @@ from .models import (
     StepsData,
 )
 
+settings = get_settings()
+
 
 class GarminClient(LoggerMixin):
     """Garmin Connect API クライアント"""
@@ -68,13 +50,13 @@ class GarminClient(LoggerMixin):
         """初期化処理"""
         self.client: Garmin | None = None
         self.is_authenticated = False
-        self._last_authentication = None
+        self._last_authentication: datetime | None = None
         self._consecutive_failures = 0
-        self._backoff_until = None
+        self._backoff_until: datetime | None = None
 
         # 認証情報の確認
-        self.email = None
-        self.password = None
+        self.email: str | None = None
+        self.password: str | None = None
         self._check_credentials()
 
         # キャッシュシステムの初期化
@@ -100,13 +82,13 @@ class GarminClient(LoggerMixin):
                 if hasattr(settings.garmin_email, "get_secret_value"):
                     self.email = settings.garmin_email.get_secret_value()
                 else:
-                    self.email = settings.garmin_email
+                    self.email = str(settings.garmin_email)
 
             if hasattr(settings, "garmin_password") and settings.garmin_password:
                 if hasattr(settings.garmin_password, "get_secret_value"):
                     self.password = settings.garmin_password.get_secret_value()
                 else:
-                    self.password = settings.garmin_password
+                    self.password = str(settings.garmin_password)
 
         except Exception as e:
             self.logger.error("Error checking Garmin credentials", error=str(e))
@@ -138,7 +120,9 @@ class GarminClient(LoggerMixin):
             self.logger.warning(
                 "Entering backoff period due to consecutive failures",
                 consecutive_failures=self._consecutive_failures,
-                backoff_until=self._backoff_until.isoformat(),
+                backoff_until=self._backoff_until.isoformat()
+                if self._backoff_until
+                else "unknown",
             )
 
     def _reset_failure_count(self) -> None:
@@ -152,7 +136,6 @@ class GarminClient(LoggerMixin):
         retry=retry_if_exception_type(
             (GarminConnectConnectionError, GarminConnectTooManyRequestsError)
         ),
-        before_sleep=before_sleep_log("garmin.client", "INFO"),
     )
     async def authenticate(self) -> bool:
         """Garmin Connect に認証"""
@@ -415,13 +398,17 @@ class GarminClient(LoggerMixin):
     )
     async def _get_sleep_data(self, target_date: date) -> SleepData:
         """睡眠データを取得"""
+        if not self.client:
+            raise GarminConnectionError("Garmin client not authenticated")
+
         try:
             loop = asyncio.get_event_loop()
 
             # 睡眠データの取得（タイムアウト付き）
             sleep_data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    None, lambda: self.client.get_sleep_data(target_date.isoformat())
+                    None,
+                    lambda: self.client.get_sleep_data(target_date.isoformat()),  # type: ignore
                 ),
                 timeout=self.api_timeout,
             )
@@ -462,7 +449,9 @@ class GarminClient(LoggerMixin):
                 date=target_date.isoformat(),
                 error=str(e),
             )
-            raise GarminDataRetrievalError(f"Sleep data retrieval failed: {str(e)}") from e
+            raise GarminDataRetrievalError(
+                f"Sleep data retrieval failed: {str(e)}"
+            ) from e
 
     async def _get_steps_data_with_delay(self, target_date: date) -> StepsData:
         """遅延付き歩数データ取得"""
@@ -481,13 +470,17 @@ class GarminClient(LoggerMixin):
     )
     async def _get_steps_data(self, target_date: date) -> StepsData:
         """歩数データを取得"""
+        if not self.client:
+            raise GarminConnectionError("Garmin client not authenticated")
+
         try:
             loop = asyncio.get_event_loop()
 
             # 歩数データの取得（タイムアウト付き）
             steps_data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    None, lambda: self.client.get_steps_data(target_date.isoformat())
+                    None,
+                    lambda: self.client.get_steps_data(target_date.isoformat()),  # type: ignore
                 ),
                 timeout=self.api_timeout,
             )
@@ -515,7 +508,9 @@ class GarminClient(LoggerMixin):
                 date=target_date.isoformat(),
                 error=str(e),
             )
-            raise GarminDataRetrievalError(f"Steps data retrieval failed: {str(e)}") from e
+            raise GarminDataRetrievalError(
+                f"Steps data retrieval failed: {str(e)}"
+            ) from e
 
     async def _get_heart_rate_data_with_delay(self, target_date: date) -> HeartRateData:
         """遅延付き心拍数データ取得"""
@@ -534,13 +529,17 @@ class GarminClient(LoggerMixin):
     )
     async def _get_heart_rate_data(self, target_date: date) -> HeartRateData:
         """心拍数データを取得"""
+        if not self.client:
+            raise GarminConnectionError("Garmin client not authenticated")
+
         try:
             loop = asyncio.get_event_loop()
 
             # 心拍数データの取得（タイムアウト付き）
             hr_data = await asyncio.wait_for(
                 loop.run_in_executor(
-                    None, lambda: self.client.get_heart_rates(target_date.isoformat())
+                    None,
+                    lambda: self.client.get_heart_rates(target_date.isoformat()),  # type: ignore
                 ),
                 timeout=self.api_timeout,
             )
@@ -593,6 +592,9 @@ class GarminClient(LoggerMixin):
     )
     async def _get_activities_data(self, target_date: date) -> list[ActivityData]:
         """活動データを取得"""
+        if not self.client:
+            raise GarminConnectionError("Garmin client not authenticated")
+
         try:
             loop = asyncio.get_event_loop()
 
@@ -600,7 +602,7 @@ class GarminClient(LoggerMixin):
             activities = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
-                    lambda: self.client.get_activities_by_date(
+                    lambda: self.client.get_activities_by_date(  # type: ignore
                         target_date.isoformat(), target_date.isoformat()
                     ),
                 ),
@@ -694,12 +696,15 @@ class GarminClient(LoggerMixin):
         try:
             await self.ensure_authenticated()
 
+            if not self.client:
+                raise GarminConnectionError("Garmin client not authenticated")
+
             # 基本的なユーザー情報を取得してテスト（タイムアウト付き）
             loop = asyncio.get_event_loop()
             user_summary = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
-                    lambda: self.client.get_user_summary(
+                    lambda: self.client.get_user_summary(  # type: ignore
                         datetime.now().date().isoformat()
                     ),
                 ),

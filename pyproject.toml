@@ -93,6 +93,18 @@ python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
+# 追加推奨設定
+ignore_missing_imports = true  # スタブがないライブラリのエラーを無視
+disallow_any_unimported = false
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# 必要な型スタブが不足している場合の設定
+no_implicit_optional = true
+strict_optional = true
+# 相対インポートサポート
+namespace_packages = true
+explicit_package_bases = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -109,6 +121,14 @@ dev = [
     "pytest-mock>=3.14.1",
     "pytest-cov>=6.0.0",
     "ruff>=0.12.8",
+    "mypy>=1.17.1",
+    "types-python-dateutil>=2.9.0.20250809",
+    "types-pyyaml>=6.0.12.20250809",
+    "types-aiofiles>=24.1.0.20250809",
+    # 追加の型スタブ
+    "types-requests>=2.31.0.20240406",
+    "types-beautifulsoup4>=4.12.0.20240516",
+    "pre-commit>=4.3.0",
 ]
 
 [tool.coverage.run]

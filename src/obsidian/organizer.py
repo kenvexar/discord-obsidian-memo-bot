@@ -45,7 +45,12 @@ class VaultOrganizer(LoggerMixin):
         try:
             self.logger.info("Starting note organization by category", dry_run=dry_run)
 
-            results = {"processed": 0, "moved": 0, "errors": 0, "movements": []}
+            results: dict[str, Any] = {
+                "processed": 0,
+                "moved": 0,
+                "errors": 0,
+                "movements": [],
+            }
 
             # 受信箱のノートを取得
             inbox_notes = await self.file_manager.search_notes(
@@ -227,7 +232,12 @@ class VaultOrganizer(LoggerMixin):
                 dry_run=dry_run,
             )
 
-            results = {"processed": 0, "archived": 0, "errors": 0, "archived_notes": []}
+            results: dict[str, Any] = {
+                "processed": 0,
+                "archived": 0,
+                "errors": 0,
+                "archived_notes": [],
+            }
 
             # 全ノートを検索（アーカイブフォルダ以外）
             for folder in [
@@ -315,7 +325,12 @@ class VaultOrganizer(LoggerMixin):
         try:
             self.logger.info("Starting empty folder cleanup", dry_run=dry_run)
 
-            results = {"processed": 0, "removed": 0, "errors": 0, "removed_folders": []}
+            results: dict[str, Any] = {
+                "processed": 0,
+                "removed": 0,
+                "errors": 0,
+                "removed_folders": [],
+            }
 
             # Vault内の全フォルダを検索
             for folder_path in self.file_manager.vault_path.rglob("*"):
@@ -385,7 +400,7 @@ class VaultOrganizer(LoggerMixin):
         try:
             self.logger.info("Starting vault structure optimization", dry_run=dry_run)
 
-            results = {
+            results: dict[str, Any] = {
                 "organization": {},
                 "archival": {},
                 "cleanup": {},
@@ -492,31 +507,47 @@ class VaultOrganizer(LoggerMixin):
 
             for note in daily_notes:
                 # AI処理済みノートの統計
-                if note.frontmatter.ai_processed:
-                    stats["processed_messages"] += 1
+                if (
+                    hasattr(note.frontmatter, "ai_processed")
+                    and note.frontmatter.ai_processed
+                ):
+                    if isinstance(stats["processed_messages"], int):
+                        stats["processed_messages"] += 1
 
-                    if note.frontmatter.ai_processing_time:
-                        stats["ai_processing_time_total"] += (
-                            note.frontmatter.ai_processing_time
-                        )
+                    if (
+                        hasattr(note.frontmatter, "ai_processing_time")
+                        and note.frontmatter.ai_processing_time
+                    ):
+                        if isinstance(stats["ai_processing_time_total"], int):
+                            stats["ai_processing_time_total"] += int(
+                                note.frontmatter.ai_processing_time
+                            )
 
                 # カテゴリ統計
-                if note.frontmatter.ai_category:
-                    category = note.frontmatter.ai_category
-                    stats["categories"][category] = (
-                        stats["categories"].get(category, 0) + 1
-                    )
+                if (
+                    hasattr(note.frontmatter, "ai_category")
+                    and note.frontmatter.ai_category
+                ):
+                    category = str(note.frontmatter.ai_category)
+                    if isinstance(stats["categories"], dict):
+                        stats["categories"][category] = (
+                            stats["categories"].get(category, 0) + 1
+                        )
 
                 # タグ統計
-                for tag in note.frontmatter.ai_tags + note.frontmatter.tags:
-                    clean_tag = tag.lstrip("#")
-                    stats["tags"][clean_tag] = stats["tags"].get(clean_tag, 0) + 1
+                ai_tags = getattr(note.frontmatter, "ai_tags", []) or []
+                tags = getattr(note.frontmatter, "tags", []) or []
+                for tag in ai_tags + tags:
+                    clean_tag = str(tag).lstrip("#")
+                    if isinstance(stats["tags"], dict):
+                        stats["tags"][clean_tag] = stats["tags"].get(clean_tag, 0) + 1
 
             # タグを頻度順にソート
-            sorted_tags = sorted(
-                stats["tags"].items(), key=lambda x: x[1], reverse=True
-            )[:10]
-            stats["tags"] = [f"{tag}({count})" for tag, count in sorted_tags]
+            if isinstance(stats["tags"], dict):
+                sorted_tags = sorted(
+                    stats["tags"].items(), key=lambda x: x[1], reverse=True
+                )[:10]
+                stats["tags"] = [f"{tag}({count})" for tag, count in sorted_tags]
 
             return stats
 

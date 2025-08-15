@@ -25,7 +25,7 @@ graph TB
 #### 1. Discord Bot Core
 - **責任**: Discordイベントの監視と処理
 - **技術**: Discord.py
-- **機能**: 
+- **機能**:
   - メッセージ監視
   - コマンド処理
   - ファイル添付処理
@@ -188,13 +188,13 @@ class DiscordBot:
         self.ai_processor = AIProcessor()
         self.obsidian_manager = ObsidianManager()
         self.voice_processor = VoiceProcessor()
-        
+
     async def on_message(self, message):
         # チャンネル判定とメッセージ処理
-        
+
     async def on_voice_message(self, message):
         # 音声ファイル処理（全チャンネル対応）
-        
+
     async def process_command(self, command):
         # コマンド処理 (/help, /status, /search等)
 ```
@@ -206,13 +206,13 @@ class AIProcessor:
     def __init__(self):
         self.gemini_client = genai.GenerativeModel('gemini-pro')
         self.usage_tracker = UsageTracker()
-        
+
     async def process_memo(self, text: str) -> MemoMetadata:
         # 要約・タグ・カテゴリ生成
-        
+
     async def find_related_notes(self, text: str, vault_path: str) -> List[str]:
         # 関連ノート検索
-        
+
     async def summarize_url(self, url: str) -> str:
         # URL内容要約
 ```
@@ -224,13 +224,13 @@ class ObsidianManager:
     def __init__(self, vault_path: str):
         self.vault_path = vault_path
         self.template_manager = TemplateManager()
-        
+
     def create_note(self, metadata: MemoMetadata, content: str) -> str:
         # Markdownファイル作成
-        
+
     def append_to_daily_note(self, date: str, section: str, content: str):
         # デイリーノートへの追記
-        
+
     def organize_by_folder(self, channel: str, category: str) -> str:
         # フォルダ分類決定
 ```
@@ -242,19 +242,19 @@ class FinanceManager:
     def __init__(self, vault_path: str):
         self.vault_path = vault_path
         self.scheduler = ScheduleManager()
-        
+
     def add_subscription(self, service: str, amount: int, cycle: str, next_date: str) -> str:
         # 定期購入サービス追加
-        
+
     def check_payment_due(self) -> List[PaymentReminder]:
         # 支払い予定チェック
-        
+
     def record_payment(self, service: str) -> None:
         # 支払い記録・次回日程更新
-        
+
     def track_expense(self, amount: int, category: str, description: str) -> None:
         # 支出記録
-        
+
     def generate_finance_report(self, period: str) -> str:
         # 家計レポート生成
 ```
@@ -266,22 +266,22 @@ class TaskManager:
     def __init__(self, vault_path: str):
         self.vault_path = vault_path
         self.scheduler = ScheduleManager()
-        
+
     def create_task(self, name: str, deadline: str, priority: str, description: str) -> str:
         # タスク作成
-        
+
     def update_task_progress(self, task_name: str, progress: int) -> None:
         # 進捗更新
-        
+
     def complete_task(self, task_name: str) -> None:
         # タスク完了
-        
+
     def check_task_deadlines(self) -> List[TaskReminder]:
         # 期限チェック
-        
+
     def create_schedule(self, event: str, datetime: str, location: str, description: str) -> str:
         # スケジュール作成
-        
+
     def generate_task_stats(self, period: str) -> TaskStatistics:
         # タスク統計生成
 ```
@@ -367,13 +367,13 @@ class APILimitHandler:
     def __init__(self):
         self.gemini_usage = UsageTracker('gemini')
         self.speech_usage = UsageTracker('speech')
-        
+
     async def check_limits(self) -> bool:
         # 使用量チェック
-        
+
     async def queue_for_later(self, task: ProcessingTask):
         # 制限時のキューイング
-        
+
     async def fallback_processing(self, memo: str) -> MemoMetadata:
         # AI処理なしの基本保存
 ```
@@ -384,10 +384,10 @@ class APILimitHandler:
 class RecoveryManager:
     async def process_queued_messages(self):
         # 未処理メッセージの処理
-        
+
     async def backup_vault(self):
         # Vaultのバックアップ
-        
+
     async def sync_with_github(self):
         # GitHubとの同期
 ```

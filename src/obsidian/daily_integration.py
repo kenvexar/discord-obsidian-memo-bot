@@ -350,7 +350,6 @@ class DailyNoteIntegration(LoggerMixin):
                 file_path=daily_note.file_path,
                 frontmatter=daily_note.frontmatter,
                 content=content,
-                title=daily_note.title,
             )
 
             success = await self.file_manager.save_note(updated_note, overwrite=True)
@@ -450,7 +449,6 @@ class DailyNoteIntegration(LoggerMixin):
                 file_path=daily_note.file_path,
                 frontmatter=daily_note.frontmatter,
                 content=content,
-                title=daily_note.title,
             )
 
             success = await self.file_manager.save_note(updated_note, overwrite=True)
@@ -581,25 +579,40 @@ class DailyNoteIntegration(LoggerMixin):
 
             for note in daily_notes:
                 # AI処理済みノートの統計
-                if note.frontmatter.ai_processed:
-                    stats["processed_messages"] += 1
+                if (
+                    hasattr(note.frontmatter, "ai_processed")
+                    and note.frontmatter.ai_processed
+                ):
+                    if isinstance(stats["processed_messages"], int):
+                        stats["processed_messages"] += 1
 
-                    if note.frontmatter.ai_processing_time:
-                        stats["ai_processing_time_total"] += (
-                            note.frontmatter.ai_processing_time
-                        )
+                    if (
+                        hasattr(note.frontmatter, "ai_processing_time")
+                        and note.frontmatter.ai_processing_time
+                    ):
+                        if isinstance(stats["ai_processing_time_total"], int):
+                            stats["ai_processing_time_total"] += int(
+                                note.frontmatter.ai_processing_time
+                            )
 
                 # カテゴリ統計
-                if note.frontmatter.ai_category:
-                    category = note.frontmatter.ai_category
-                    stats["categories"][category] = (
-                        stats["categories"].get(category, 0) + 1
-                    )
+                if (
+                    hasattr(note.frontmatter, "ai_category")
+                    and note.frontmatter.ai_category
+                ):
+                    category = str(note.frontmatter.ai_category)
+                    if isinstance(stats["categories"], dict):
+                        stats["categories"][category] = (
+                            stats["categories"].get(category, 0) + 1
+                        )
 
                 # タグ統計
-                for tag in note.frontmatter.ai_tags + note.frontmatter.tags:
-                    clean_tag = tag.lstrip("#")
-                    stats["tags"][clean_tag] = stats["tags"].get(clean_tag, 0) + 1
+                ai_tags = getattr(note.frontmatter, "ai_tags", []) or []
+                tags = getattr(note.frontmatter, "tags", []) or []
+                for tag in ai_tags + tags:
+                    clean_tag = str(tag).lstrip("#")
+                    if isinstance(stats["tags"], dict):
+                        stats["tags"][clean_tag] = stats["tags"].get(clean_tag, 0) + 1
 
             return stats
 

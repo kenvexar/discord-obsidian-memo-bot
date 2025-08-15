@@ -119,47 +119,47 @@ class TestSpeechProcessorFallback:
             {"name": "file_save_fallback", "method": None},
         ]
 
-        with patch.object(speech_processor, "transcription_engines", test_engines), patch.object(
-            speech_processor,
-            "_save_audio_file_for_manual_processing",
-            new_callable=AsyncMock,
-        ) as mock_save:
+        with (
+            patch.object(speech_processor, "transcription_engines", test_engines),
+            patch.object(
+                speech_processor,
+                "_save_audio_file_for_manual_processing",
+                new_callable=AsyncMock,
+            ) as mock_save,
+        ):
             mock_save.return_value = "/tmp/test_audio.mp3"
 
             # _handle_fallbackメソッドをモック
             with patch.object(
-                    speech_processor, "_handle_fallback", new_callable=AsyncMock
-                ) as mock_fallback:
-                    from src.audio.models import AudioProcessingResult
+                speech_processor, "_handle_fallback", new_callable=AsyncMock
+            ) as mock_fallback:
+                from src.audio.models import AudioProcessingResult
 
-                    mock_fallback.return_value = AudioProcessingResult(
-                        success=False,
-                        transcription=TranscriptionResult.create_from_confidence(
-                            transcript="音声の文字起こしに失敗しました。ファイルが保存されました。",
-                            confidence=0.0,
-                            model_used="file_save_fallback",
-                            processing_time_ms=100,
-                        ),
-                        original_filename="test.mp3",
-                        file_size_bytes=4,
-                        audio_format=AudioFormat.MP3,
+                mock_fallback.return_value = AudioProcessingResult(
+                    success=False,
+                    transcription=TranscriptionResult.create_from_confidence(
+                        transcript="音声の文字起こしに失敗しました。ファイルが保存されました。",
+                        confidence=0.0,
+                        model_used="file_save_fallback",
                         processing_time_ms=100,
-                        fallback_used=True,
-                        fallback_reason="All engines failed",
-                        saved_file_path="/tmp/test_audio.mp3",
-                    )
+                    ),
+                    original_filename="test.mp3",
+                    file_size_bytes=4,
+                    audio_format=AudioFormat.MP3,
+                    processing_time_ms=100,
+                    fallback_used=True,
+                    fallback_reason="All engines failed",
+                    saved_file_path="/tmp/test_audio.mp3",
+                )
 
-                    result = await speech_processor.process_audio_file(
-                        b"test", "test.mp3"
-                    )
+                result = await speech_processor.process_audio_file(b"test", "test.mp3")
 
-                    assert result.success is False
-                    assert (
-                        "音声の文字起こしに失敗しました"
-                        in result.transcription.transcript
-                        or "今月のAPI利用上限" in result.transcription.transcript
-                        or "ファイルが保存されました" in result.transcription.transcript
-                    )
+                assert result.success is False
+                assert (
+                    "音声の文字起こしに失敗しました" in result.transcription.transcript
+                    or "今月のAPI利用上限" in result.transcription.transcript
+                    or "ファイルが保存されました" in result.transcription.transcript
+                )
 
     @pytest.mark.asyncio
     async def test_process_audio_file_with_quality_check_failure(

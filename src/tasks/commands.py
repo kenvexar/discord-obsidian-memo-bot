@@ -7,9 +7,9 @@ from discord import app_commands
 from structlog import get_logger
 
 from bot.channel_config import ChannelConfig
-from obsidian import ObsidianFileManager
 
-from .models import ScheduleType, TaskPriority, TaskStatus
+from ..obsidian import ObsidianFileManager
+from .models import ScheduleType, Task, TaskPriority, TaskStatus
 from .schedule_manager import ScheduleManager
 from .task_manager import TaskManager
 
@@ -33,7 +33,7 @@ class TaskCommands:
         self.task_manager = task_manager
         self.schedule_manager = schedule_manager
 
-    @app_commands.command(name="task_add", description="新しいタスクを追加")
+    @app_commands.command(name="task_add", description="新しいタスクを追加")  # type: ignore[type-var]
     @app_commands.describe(
         title="タスクタイトル",
         description="タスクの詳細説明",
@@ -53,7 +53,7 @@ class TaskCommands:
         estimated_hours: float | None = None,
         project: str | None = None,
         tags: str | None = None,
-    ):
+    ) -> None:
         """Add a new task."""
         try:
             # Parse priority
@@ -135,7 +135,7 @@ class TaskCommands:
                 ephemeral=True,
             )
 
-    @app_commands.command(name="task_update", description="タスクの進捗を更新")
+    @app_commands.command(name="task_update", description="タスクの進捗を更新")  # type: ignore[type-var]
     @app_commands.describe(
         task_title="タスクタイトル（部分一致）",
         progress="進捗率 (0-100)",
@@ -147,7 +147,7 @@ class TaskCommands:
         task_title: str,
         progress: int,
         notes: str | None = None,
-    ):
+    ) -> None:
         """Update task progress."""
         try:
             if not 0 <= progress <= 100:
@@ -236,7 +236,7 @@ class TaskCommands:
                 ephemeral=True,
             )
 
-    @app_commands.command(name="task_done", description="タスクを完了に設定")
+    @app_commands.command(name="task_done", description="タスクを完了に設定")  # type: ignore[type-var]
     @app_commands.describe(
         task_title="タスクタイトル（部分一致）",
         actual_hours="実際の作業時間",
@@ -248,7 +248,7 @@ class TaskCommands:
         task_title: str,
         actual_hours: float | None = None,
         completion_notes: str | None = None,
-    ):
+    ) -> None:
         """Mark task as completed."""
         try:
             await interaction.response.defer()
@@ -299,7 +299,9 @@ class TaskCommands:
             embed.add_field(name="タスク", value=completed_task.title, inline=True)
             embed.add_field(
                 name="完了日時",
-                value=completed_task.completed_at.strftime("%Y-%m-%d %H:%M"),
+                value=completed_task.completed_at.strftime("%Y-%m-%d %H:%M")
+                if completed_task.completed_at
+                else "不明",
                 inline=True,
             )
 
@@ -335,7 +337,7 @@ class TaskCommands:
                 ephemeral=True,
             )
 
-    @app_commands.command(name="task_list", description="タスク一覧を表示")
+    @app_commands.command(name="task_list", description="タスク一覧を表示")  # type: ignore[type-var]
     @app_commands.describe(
         status="ステータスフィルター",
         priority="優先度フィルター",
@@ -349,7 +351,7 @@ class TaskCommands:
         priority: str | None = None,
         project: str | None = None,
         show_completed: bool = False,
-    ):
+    ) -> None:
         """List tasks with optional filtering."""
         try:
             await interaction.response.defer()
@@ -400,7 +402,7 @@ class TaskCommands:
             )
 
             # Group tasks by status
-            status_groups = {}
+            status_groups: dict[TaskStatus, list[Task]] = {}
             for task in tasks:
                 if task.status not in status_groups:
                     status_groups[task.status] = []
@@ -470,7 +472,7 @@ class TaskCommands:
                 ephemeral=True,
             )
 
-    @app_commands.command(name="schedule_add", description="新しいスケジュールを追加")
+    @app_commands.command(name="schedule_add", description="新しいスケジュールを追加")  # type: ignore[type-var]
     @app_commands.describe(
         title="イベントタイトル",
         start_date="開始日 (YYYY-MM-DD形式)",
@@ -492,7 +494,7 @@ class TaskCommands:
         location: str | None = None,
         schedule_type: str = "event",
         reminder_minutes: int | None = None,
-    ):
+    ) -> None:
         """Add a new schedule/event."""
         try:
             # Parse start date
@@ -613,11 +615,11 @@ def setup_task_commands(
         schedule_manager,
     )
 
-    # Register commands
-    bot.tree.add_command(commands.task_add_command)
-    bot.tree.add_command(commands.task_update_command)
-    bot.tree.add_command(commands.task_done_command)
-    bot.tree.add_command(commands.task_list_command)
-    bot.tree.add_command(commands.schedule_add_command)
+    # Register commands - type ignore for bot.tree access
+    bot.tree.add_command(commands.task_add_command)  # type: ignore[attr-defined]
+    bot.tree.add_command(commands.task_update_command)  # type: ignore[attr-defined]
+    bot.tree.add_command(commands.task_done_command)  # type: ignore[attr-defined]
+    bot.tree.add_command(commands.task_list_command)  # type: ignore[attr-defined]
+    bot.tree.add_command(commands.schedule_add_command)  # type: ignore[attr-defined]
 
     return commands

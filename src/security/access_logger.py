@@ -79,10 +79,14 @@ class AccessLogger(LoggerMixin):
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
 
         # In-memory tracking for real-time analysis
-        self.recent_events = []  # Last 1000 events
-        self.failed_attempts = defaultdict(list)  # Track failed attempts by user
-        self.rate_limits = defaultdict(list)  # Track rate limiting by user
-        self.suspicious_patterns = []
+        self.recent_events: list[SecurityEvent] = []  # Last 1000 events
+        self.failed_attempts: defaultdict[str, list[datetime]] = defaultdict(
+            list
+        )  # Track failed attempts by user
+        self.rate_limits: defaultdict[str, list[datetime]] = defaultdict(
+            list
+        )  # Track rate limiting by user
+        self.suspicious_patterns: list[SecurityEvent] = []
 
         # Configuration
         self.max_recent_events = 1000
@@ -237,8 +241,8 @@ class AccessLogger(LoggerMixin):
         recent_events = [e for e in self.recent_events if e.timestamp > cutoff_time]
 
         # Aggregate statistics
-        event_types = defaultdict(int)
-        user_activity = defaultdict(int)
+        event_types: defaultdict[str, int] = defaultdict(int)
+        user_activity: defaultdict[str, int] = defaultdict(int)
         failed_events = 0
 
         for event in recent_events:
@@ -296,7 +300,10 @@ class AccessLogger(LoggerMixin):
         temp_file = self.log_file.with_suffix(".tmp")
 
         try:
-            async with aiofiles.open(self.log_file) as infile, aiofiles.open(temp_file, "w") as outfile:
+            async with (
+                aiofiles.open(self.log_file) as infile,
+                aiofiles.open(temp_file, "w") as outfile,
+            ):
                 async for line in infile:
                     try:
                         event_data = json.loads(line.strip())

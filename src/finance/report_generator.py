@@ -2,12 +2,12 @@
 
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 from structlog import get_logger
 
-from ai import GeminiClient
-from obsidian import ObsidianFileManager
-
+from ..ai import GeminiClient
+from ..obsidian import ObsidianFileManager
 from .budget_manager import BudgetManager
 from .expense_manager import ExpenseManager
 from .models import FinanceSummary
@@ -123,7 +123,7 @@ class FinanceReportGenerator:
                 report += f"- **{sub.name}**: ¥{sub.amount:,} ({days_overdue}日遅延)\n"
 
         # Group by category
-        category_breakdown = {}
+        category_breakdown: dict[str, list[Any]] = {}
         for sub in active_subscriptions:
             category = sub.category or "その他"
             if category not in category_breakdown:
@@ -221,7 +221,7 @@ class FinanceReportGenerator:
         year: int,
         month: int,
         summary: FinanceSummary,
-        budget_summary: dict,
+        budget_summary: dict[str, Any],
     ) -> str:
         """Create monthly report content."""
         report = f"""# {year}年{month}月 家計レポート
@@ -276,7 +276,7 @@ class FinanceReportGenerator:
     async def _generate_ai_insights(
         self,
         summary: FinanceSummary,
-        budget_summary: dict,
+        budget_summary: dict[str, Any],
     ) -> str:
         """Generate AI insights for the financial data."""
         prompt = f"""
@@ -302,8 +302,8 @@ class FinanceReportGenerator:
 """
 
         try:
-            response = await self.gemini_client.generate_content(prompt)
-            return response.text
+            summary_result = await self.gemini_client.generate_summary(prompt)
+            return summary_result.summary
         except Exception as e:
             logger.error("Failed to generate AI insights", error=str(e))
             return "AI分析の生成に失敗しました。"
@@ -333,7 +333,16 @@ tags: [finance, report, monthly]
 - [[月次支出分析]]
 """
 
-            await self.file_manager.create_file(file_path, full_content)
+            # Create ObsidianNote and save it
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                frontmatter=NoteFrontmatter(obsidian_folder="06_Finance"),
+                content=full_content,
+            )
+            await self.file_manager.save_note(note)
 
             logger.info(
                 "Monthly finance report saved",

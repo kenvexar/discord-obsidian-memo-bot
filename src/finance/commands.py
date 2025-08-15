@@ -5,6 +5,7 @@ from decimal import Decimal, InvalidOperation
 
 import discord
 from discord import app_commands
+from discord.ext import commands as discord_commands
 from structlog import get_logger
 
 from bot.channel_config import ChannelConfig
@@ -19,12 +20,12 @@ from .subscription_manager import SubscriptionManager
 logger = get_logger(__name__)
 
 
-class FinanceCommands:
+class FinanceCommands(app_commands.Group):
     """Finance management Discord commands."""
 
     def __init__(
         self,
-        bot: discord.Client,
+        bot: discord.Client | discord_commands.Bot,
         channel_config: ChannelConfig,
         file_manager: ObsidianFileManager,
         subscription_manager: SubscriptionManager,
@@ -32,6 +33,7 @@ class FinanceCommands:
         budget_manager: BudgetManager,
         report_generator: FinanceReportGenerator,
     ):
+        super().__init__(name="finance", description="Financial management commands")
         self.bot = bot
         self.channel_config = channel_config
         self.file_manager = file_manager
@@ -58,7 +60,7 @@ class FinanceCommands:
         start_date: str | None = None,
         category: str | None = None,
         notes: str | None = None,
-    ):
+    ) -> None:
         """Add a new subscription service."""
         try:
             # Parse amount
@@ -157,7 +159,7 @@ class FinanceCommands:
         service_name: str,
         payment_date: str | None = None,
         notes: str | None = None,
-    ):
+    ) -> None:
         """Mark subscription payment as completed."""
         try:
             await interaction.response.defer()
@@ -234,7 +236,9 @@ class FinanceCommands:
             embed.add_field(name="支払い日", value=payment.payment_date, inline=True)
             embed.add_field(
                 name="次回支払い日",
-                value=updated_subscription.next_payment_date,
+                value=updated_subscription.next_payment_date
+                if updated_subscription
+                else "不明",
                 inline=True,
             )
             if notes:
@@ -264,7 +268,7 @@ class FinanceCommands:
         self,
         interaction: discord.Interaction,
         show_all: bool = False,
-    ):
+    ) -> None:
         """List all subscription services."""
         try:
             await interaction.response.defer()
@@ -350,7 +354,7 @@ class FinanceCommands:
             )
 
     @app_commands.command(name="sub_stats", description="定期購入統計情報を表示")
-    async def sub_stats_command(self, interaction: discord.Interaction):
+    async def sub_stats_command(self, interaction: discord.Interaction) -> None:
         """Show subscription statistics."""
         try:
             await interaction.response.defer()
@@ -394,7 +398,7 @@ class FinanceCommands:
         self,
         interaction: discord.Interaction,
         service_name: str,
-    ):
+    ) -> None:
         """Pause a subscription service."""
         await self._update_subscription_status(
             interaction, service_name, "pause", "一時停止"
@@ -406,7 +410,7 @@ class FinanceCommands:
         self,
         interaction: discord.Interaction,
         service_name: str,
-    ):
+    ) -> None:
         """Resume a paused subscription service."""
         await self._update_subscription_status(
             interaction, service_name, "resume", "再開"
@@ -418,7 +422,7 @@ class FinanceCommands:
         self,
         interaction: discord.Interaction,
         service_name: str,
-    ):
+    ) -> None:
         """Cancel a subscription service."""
         await self._update_subscription_status(
             interaction, service_name, "cancel", "キャンセル"
@@ -430,7 +434,7 @@ class FinanceCommands:
         service_name: str,
         action: str,
         action_jp: str,
-    ):
+    ) -> None:
         """Helper method to update subscription status."""
         try:
             await interaction.response.defer()
@@ -520,7 +524,7 @@ class FinanceCommands:
         category: str,
         amount: str,
         period: str = "monthly",
-    ):
+    ) -> None:
         """Set budget for a category."""
         try:
             # Parse amount
@@ -536,6 +540,7 @@ class FinanceCommands:
                 return
 
             # Parse category
+            budget_category: BudgetCategory | None = None
             try:
                 budget_category = BudgetCategory(category.lower())
             except ValueError:
@@ -553,12 +558,13 @@ class FinanceCommands:
                 }
 
                 budget_category = category_mapping.get(category)
-                if not budget_category:
+                if budget_category is None:
                     await interaction.response.send_message(
                         "❌ 無効なカテゴリです。以下から選択してください：\n"
                         + "\n".join([f"- {k}" for k in category_mapping]),
                         ephemeral=True,
                     )
+                    return
                     return
 
             # Calculate period dates
@@ -640,7 +646,7 @@ class FinanceCommands:
         period: str = "month",
         year: int | None = None,
         month: int | None = None,
-    ):
+    ) -> None:
         """Show finance statistics."""
         try:
             await interaction.response.defer()
@@ -754,7 +760,7 @@ class FinanceCommands:
 
 
 def setup_finance_commands(
-    bot: discord.Client,
+    bot: discord.Client | discord_commands.Bot,
     channel_config: ChannelConfig,
     file_manager: ObsidianFileManager,
     subscription_manager: SubscriptionManager,
@@ -774,14 +780,15 @@ def setup_finance_commands(
     )
 
     # Register commands
-    bot.tree.add_command(commands.sub_add_command)
-    bot.tree.add_command(commands.sub_paid_command)
-    bot.tree.add_command(commands.sub_list_command)
-    bot.tree.add_command(commands.sub_stats_command)
-    bot.tree.add_command(commands.sub_pause_command)
-    bot.tree.add_command(commands.sub_resume_command)
-    bot.tree.add_command(commands.sub_cancel_command)
-    bot.tree.add_command(commands.budget_set_command)
-    bot.tree.add_command(commands.finance_stats_command)
+    if hasattr(bot, "tree"):
+        bot.tree.add_command(commands.sub_add_command)
+        bot.tree.add_command(commands.sub_paid_command)
+        bot.tree.add_command(commands.sub_list_command)
+        bot.tree.add_command(commands.sub_stats_command)
+        bot.tree.add_command(commands.sub_pause_command)
+        bot.tree.add_command(commands.sub_resume_command)
+        bot.tree.add_command(commands.sub_cancel_command)
+        bot.tree.add_command(commands.budget_set_command)
+        bot.tree.add_command(commands.finance_stats_command)
 
     return commands

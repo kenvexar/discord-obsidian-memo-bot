@@ -6,40 +6,10 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-try:
-    from ..config import settings
-except ImportError:
-    # For standalone testing
-    class MockSettings:
-        gemini_api_daily_limit = 1500
-        gemini_api_minute_limit = 15
-
-    settings = MockSettings()
-
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
-
-
-try:
-    from ..ai import GeminiAIProcessor
-except ImportError:
-    # Mock for standalone testing
-    class GeminiAIProcessor:
-        async def process_text(self, text: str, context: str = "") -> dict[str, Any]:
-            return {"processed_content": f"Mock analysis of: {text[:100]}..."}
-
-
-# Import HealthData using absolute import
-from garmin.models import HealthData
-
+from ..ai.processor import AIProcessor
+from ..config.settings import get_settings
+from ..garmin.models import HealthData
+from ..utils.logger import LoggerMixin
 from .models import (
     AnalysisReport,
     AnalysisType,
@@ -50,18 +20,20 @@ from .models import (
     WeeklyHealthSummary,
 )
 
+settings = get_settings()
+
 
 class HealthDataAnalyzer(LoggerMixin):
     """健康データAI分析システム"""
 
-    def __init__(self, ai_processor: GeminiAIProcessor | None = None):
+    def __init__(self, ai_processor: AIProcessor | None = None):
         """
         初期化処理
 
         Args:
-            ai_processor: GeminiAIProcessorインスタンス
+            ai_processor: AIProcessorインスタンス
         """
-        self.ai_processor = ai_processor or GeminiAIProcessor()
+        self.ai_processor = ai_processor or AIProcessor()
         self.analysis_cache: dict[str, AnalysisReport] = {}
         self.last_weekly_analysis: date | None = None
 
@@ -176,8 +148,7 @@ class HealthDataAnalyzer(LoggerMixin):
         total_steps = 0
         active_days = 0
         for data in valid_data:
-            if (data.steps and data.steps.is_valid and 
-                data.steps.total_steps):
+            if data.steps and data.steps.is_valid and data.steps.total_steps:
                 daily_steps.append(data.steps.total_steps)
                 total_steps += data.steps.total_steps
                 if data.steps.total_steps >= 5000:  # アクティブ基準
@@ -186,8 +157,11 @@ class HealthDataAnalyzer(LoggerMixin):
         # 心拍数データの集計
         resting_hrs = []
         for data in valid_data:
-            if (data.heart_rate and data.heart_rate.is_valid and 
-                data.heart_rate.resting_heart_rate):
+            if (
+                data.heart_rate
+                and data.heart_rate.is_valid
+                and data.heart_rate.resting_heart_rate
+            ):
                 resting_hrs.append(data.heart_rate.resting_heart_rate)
 
         # ワークアウトデータの集計
@@ -236,7 +210,7 @@ class HealthDataAnalyzer(LoggerMixin):
             active_days=active_days,
             avg_resting_hr=sum(resting_hrs) / len(resting_hrs) if resting_hrs else None,
             hr_variability=(
-                self._calculate_variability(resting_hrs)
+                self._calculate_variability([float(hr) for hr in resting_hrs])
                 if len(resting_hrs) >= 3
                 else None
             ),
@@ -260,7 +234,7 @@ class HealthDataAnalyzer(LoggerMixin):
         # 一貫性スコア: 標準偏差が小さいほど高い（0.0-1.0）
         if std_dev == 0:
             return 1.0
-        return min(1.0, 1.0 / (1.0 + std_dev / mean))
+        return float(min(1.0, 1.0 / (1.0 + std_dev / mean)))
 
     def _calculate_variability(self, values: list[float]) -> float:
         """変動性を計算（変動係数）"""
@@ -274,7 +248,7 @@ class HealthDataAnalyzer(LoggerMixin):
         variance = sum((x - mean) ** 2 for x in values) / len(values)
         std_dev = variance**0.5
 
-        return std_dev / mean  # 変動係数
+        return float(std_dev / mean)  # 変動係数
 
     async def _analyze_trends(
         self, health_data_list: list[HealthData], period_days: int = 7
@@ -420,7 +394,7 @@ class HealthDataAnalyzer(LoggerMixin):
         self, health_data_list: list[HealthData]
     ) -> list[ChangeDetection]:
         """重要な変化を検出"""
-        changes = []
+        changes: list[ChangeDetection] = []
 
         if len(health_data_list) < 7:  # 最低1週間のデータが必要
             return changes
@@ -459,7 +433,7 @@ class HealthDataAnalyzer(LoggerMixin):
     def _detect_metric_change(
         self,
         metric_name: str,
-        extractor,
+        extractor: Any,
         recent_data: list[HealthData],
         baseline_data: list[HealthData],
     ) -> ChangeDetection | None:
@@ -614,11 +588,26 @@ class HealthDataAnalyzer(LoggerMixin):
             # Gemini APIで分析
             ai_response = await self.ai_processor.process_text(
                 text=analysis_context,
-                context="健康データの週次分析から洞察を抽出してください。日本語で実用的なアドバイスを含めてください。",
+                message_id=0,  # Changed from string to int
             )
 
             # AI応答から洞察を抽出
-            insights = self._parse_ai_insights(ai_response)
+            insights = self._parse_ai_insights(
+                {
+                    "content": ai_response.content
+                    if hasattr(ai_response, "content")
+                    else str(ai_response),
+                    "ai_summary": ai_response.ai_summary
+                    if hasattr(ai_response, "ai_summary")
+                    else None,
+                    "ai_tags": ai_response.ai_tags
+                    if hasattr(ai_response, "ai_tags")
+                    else [],
+                    "ai_category": ai_response.ai_category
+                    if hasattr(ai_response, "ai_category")
+                    else None,
+                }
+            )
 
             return insights
 
@@ -744,24 +733,23 @@ class HealthDataAnalyzer(LoggerMixin):
                 )
 
         # 活動に関する洞察
-        if (weekly_summary.avg_daily_steps and 
-            weekly_summary.avg_daily_steps < 8000):
+        if weekly_summary.avg_daily_steps and weekly_summary.avg_daily_steps < 8000:
             insights.append(
-                    HealthInsight(
-                        category="活動",
-                        insight_type="daily_activity",
-                        title="歩数不足の傾向",
-                        description=f"1日平均{weekly_summary.avg_daily_steps:.0f}歩と、推奨される8000歩を下回っています。",
-                        confidence_score=0.8,
-                        actionable=True,
-                        recommended_actions=[
-                            "日常的な散歩を増やす",
-                            "階段を使用する",
-                            "通勤時に歩く距離を伸ばす",
-                        ],
-                        priority="medium",
-                    )
+                HealthInsight(
+                    category="活動",
+                    insight_type="daily_activity",
+                    title="歩数不足の傾向",
+                    description=f"1日平均{weekly_summary.avg_daily_steps:.0f}歩と、推奨される8000歩を下回っています。",
+                    confidence_score=0.8,
+                    actionable=True,
+                    recommended_actions=[
+                        "日常的な散歩を増やす",
+                        "階段を使用する",
+                        "通勤時に歩く距離を伸ばす",
+                    ],
+                    priority="medium",
                 )
+            )
 
         return insights
 

@@ -8,6 +8,7 @@ from typing import Any
 import discord
 
 from ..ai import AIProcessor, ProcessingSettings
+from ..ai.mock_processor import MockAIProcessor
 from ..ai.note_analyzer import AdvancedNoteAnalyzer
 from ..audio import SpeechProcessor
 from ..obsidian import MessageNoteTemplate, ObsidianFileManager, TemplateEngine
@@ -20,7 +21,17 @@ from .message_processor import MessageProcessor
 class MessageHandler(LoggerMixin):
     """Handle Discord message processing and routing"""
 
-    def set_monitoring_systems(self, system_metrics, api_usage_monitor):
+    ai_processor: AIProcessor | MockAIProcessor
+    obsidian_manager: ObsidianFileManager | None
+    note_template: MessageNoteTemplate | None
+    daily_integration: DailyNoteIntegration | None
+    template_engine: TemplateEngine | None
+    note_analyzer: AdvancedNoteAnalyzer | None
+    speech_processor: SpeechProcessor | None
+
+    def set_monitoring_systems(
+        self, system_metrics: Any, api_usage_monitor: Any
+    ) -> None:
         """監視システムの設定"""
         self.system_metrics = system_metrics
         self.api_usage_monitor = api_usage_monitor
@@ -43,8 +54,6 @@ class MessageHandler(LoggerMixin):
 
         if settings.is_mock_mode:
             self.logger.info("Initializing AI processor in MOCK mode")
-            from ..ai.mock_processor import MockAIProcessor
-
             self.ai_processor = MockAIProcessor(settings=processing_settings)
         else:
             self.logger.info("Initializing AI processor in PRODUCTION mode")
@@ -165,10 +174,10 @@ class MessageHandler(LoggerMixin):
                 self.logger.info(
                     "AI processing completed",
                     message_id=message.id,
-                    has_summary=ai_result.summary is not None,
-                    has_tags=ai_result.tags is not None,
-                    has_category=ai_result.category is not None,
-                    total_time_ms=ai_result.total_processing_time_ms,
+                    has_summary=getattr(ai_result, "summary", None) is not None,
+                    has_tags=getattr(ai_result, "tags", None) is not None,
+                    has_category=getattr(ai_result, "category", None) is not None,
+                    total_time_ms=getattr(ai_result, "total_processing_time_ms", 0),
                 )
 
             except Exception as e:
@@ -198,7 +207,9 @@ class MessageHandler(LoggerMixin):
         # Combine with channel information
         message_data = {
             "metadata": metadata,
-            "ai_processing": ai_result.model_dump() if ai_result else None,
+            "ai_processing": getattr(ai_result, "model_dump", lambda: None)()
+            if ai_result
+            else None,
             "channel_info": {
                 "name": channel_info.name,
                 "category": channel_info.category.value,
@@ -232,7 +243,7 @@ class MessageHandler(LoggerMixin):
         self,
         message_data: dict[str, Any],
         category: ChannelCategory,
-        original_message: discord.Message = None,
+        original_message: discord.Message | None = None,
     ) -> None:
         """Route message processing based on channel category"""
 
@@ -248,7 +259,9 @@ class MessageHandler(LoggerMixin):
             self.logger.warning("Unknown channel category", category=category.value)
 
     async def _handle_capture_message(
-        self, message_data: dict[str, Any], original_message: discord.Message = None
+        self,
+        message_data: dict[str, Any],
+        original_message: discord.Message | None = None,
     ) -> None:
         """Handle messages from capture channels"""
         self.logger.info(
@@ -422,7 +435,8 @@ class MessageHandler(LoggerMixin):
 
             # Activity Logチャンネルの処理
             if (
-                hasattr(settings, "channel_activity_log")
+                self.daily_integration
+                and hasattr(settings, "channel_activity_log")
                 and settings.channel_activity_log
                 and channel_id == settings.channel_activity_log
             ):
@@ -436,7 +450,8 @@ class MessageHandler(LoggerMixin):
 
             # Daily Tasksチャンネルの処理
             elif (
-                hasattr(settings, "channel_daily_tasks")
+                self.daily_integration
+                and hasattr(settings, "channel_daily_tasks")
                 and settings.channel_daily_tasks
                 and channel_id == settings.channel_daily_tasks
             ):
@@ -460,7 +475,7 @@ class MessageHandler(LoggerMixin):
         self,
         message_data: dict[str, Any],
         channel_info: Any,
-        original_message: discord.Message = None,
+        original_message: discord.Message | None = None,
     ) -> None:
         """音声添付ファイルの処理（リアルタイムフィードバック付き）"""
         try:
@@ -472,7 +487,10 @@ class MessageHandler(LoggerMixin):
                 att
                 for att in attachments
                 if att.get("file_category") == "audio"
-                or self.speech_processor.is_audio_file(att.get("filename", ""))
+                or (
+                    self.speech_processor
+                    and self.speech_processor.is_audio_file(att.get("filename", ""))
+                )
             ]
 
             if not audio_attachments:
@@ -502,7 +520,7 @@ class MessageHandler(LoggerMixin):
         attachment: dict[str, Any],
         message_data: dict[str, Any],
         channel_info: Any,
-        original_message: discord.Message = None,
+        original_message: discord.Message | None = None,
     ) -> None:
         """単一の音声添付ファイルを処理（リアルタイムフィードバック付き）"""
         feedback_message = None
@@ -536,6 +554,13 @@ class MessageHandler(LoggerMixin):
                 return
 
             # 音声を文字起こし
+            if not self.speech_processor:
+                await self._update_feedback_message(
+                    feedback_message,
+                    "❌ 音声処理システムが初期化されていません。",
+                )
+                return
+
             audio_result = await self.speech_processor.process_audio_file(
                 file_data=audio_data, filename=filename, channel_name=channel_info.name
             )

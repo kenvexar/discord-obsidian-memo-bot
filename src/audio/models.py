@@ -4,6 +4,7 @@ Audio processing data models
 
 from datetime import datetime
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,8 +44,12 @@ class TranscriptionResult(BaseModel):
     language_code: str = Field(description="検出された言語コード", default="ja-JP")
 
     # 詳細情報
-    words: list[dict] | None = Field(default=None, description="単語レベルの詳細情報")
-    alternatives: list[dict] | None = Field(default=None, description="代替候補")
+    words: list[dict[str, Any]] | None = Field(
+        default=None, description="単語レベルの詳細情報"
+    )
+    alternatives: list[dict[str, Any]] | None = Field(
+        default=None, description="代替候補"
+    )
 
     # メタデータ
     processing_time_ms: int = Field(description="処理時間（ミリ秒）")
@@ -56,7 +61,7 @@ class TranscriptionResult(BaseModel):
 
     @classmethod
     def create_from_confidence(
-        cls, transcript: str, confidence: float, **kwargs
+        cls, transcript: str, confidence: float, **kwargs: Any
     ) -> "TranscriptionResult":
         """信頼度から適切なレベルを設定して作成"""
         if confidence >= 0.9:

@@ -5,7 +5,7 @@ Advanced template system for Obsidian notes
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import aiofiles
 
@@ -26,7 +26,7 @@ class TemplateEngine(LoggerMixin):
         """
         self.vault_path = vault_path
         self.template_path = vault_path / "99_Meta" / "Templates"
-        self.cached_templates = {}
+        self.cached_templates: dict[str, str] = {}
         self.logger.info("Template engine initialized")
 
     async def load_template(self, template_name: str) -> str | None:
@@ -134,7 +134,7 @@ class TemplateEngine(LoggerMixin):
         """条件付きセクションを処理"""
         pattern = r"\{\{\#if\s+(\w+)\s*\}\}(.*?)\{\{\/if\}\}"
 
-        def replace_conditional(match):
+        def replace_conditional(match: re.Match[str]) -> str:
             condition = match.group(1)
             section_content = match.group(2)
 
@@ -144,7 +144,7 @@ class TemplateEngine(LoggerMixin):
             else:
                 return ""
 
-        return re.sub(pattern, replace_conditional, content, flags=re.DOTALL)
+        return str(re.sub(pattern, replace_conditional, content, flags=re.DOTALL))
 
     async def _process_each_sections(
         self, content: str, context: dict[str, Any]
@@ -152,7 +152,7 @@ class TemplateEngine(LoggerMixin):
         """繰り返しセクションを処理"""
         pattern = r"\{\{\#each\s+(\w+)\s*\}\}(.*?)\{\{\/each\}\}"
 
-        def replace_each(match):
+        def replace_each(match: re.Match[str]) -> str:
             items_key = match.group(1)
             section_content = match.group(2)
 
@@ -186,7 +186,7 @@ class TemplateEngine(LoggerMixin):
 
             return "\n".join(results)
 
-        return re.sub(pattern, replace_each, content, flags=re.DOTALL)
+        return str(re.sub(pattern, replace_each, content, flags=re.DOTALL))
 
     async def _process_custom_functions(
         self, content: str, context: dict[str, Any]
@@ -194,20 +194,21 @@ class TemplateEngine(LoggerMixin):
         """カスタム関数を処理"""
 
         # 日付フォーマット: {{date_format(date, format)}}
-        def date_format_func(match):
+        def date_format_func(match: re.Match[str]) -> str:
             args = match.group(1).split(",")
             if len(args) >= 2:
                 date_key = args[0].strip()
                 format_str = args[1].strip().strip("\"'")
 
                 if date_key in context and isinstance(context[date_key], datetime):
-                    return context[date_key].strftime(format_str)
+                    date_value = cast(datetime, context[date_key])
+                    return date_value.strftime(format_str)
             return ""
 
         content = re.sub(r"\{\{date_format\((.*?)\)\}\}", date_format_func, content)
 
         # タグリスト: {{tag_list(tags)}}
-        def tag_list_func(match):
+        def tag_list_func(match: re.Match[str]) -> str:
             tags_key = match.group(1).strip()
             if tags_key in context and isinstance(context[tags_key], list):
                 tags = context[tags_key]
@@ -217,7 +218,7 @@ class TemplateEngine(LoggerMixin):
         content = re.sub(r"\{\{tag_list\((.*?)\)\}\}", tag_list_func, content)
 
         # 文字数制限: {{truncate(text, length)}}
-        def truncate_func(match):
+        def truncate_func(match: re.Match[str]) -> str:
             args = match.group(1).split(",")
             if len(args) >= 2:
                 text_key = args[0].strip()
@@ -416,7 +417,7 @@ class TemplateEngine(LoggerMixin):
 
     def _parse_template_content(self, content: str) -> tuple[dict[str, Any], str]:
         """テンプレート内容からフロントマターと本文を分離"""
-        frontmatter_dict = {}
+        frontmatter_dict: dict[str, Any] = {}
         main_content = content
 
         # YAMLフロントマターの検出と解析
@@ -680,8 +681,8 @@ participants: []
 ## ℹ️ 基本情報
 
 - **日時**: {{date_format(current_date, "%Y年%m月%d日 %H:%M")}}
-- **参加者**: 
-- **場所**: 
+- **参加者**:
+- **場所**:
 
 ## 📋 議題
 
@@ -717,11 +718,11 @@ participants: []
 
 ## 📝 次回までの課題
 
-- 
+-
 
 ## 🔗 関連資料
 
-- 
+-
 """
 
     def _get_task_note_template(self) -> str:
@@ -739,7 +740,7 @@ tags:
   - {{@item}}
 {{/each}}
 {{/if}}
-due_date: 
+due_date:
 ai_processed: {{ai_processed}}
 ---
 
@@ -772,7 +773,7 @@ ai_processed: {{ai_processed}}
 
 - **作成日**: {{date_format(current_date, "%Y-%m-%d")}}
 - **期限**: 未設定
-- **見積時間**: 
+- **見積時間**:
 
 ## 📊 進捗
 
@@ -787,5 +788,5 @@ ai_processed: {{ai_processed}}
 
 ## 🔗 関連リンク
 
-- 
+-
 """

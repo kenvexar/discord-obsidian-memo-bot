@@ -5,13 +5,83 @@ Advanced message processing and metadata extraction
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict, cast
 
 import aiofiles
 import aiohttp
 import discord
 
 from ..utils import LoggerMixin
+
+
+class ContentMetadata(TypedDict):
+    raw_content: str
+    cleaned_content: str
+    word_count: int
+    char_count: int
+    line_count: int
+    urls: list[str]
+    mentions: dict[str, list[str]]
+    code_blocks: int
+    inline_code: int
+    has_formatting: bool
+    language: str | None
+
+
+class BasicMetadata(TypedDict):
+    id: int
+    type: str
+    flags: list[str]
+    pinned: bool
+    tts: bool
+    author: dict[str, Any]
+    channel: dict[str, Any]
+    guild: dict[str, Any] | None
+
+
+class DiscordFeatures(TypedDict):
+    embeds: list[dict[str, Any]]
+    reactions: list[dict[str, Any]]
+    mentions: dict[str, Any]
+    stickers: list[dict[str, Any]]
+
+
+class ReferenceMetadata(TypedDict):
+    is_reply: bool
+    reply_to: dict[str, Any] | None
+    mentions_reply_author: bool
+
+
+class TimingMetadata(TypedDict):
+    created_at: dict[str, Any]
+    edited_at: dict[str, Any] | None
+    age_seconds: int
+
+
+class AttachmentMetadata(TypedDict):
+    id: int
+    filename: str
+    size: int
+    url: str
+    proxy_url: str
+    content_type: str | None
+    width: int | None
+    height: int | None
+    ephemeral: bool
+    description: str | None
+    file_extension: str
+    file_category: str
+    is_spoiler: bool
+    image_info: dict[str, Any] | None
+
+
+class MessageMetadata(TypedDict):
+    basic: BasicMetadata
+    content: ContentMetadata
+    attachments: list[AttachmentMetadata]
+    references: ReferenceMetadata
+    discord_features: DiscordFeatures
+    timing: TimingMetadata
 
 
 class MessageProcessor(LoggerMixin):
@@ -29,7 +99,7 @@ class MessageProcessor(LoggerMixin):
         }
         self.logger.info("Message processor initialized")
 
-    def extract_metadata(self, message: discord.Message) -> dict[str, Any]:
+    def extract_metadata(self, message: discord.Message) -> MessageMetadata:
         """
         Extract comprehensive metadata from a Discord message
 
@@ -39,7 +109,7 @@ class MessageProcessor(LoggerMixin):
         Returns:
             Dictionary containing extracted metadata
         """
-        metadata = {
+        metadata: MessageMetadata = {
             "basic": self._extract_basic_metadata(message),
             "content": self._extract_content_metadata(message),
             "attachments": self._extract_attachment_metadata(message),
@@ -53,25 +123,45 @@ class MessageProcessor(LoggerMixin):
             message_id=message.id,
             content_length=len(message.content),
             attachment_count=len(message.attachments),
-            url_count=len(metadata["content"]["urls"]),
+            url_count=(
+                len(metadata["content"]["urls"])
+                if "urls" in metadata["content"]
+                and isinstance(metadata["content"]["urls"], (list, tuple))
+                else 0
+            ),
         )
 
         return metadata
 
-    def _extract_basic_metadata(self, message: discord.Message) -> dict[str, Any]:
+    def _extract_basic_metadata(self, message: discord.Message) -> BasicMetadata:
         """Extract basic message information"""
+        # Safely extract flags
+        flags_list = []
+        # discord.MessageFlags の各フラグを明示的にチェック
+        if message.flags.crossposted:
+            flags_list.append("crossposted")
+
+        if message.flags.suppress_embeds:
+            flags_list.append("suppress_embeds")
+        if message.flags.source_message_deleted:
+            flags_list.append("source_message_deleted")
+        if message.flags.urgent:
+            flags_list.append("urgent")
+        if message.flags.has_thread:
+            flags_list.append("has_thread")
+        if message.flags.ephemeral:
+            flags_list.append("ephemeral")
+        if message.flags.loading:
+            flags_list.append("loading")
+        if message.flags.failed_to_mention_some_roles_in_thread:
+            flags_list.append("failed_to_mention_some_roles_in_thread")
+        if message.flags.suppress_notifications:
+            flags_list.append("suppress_notifications")
+
         return {
             "id": message.id,
             "type": str(message.type),
-            "flags": (
-                [
-                    flag.name
-                    for flag in message.flags
-                    if hasattr(flag, "value") and flag.value
-                ]
-                if hasattr(message.flags, "__iter__")
-                else []
-            ),
+            "flags": flags_list,
             "pinned": message.pinned,
             "tts": message.tts,
             "author": {
@@ -105,7 +195,7 @@ class MessageProcessor(LoggerMixin):
             ),
         }
 
-    def _extract_content_metadata(self, message: discord.Message) -> dict[str, Any]:
+    def _extract_content_metadata(self, message: discord.Message) -> ContentMetadata:
         """Extract content-related metadata"""
         content = message.content
 
@@ -113,9 +203,12 @@ class MessageProcessor(LoggerMixin):
         urls = self.url_pattern.findall(content)
 
         # Extract mentions
-        mentions = {}
+        mentions: dict[str, list[str]] = {}
         for mention_type, pattern in self.mention_patterns.items():
-            matches = pattern.findall(content)
+            matches_raw: list[Any] = pattern.findall(content)
+            # matches_raw は list[str] または list[tuple[str, ...]] の可能性がある
+            # ここでは、グループが1つなので list[str] に変換
+            matches = [m[0] if isinstance(m, tuple) else m for m in matches_raw]
             mentions[mention_type] = matches
 
         # Analyze content characteristics
@@ -127,28 +220,31 @@ class MessageProcessor(LoggerMixin):
         code_blocks = re.findall(r"```[\s\S]*?```", content)
         inline_code = re.findall(r"`[^`]+`", content)
 
-        return {
-            "raw_content": content,
-            "cleaned_content": self._clean_content(content),
-            "word_count": word_count,
-            "char_count": char_count,
-            "line_count": line_count,
-            "urls": urls,
-            "mentions": mentions,
-            "code_blocks": len(code_blocks),
-            "inline_code": len(inline_code),
-            "has_formatting": self._has_markdown_formatting(content),
-            "language": self._detect_language(content),
-        }
+        return cast(
+            ContentMetadata,
+            {
+                "raw_content": content,
+                "cleaned_content": self._clean_content(content),
+                "word_count": word_count,
+                "char_count": char_count,
+                "line_count": line_count,
+                "urls": urls,
+                "mentions": mentions,
+                "code_blocks": len(code_blocks),
+                "inline_code": len(inline_code),
+                "has_formatting": self._has_markdown_formatting(content),
+                "language": self._detect_language(content),
+            },
+        )
 
     def _extract_attachment_metadata(
         self, message: discord.Message
-    ) -> list[dict[str, Any]]:
+    ) -> list[AttachmentMetadata]:
         """Extract detailed attachment metadata"""
         attachments = []
 
         for attachment in message.attachments:
-            attachment_data = {
+            attachment_data: AttachmentMetadata = {
                 "id": attachment.id,
                 "filename": attachment.filename,
                 "size": attachment.size,
@@ -162,6 +258,7 @@ class MessageProcessor(LoggerMixin):
                 "file_extension": Path(attachment.filename).suffix.lower(),
                 "file_category": self._categorize_file(attachment),
                 "is_spoiler": attachment.is_spoiler(),
+                "image_info": None,  # デフォルト値を追加
             }
 
             # Additional analysis for specific file types
@@ -183,9 +280,11 @@ class MessageProcessor(LoggerMixin):
 
         return attachments
 
-    def _extract_reference_metadata(self, message: discord.Message) -> dict[str, Any]:
+    def _extract_reference_metadata(
+        self, message: discord.Message
+    ) -> ReferenceMetadata:
         """Extract message reference information (replies, etc.)"""
-        reference_data = {
+        reference_data: ReferenceMetadata = {
             "is_reply": message.reference is not None,
             "reply_to": None,
             "mentions_reply_author": False,
@@ -209,67 +308,72 @@ class MessageProcessor(LoggerMixin):
 
         return reference_data
 
-    def _extract_discord_features(self, message: discord.Message) -> dict[str, Any]:
+    def _extract_discord_features(self, message: discord.Message) -> DiscordFeatures:
         """Extract Discord-specific features"""
-        return {
-            "embeds": [
-                {
-                    "type": embed.type,
-                    "title": embed.title,
-                    "description": embed.description,
-                    "url": embed.url,
-                    "color": embed.color.value if embed.color else None,
-                    "field_count": len(embed.fields),
-                }
-                for embed in message.embeds
-            ],
-            "reactions": [
-                {
-                    "emoji": str(reaction.emoji),
-                    "count": reaction.count,
-                    "me": reaction.me,
-                }
-                for reaction in message.reactions
-            ],
-            "mentions": {
-                "users": [
+        return cast(
+            DiscordFeatures,
+            {
+                "embeds": [
                     {
-                        "id": user.id,
-                        "name": user.display_name,
-                        "username": user.name,
+                        "type": embed.type,
+                        "title": embed.title,
+                        "description": embed.description,
+                        "url": embed.url,
+                        "color": getattr(embed.color, "value", None)
+                        if embed.color is not None
+                        else None,
+                        "field_count": len(embed.fields),
                     }
-                    for user in message.mentions
+                    for embed in message.embeds
                 ],
-                "roles": [
+                "reactions": [
                     {
-                        "id": role.id,
-                        "name": role.name,
-                        "color": role.color.value,
+                        "emoji": str(reaction.emoji),
+                        "count": reaction.count,
+                        "me": reaction.me,
                     }
-                    for role in message.role_mentions
+                    for reaction in message.reactions
                 ],
-                "channels": [
+                "mentions": {
+                    "users": [
+                        {
+                            "id": user.id,
+                            "name": user.display_name,
+                            "username": user.name,
+                        }
+                        for user in message.mentions
+                    ],
+                    "roles": [
+                        {
+                            "id": role.id,
+                            "name": role.name,
+                            "color": role.color.value,
+                        }
+                        for role in message.role_mentions
+                    ],
+                    "channels": [
+                        {
+                            "id": channel.id,
+                            "name": channel.name,
+                            "type": str(channel.type),
+                        }
+                        for channel in message.channel_mentions
+                    ],
+                    "everyone": message.mention_everyone,
+                },
+                "stickers": [
                     {
-                        "id": channel.id,
-                        "name": channel.name,
-                        "type": str(channel.type),
+                        "id": sticker.id,
+                        "name": sticker.name,
+                        "format": str(sticker.format),
+                        "url": sticker.url,
                     }
-                    for channel in message.channel_mentions
+                    for sticker in message.stickers
                 ],
-                "everyone": message.mention_everyone,
             },
-            "stickers": [
-                {
-                    "id": sticker.id,
-                    "name": sticker.name,
-                    "format": str(sticker.format),
-                    "url": sticker.url,
-                }
-                for sticker in message.stickers
-            ],
-        }
+        )
 
-    def _extract_timing_metadata(self, message: discord.Message) -> dict[str, Any]:
+    def _extract_timing_metadata(self, message: discord.Message) -> TimingMetadata:
         """Extract timing-related metadata"""
         created_at = message.created_at
         edited_at = message.edited_at
@@ -437,7 +541,10 @@ class MessageProcessor(LoggerMixin):
         try:
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-            async with aiohttp.ClientSession() as session, session.get(attachment.url) as response:
+            async with (
+                aiohttp.ClientSession() as session,
+                session.get(attachment.url) as response,
+            ):
                 if response.status == 200:
                     async with aiofiles.open(save_path, "wb") as file:
                         async for chunk in response.content.iter_chunked(8192):

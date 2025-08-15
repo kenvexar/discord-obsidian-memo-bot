@@ -11,22 +11,13 @@ from urllib.parse import urlparse
 import aiohttp
 from bs4 import BeautifulSoup
 
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
+from ..utils.logger import LoggerMixin
 
 
 class URLContentExtractor(LoggerMixin):
     """URL内容抽出システム"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初期化"""
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -172,13 +163,17 @@ class URLContentExtractor(LoggerMixin):
 
         # Open Graphプロパティから
         og_title = soup.find("meta", property="og:title")
-        if og_title and og_title.get("content"):
-            return og_title.get("content").strip()
+        if og_title and hasattr(og_title, "get"):
+            content = og_title.get("content")
+            if isinstance(content, str):
+                return content.strip()
 
         # Twitter Cardから
         twitter_title = soup.find("meta", attrs={"name": "twitter:title"})
-        if twitter_title and twitter_title.get("content"):
-            return twitter_title.get("content").strip()
+        if twitter_title and hasattr(twitter_title, "get"):
+            content = twitter_title.get("content")
+            if isinstance(content, str):
+                return content.strip()
 
         # h1タグから
         h1_tag = soup.find("h1")
@@ -191,18 +186,24 @@ class URLContentExtractor(LoggerMixin):
         """説明を抽出"""
         # meta descriptionから
         meta_desc = soup.find("meta", attrs={"name": "description"})
-        if meta_desc and meta_desc.get("content"):
-            return meta_desc.get("content").strip()
+        if meta_desc and hasattr(meta_desc, "get"):
+            content = meta_desc.get("content")
+            if isinstance(content, str):
+                return content.strip()
 
         # Open Graphプロパティから
         og_desc = soup.find("meta", property="og:description")
-        if og_desc and og_desc.get("content"):
-            return og_desc.get("content").strip()
+        if og_desc and hasattr(og_desc, "get"):
+            content = og_desc.get("content")
+            if isinstance(content, str):
+                return content.strip()
 
         # Twitter Cardから
         twitter_desc = soup.find("meta", attrs={"name": "twitter:description"})
-        if twitter_desc and twitter_desc.get("content"):
-            return twitter_desc.get("content").strip()
+        if twitter_desc and hasattr(twitter_desc, "get"):
+            content = twitter_desc.get("content")
+            if isinstance(content, str):
+                return content.strip()
 
         return ""
 
@@ -241,26 +242,27 @@ class URLContentExtractor(LoggerMixin):
             main_element = soup.body or soup
 
         # 不要な要素を削除
-        for unwanted in main_element.select(
-            [
-                "nav",
-                "header",
-                "footer",
-                "aside",
-                ".sidebar",
-                ".navigation",
-                ".menu",
-                ".ads",
-                ".advertisement",
-                ".social-share",
-                ".comments",
-                ".related-posts",
-                ".tags",
-                ".breadcrumb",
-                ".pagination",
-            ]
-        ):
-            unwanted.decompose()
+        unwanted_selectors = [
+            "nav",
+            "header",
+            "footer",
+            "aside",
+            ".sidebar",
+            ".navigation",
+            ".menu",
+            ".ads",
+            ".advertisement",
+            ".social-share",
+            ".comments",
+            ".related-posts",
+            ".tags",
+            ".breadcrumb",
+            ".pagination",
+        ]
+
+        for selector in unwanted_selectors:
+            for unwanted in main_element.select(selector):
+                unwanted.decompose()
 
         # テキストを抽出
         text = main_element.get_text(separator="\n", strip=True)

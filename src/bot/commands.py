@@ -3,6 +3,7 @@ Discord bot commands implementation
 """
 
 from datetime import datetime
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -30,7 +31,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
         self.logger.info("Basic commands initialized")
 
     @commands.command(name="help")
-    async def help_command(self, ctx: commands.Context) -> None:
+    async def help_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display help information"""
         embed = discord.Embed(
             title="🤖 Discord-Obsidian Memo Bot",
@@ -124,7 +125,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
         self.logger.info("Help command executed", user=str(ctx.author))
 
     @commands.command(name="status")
-    async def status_command(self, ctx: commands.Context) -> None:
+    async def status_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display system status"""
         guild = ctx.guild
         if not guild:
@@ -183,7 +184,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="search")
     async def search_command(
-        self, ctx: commands.Context, *, query: str | None = None
+        self, ctx: commands.Context[commands.Bot], *, query: str | None = None
     ) -> None:
         """Search in Obsidian vault"""
         if not query:
@@ -221,7 +222,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
 
                     results_text += f"**{i}.** [{title}]({note.file_path.name})\n"
                     results_text += f"   📅 {created_str}"
-                    if note.tags:
+                    if hasattr(note, "tags") and note.tags:
                         tags_str = " ".join([f"#{tag}" for tag in note.tags[:3]])
                         results_text += f" | 🏷️ {tags_str}"
                     results_text += "\n\n"
@@ -274,7 +275,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="stats")
-    async def stats_command(self, ctx: commands.Context) -> None:
+    async def stats_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display comprehensive statistics"""
         try:
             # 統計情報を並行して取得
@@ -336,7 +337,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             system_text = (
                 f"🤖 **Bot稼働時間**: {self._get_uptime()}\n"
                 f"🔧 **バージョン**: 0.1.0\n"
-                f"📡 **接続状態**: {'✅ 正常' if self.bot.is_ready else '❌ 切断'}"
+                f"📡 **接続状態**: {'✅ 正常' if self.bot.is_ready() else '❌ 切断'}"
             )
             embed.add_field(name="⚙️ システム情報", value=system_text, inline=False)
 
@@ -358,7 +359,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 "Stats command error", user=str(ctx.author), error=str(e), exc_info=True
             )
 
-    async def _get_obsidian_stats(self):
+    async def _get_obsidian_stats(self) -> dict[str, Any] | None:
         """Obsidian統計情報を取得"""
         try:
             from ..obsidian import ObsidianFileManager
@@ -378,7 +379,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             self.logger.warning("Failed to get Obsidian stats", error=str(e))
             return None
 
-    async def _get_finance_stats(self):
+    async def _get_finance_stats(self) -> dict[str, Any] | None:
         """家計統計情報を取得"""
         try:
             from ..finance import ExpenseManager, SubscriptionManager
@@ -389,8 +390,10 @@ class BasicCommands(commands.Cog, LoggerMixin):
             expense_manager = ExpenseManager(obsidian_manager)
 
             # 基本統計
-            subscriptions = await subscription_manager.get_all_subscriptions()
-            upcoming = await subscription_manager.get_upcoming_payments()
+            subscriptions = await subscription_manager.get_due_subscriptions(
+                days_ahead=30
+            )
+            upcoming = await subscription_manager.get_due_subscriptions(days_ahead=7)
 
             # 今月の収支（簡易版）
             from datetime import date
@@ -414,7 +417,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             self.logger.warning("Failed to get finance stats", error=str(e))
             return None
 
-    async def _get_task_stats(self):
+    async def _get_task_stats(self) -> dict[str, Any] | None:
         """タスク統計情報を取得"""
         try:
             from ..obsidian import ObsidianFileManager
@@ -425,7 +428,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             schedule_manager = ScheduleManager(obsidian_manager)
 
             # タスク統計
-            all_tasks = await task_manager.get_all_tasks()
+            all_tasks = await task_manager.get_due_soon_tasks(days=365)  # 今年のタスク
             completed = len([t for t in all_tasks if t.status.value == "completed"])
             in_progress = len([t for t in all_tasks if t.status.value == "in_progress"])
             todo = len([t for t in all_tasks if t.status.value == "todo"])
@@ -433,7 +436,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             completion_rate = (completed / len(all_tasks) * 100) if all_tasks else 0
 
             # スケジュール統計
-            all_schedules = await schedule_manager.get_all_schedules()
+            all_schedules = await schedule_manager.get_today_schedules()
 
             return {
                 "completed": completed,
@@ -446,7 +449,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             self.logger.warning("Failed to get task stats", error=str(e))
             return None
 
-    def _get_uptime(self):
+    def _get_uptime(self) -> str:
         """Bot稼働時間を取得"""
         try:
             if hasattr(self.bot, "_start_time"):
@@ -459,7 +462,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
             return "不明"
 
     @commands.command(name="random_note")
-    async def random_note_command(self, ctx: commands.Context) -> None:
+    async def random_note_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display random note from vault"""
         try:
             import random
@@ -576,7 +579,11 @@ class BasicCommands(commands.Cog, LoggerMixin):
     @commands.command(name="config")
     @commands.has_permissions(administrator=True)
     async def config_command(
-        self, ctx: commands.Context, action: str = None, *, args: str = None
+        self,
+        ctx: commands.Context[commands.Bot],
+        action: str | None = None,
+        *,
+        args: str | None = None,
     ) -> None:
         """動的設定管理コマンド (管理者のみ)"""
         if not hasattr(self.bot, "config_manager"):
@@ -675,7 +682,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 exc_info=True,
             )
 
-    async def _show_all_configs(self, ctx, config_manager):
+    async def _show_all_configs(
+        self, ctx: commands.Context[commands.Bot], config_manager: Any
+    ) -> None:
         """すべての設定を表示"""
         embed = discord.Embed(title="⚙️ システム設定一覧", color=0x5865F2)
 
@@ -696,7 +705,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
 
         await ctx.send(embed=embed)
 
-    async def _set_config(self, ctx, config_manager, args):
+    async def _set_config(
+        self, ctx: commands.Context[commands.Bot], config_manager: Any, args: str
+    ) -> None:
         """設定を変更"""
         try:
             parts = args.split(" ", 1)
@@ -710,18 +721,19 @@ class BasicCommands(commands.Cog, LoggerMixin):
             category_name, key = config_path.split(".", 1)
 
             # 値の型変換
+            value_processed: str | bool | int | float = value
             if value.lower() in ("true", "false"):
-                value = value.lower() == "true"
+                value_processed = value.lower() == "true"
             elif value.isdigit():
-                value = int(value)
+                value_processed = int(value)
             elif value.replace(".", "", 1).isdigit():
-                value = float(value)
+                value_processed = float(value)
 
             # 設定更新
             success = await config_manager.set_config(
                 config_manager.ConfigCategory(category_name),
                 key,
-                value,
+                value_processed,
                 requester=str(ctx.author),
             )
 
@@ -748,7 +760,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
             )
             await ctx.send(embed=embed)
 
-    async def _get_config(self, ctx, config_manager, args):
+    async def _get_config(
+        self, ctx: commands.Context[commands.Bot], config_manager: Any, args: str
+    ) -> None:
         """特定の設定を取得"""
         try:
             if "." not in args:
@@ -776,7 +790,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
             )
             await ctx.send(embed=embed)
 
-    async def _show_config_history(self, ctx, config_manager):
+    async def _show_config_history(
+        self, ctx: commands.Context[commands.Bot], config_manager: Any
+    ) -> None:
         """設定変更履歴を表示"""
         history = config_manager.get_config_history(limit=10)
 
@@ -804,7 +820,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
 
         await ctx.send(embed=embed)
 
-    async def _validate_api_key(self, ctx, config_manager, args):
+    async def _validate_api_key(
+        self, ctx: commands.Context[commands.Bot], config_manager: Any, args: str
+    ) -> None:
         """APIキーを検証"""
         try:
             parts = args.split(" ", 1)
@@ -879,10 +897,12 @@ class AICommands(commands.Cog, LoggerMixin):
         )
 
         try:
-            self.ai_processor = AIProcessor(settings=processing_settings)
+            self.ai_processor: AIProcessor | None = AIProcessor(
+                settings=processing_settings
+            )
             # 高度なノート分析システムの初期化
             obsidian_manager = ObsidianFileManager()
-            self.note_analyzer = AdvancedNoteAnalyzer(
+            self.note_analyzer: AdvancedNoteAnalyzer | None = AdvancedNoteAnalyzer(
                 obsidian_file_manager=obsidian_manager, ai_processor=self.ai_processor
             )
             self.logger.info("AI commands initialized with processor and note analyzer")
@@ -893,7 +913,7 @@ class AICommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="ai_test")
     async def ai_test_command(
-        self, ctx: commands.Context, *, text: str | None = None
+        self, ctx: commands.Context[commands.Bot], *, text: str | None = None
     ) -> None:
         """Test AI processing functionality"""
         if not self.ai_processor:
@@ -991,7 +1011,7 @@ class AICommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="ai_stats")
-    async def ai_stats_command(self, ctx: commands.Context) -> None:
+    async def ai_stats_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display AI processing statistics"""
         if not self.ai_processor:
             await ctx.send("❌ AI処理システムが利用できません。")
@@ -1074,7 +1094,7 @@ class AICommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="ai_health")
-    async def ai_health_command(self, ctx: commands.Context) -> None:
+    async def ai_health_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Check AI system health"""
         if not self.ai_processor:
             await ctx.send("❌ AI処理システムが利用できません。")
@@ -1150,7 +1170,7 @@ class AICommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="search_notes")
     async def search_notes_command(
-        self, ctx: commands.Context, *, query: str | None = None
+        self, ctx: commands.Context[commands.Bot], *, query: str | None = None
     ) -> None:
         """Semantic search for related notes"""
         if not self.note_analyzer:
@@ -1264,7 +1284,7 @@ class AICommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="rebuild_index")
     async def rebuild_index_command(
-        self, ctx: commands.Context, force: str = "false"
+        self, ctx: commands.Context[commands.Bot], force: str = "false"
     ) -> None:
         """Rebuild vector search index"""
         if not self.note_analyzer:
@@ -1345,9 +1365,13 @@ class ObsidianCommands(commands.Cog, LoggerMixin):
         self.bot = bot
 
         try:
-            self.obsidian_manager = ObsidianFileManager()
-            self.vault_organizer = VaultOrganizer(self.obsidian_manager)
-            self.metadata_manager = MetadataManager(self.obsidian_manager)
+            self.obsidian_manager: ObsidianFileManager | None = ObsidianFileManager()
+            self.vault_organizer: VaultOrganizer | None = VaultOrganizer(
+                self.obsidian_manager
+            )
+            self.metadata_manager: MetadataManager | None = MetadataManager(
+                self.obsidian_manager
+            )
             self.logger.info("Obsidian commands initialized")
         except Exception as e:
             self.obsidian_manager = None
@@ -1356,7 +1380,7 @@ class ObsidianCommands(commands.Cog, LoggerMixin):
             self.logger.error("Failed to initialize Obsidian commands", error=str(e))
 
     @commands.command(name="vault_stats")
-    async def vault_stats_command(self, ctx: commands.Context) -> None:
+    async def vault_stats_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Display Obsidian vault statistics"""
         if not self.obsidian_manager:
             await ctx.send("❌ Obsidian管理システムが利用できません。")
@@ -1449,7 +1473,7 @@ class ObsidianCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="vault_organize")
     async def vault_organize_command(
-        self, ctx: commands.Context, dry_run: str = "true"
+        self, ctx: commands.Context[commands.Bot], dry_run: str = "true"
     ) -> None:
         """Organize vault structure"""
         if not self.vault_organizer:
@@ -1550,7 +1574,7 @@ class ObsidianCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="vault_search")
     async def vault_search_command(
-        self, ctx: commands.Context, *, query: str | None = None
+        self, ctx: commands.Context[commands.Bot], *, query: str | None = None
     ) -> None:
         """Search notes in Obsidian vault"""
         if not self.obsidian_manager:
@@ -1637,7 +1661,7 @@ class ObsidianCommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="vault_report")
-    async def vault_report_command(self, ctx: commands.Context) -> None:
+    async def vault_report_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Generate comprehensive vault metadata report"""
         if not self.metadata_manager:
             await ctx.send("❌ メタデータ管理システムが利用できません。")
@@ -1729,8 +1753,10 @@ class DailyNoteCommands(commands.Cog, LoggerMixin):
         self.bot = bot
 
         try:
-            self.obsidian_manager = ObsidianFileManager()
-            self.daily_integration = DailyNoteIntegration(self.obsidian_manager)
+            self.obsidian_manager: ObsidianFileManager | None = ObsidianFileManager()
+            self.daily_integration: DailyNoteIntegration | None = DailyNoteIntegration(
+                self.obsidian_manager
+            )
             self.logger.info("Daily note commands initialized")
         except Exception as e:
             self.obsidian_manager = None
@@ -1739,7 +1765,7 @@ class DailyNoteCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="daily_note")
     async def create_daily_note_command(
-        self, ctx: commands.Context, date_str: str | None = None
+        self, ctx: commands.Context[commands.Bot], date_str: str | None = None
     ) -> None:
         """Create or update daily note for specified date"""
         if not self.daily_integration:
@@ -1811,7 +1837,7 @@ class DailyNoteCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="activity_log")
     async def add_activity_log_command(
-        self, ctx: commands.Context, *, activity: str
+        self, ctx: commands.Context[commands.Bot], *, activity: str
     ) -> None:
         """Add activity log entry to today's daily note"""
         if not self.daily_integration:
@@ -1862,7 +1888,9 @@ class DailyNoteCommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="daily_task")
-    async def add_daily_task_command(self, ctx: commands.Context, *, task: str) -> None:
+    async def add_daily_task_command(
+        self, ctx: commands.Context[commands.Bot], *, task: str
+    ) -> None:
         """Add task to today's daily note"""
         if not self.daily_integration:
             await ctx.send("❌ デイリーノート機能が利用できません。")
@@ -1923,7 +1951,7 @@ class SystemCommands(commands.Cog, LoggerMixin):
     @commands.command(name="config")
     async def config_command(
         self,
-        ctx: commands.Context,
+        ctx: commands.Context[commands.Bot],
         category: str | None = None,
         key: str | None = None,
         *,
@@ -1998,7 +2026,7 @@ class SystemCommands(commands.Cog, LoggerMixin):
             cat_enum = ConfigCategory(category)
 
             # 値の型変換
-            parsed_value = value
+            parsed_value: str | bool | int | float = value
             if value.lower() in ["true", "false"]:
                 parsed_value = value.lower() == "true"
             elif value.isdigit():
@@ -2037,7 +2065,7 @@ class SystemCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="backup")
     async def backup_command(
-        self, ctx: commands.Context, backup_type: str = "full"
+        self, ctx: commands.Context[commands.Bot], backup_type: str = "full"
     ) -> None:
         """Execute system backup"""
         # Get backup system from bot instance
@@ -2098,7 +2126,7 @@ class SystemCommands(commands.Cog, LoggerMixin):
 
     @commands.command(name="review")
     async def review_command(
-        self, ctx: commands.Context, review_type: str = "weekly"
+        self, ctx: commands.Context[commands.Bot], review_type: str = "weekly"
     ) -> None:
         """Execute system review"""
         # Get review system from bot instance
@@ -2157,7 +2185,7 @@ class SystemCommands(commands.Cog, LoggerMixin):
             await processing_msg.edit(content=None, embed=embed)
 
     @commands.command(name="system_health")
-    async def system_health_command(self, ctx: commands.Context) -> None:
+    async def system_health_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """Check system health status"""
         # Get notification system from bot instance
         notification_system = getattr(ctx.bot, "_parent", {})
@@ -2203,12 +2231,12 @@ class SystemCommands(commands.Cog, LoggerMixin):
 
             # 健康状態に応じて色を変更
             if health_status.get("recent_errors", 0) > 10:
-                embed.color = 0xFF0000  # Red
+                embed.colour = discord.Colour(0xFF0000)  # Red
             elif (
                 health_status.get("recent_errors", 0) > 0
                 or health_status.get("recent_warnings", 0) > 5
             ):
-                embed.color = 0xFF9800  # Orange
+                embed.colour = discord.Colour(0xFF9800)  # Orange
 
             await processing_msg.edit(content=None, embed=embed)
 
@@ -2228,8 +2256,10 @@ class TemplateCommands(commands.Cog, LoggerMixin):
         self.bot = bot
 
         try:
-            self.obsidian_manager = ObsidianFileManager()
-            self.template_engine = TemplateEngine(self.obsidian_manager.vault_path)
+            self.obsidian_manager: ObsidianFileManager | None = ObsidianFileManager()
+            self.template_engine: TemplateEngine | None = TemplateEngine(
+                self.obsidian_manager.vault_path
+            )
             self.logger.info("Template commands initialized")
         except Exception as e:
             self.obsidian_manager = None
@@ -2237,7 +2267,7 @@ class TemplateCommands(commands.Cog, LoggerMixin):
             self.logger.error("Failed to initialize template commands", error=str(e))
 
     @commands.command(name="list_templates")
-    async def list_templates_command(self, ctx: commands.Context) -> None:
+    async def list_templates_command(self, ctx: commands.Context[commands.Bot]) -> None:
         """List available templates"""
         if not self.template_engine:
             await ctx.send("❌ テンプレートシステムが利用できません。")
@@ -2284,7 +2314,7 @@ class TemplateCommands(commands.Cog, LoggerMixin):
     @commands.command(name="create_from_template")
     async def create_from_template_command(
         self,
-        ctx: commands.Context,
+        ctx: commands.Context[commands.Bot],
         template_name: str,
         *,
         content: str | None = None,
@@ -2340,7 +2370,11 @@ class TemplateCommands(commands.Cog, LoggerMixin):
 
             if note:
                 # ノートを保存
-                success = await self.obsidian_manager.save_note(note)
+                success = (
+                    await self.obsidian_manager.save_note(note)
+                    if self.obsidian_manager
+                    else False
+                )
 
                 if success:
                     embed = discord.Embed(
@@ -2399,7 +2433,9 @@ class TemplateCommands(commands.Cog, LoggerMixin):
             )
 
     @commands.command(name="create_default_templates")
-    async def create_default_templates_command(self, ctx: commands.Context) -> None:
+    async def create_default_templates_command(
+        self, ctx: commands.Context[commands.Bot]
+    ) -> None:
         """Create default templates"""
         if not self.template_engine:
             await ctx.send("❌ テンプレートシステムが利用できません。")
@@ -2469,7 +2505,7 @@ class TemplateCommands(commands.Cog, LoggerMixin):
             )
 
 
-async def setup_commands(bot: commands.Bot, channel_config: ChannelConfig) -> None:
+async def setup_commands(bot: Any, channel_config: ChannelConfig) -> None:
     """Setup bot commands"""
     await bot.add_cog(BasicCommands(bot, channel_config))
     await bot.add_cog(AICommands(bot))

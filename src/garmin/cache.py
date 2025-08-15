@@ -11,12 +11,7 @@ try:
     from ..utils import LoggerMixin
 except ImportError:
     # For standalone testing, create a mock LoggerMixin
-    class LoggerMixin:
-        @property
-        def logger(self):
-            import logging
-
-            return logging.getLogger(self.__class__.__name__)
+    pass
 
 
 from .models import HealthData
@@ -25,7 +20,7 @@ from .models import HealthData
 class GarminDataCache(LoggerMixin):
     """Garmin健康データのキャッシュシステム"""
 
-    def __init__(self, cache_dir: Path, max_age_hours: float = 24.0):
+    def __init__(self, cache_dir: Path, max_age_hours: float = 24.0) -> None:
         """
         初期化処理
 
@@ -103,7 +98,7 @@ class GarminDataCache(LoggerMixin):
 
             # キャッシュデータの読み込み
             with open(cache_file, "rb") as f:
-                health_data = pickle.load(f)
+                health_data: HealthData = pickle.load(f)
 
             # キャッシュメタデータを更新
             health_data.is_cached_data = True

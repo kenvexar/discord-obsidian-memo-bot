@@ -4,13 +4,13 @@ import json
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
+from typing import Any
 
 import aiofiles
 from structlog import get_logger
 
-from config import get_settings
-from obsidian import ObsidianFileManager
-
+from ..config import get_settings
+from ..obsidian import ObsidianFileManager
 from .expense_manager import ExpenseManager
 from .models import Budget, BudgetCategory
 
@@ -178,8 +178,9 @@ class BudgetManager:
         alerts = []
         for budget in budgets:
             # Only check active budgets
-            if (budget.period_start <= today <= budget.period_end and 
-                (budget.is_near_limit(threshold) or budget.is_over_budget())):
+            if budget.period_start <= today <= budget.period_end and (
+                budget.is_near_limit(threshold) or budget.is_over_budget()
+            ):
                 alerts.append(budget)
 
         return alerts
@@ -188,7 +189,7 @@ class BudgetManager:
         self,
         year: int,
         month: int,
-    ) -> dict[str, any]:
+    ) -> dict[str, Any]:
         """Get budget summary for a specific month."""
         from calendar import monthrange
 
@@ -245,7 +246,8 @@ class BudgetManager:
         expenses = await self.expense_manager.get_expenses_by_period(
             period_start, period_end, category
         )
-        return sum(expense.amount for expense in expenses)
+        total = sum(expense.amount for expense in expenses)
+        return total or Decimal("0")
 
     async def _load_budgets(self) -> dict[str, Budget]:
         """Load budgets from JSON file."""

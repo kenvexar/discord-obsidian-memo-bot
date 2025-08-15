@@ -346,7 +346,7 @@ class ObsidianFileManager(LoggerMixin):
             検索結果のノートリスト
         """
         try:
-            results = []
+            results: list[ObsidianNote] = []
             search_path = self.vault_path
 
             # フォルダ指定がある場合
@@ -685,7 +685,7 @@ class ObsidianFileManager(LoggerMixin):
     def _parse_markdown_file(self, content: str) -> tuple[dict[str, Any], str]:
         """Markdownファイルからフロントマターとコンテンツを分離"""
 
-        frontmatter_data = {}
+        frontmatter_data: dict[str, Any] = {}
         markdown_content = content
 
         # フロントマターの検出

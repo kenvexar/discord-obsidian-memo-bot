@@ -10,11 +10,11 @@ from .settings import Settings, get_settings
 class SecureSettingsManager:
     """Settings manager with secure credential loading"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = get_logger("secure_settings")
         self.base_settings = get_settings()
         self.secure_config = None
-        self._secrets_cache = {}
+        self._secrets_cache: dict[str, str] = {}
 
         if self.base_settings.should_use_secret_manager:
             self.secure_config = SecureConfigManager(
@@ -36,9 +36,11 @@ class SecureSettingsManager:
             value = await self.secure_config.get_config_value(key)
         else:
             # Fallback to environment variables
-            value = getattr(self.base_settings, key, None)
-            if hasattr(value, "get_secret_value"):
-                value = value.get_secret_value()
+            raw_value = getattr(self.base_settings, key, None)
+            if raw_value is not None and hasattr(raw_value, "get_secret_value"):
+                value = raw_value.get_secret_value()
+            else:
+                value = str(raw_value) if raw_value is not None else None
 
         # Cache the value
         if value:
@@ -46,7 +48,7 @@ class SecureSettingsManager:
 
         return value
 
-    async def validate_all_credentials(self) -> dict[str, bool]:
+    async def validate_all_credentials(self) -> dict[str, dict[str, bool]]:
         """Validate all required credentials are accessible"""
         results = {}
 

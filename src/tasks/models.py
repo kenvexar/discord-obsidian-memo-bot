@@ -2,6 +2,7 @@
 
 from datetime import date, datetime, time
 from enum import Enum
+from typing import Any
 
 from pydantic import BaseModel, Field, validator
 
@@ -59,7 +60,7 @@ class Task(BaseModel):
     completed_at: datetime | None = Field(None, description="When task was completed")
 
     @validator("progress")
-    def validate_progress(cls, v):
+    def validate_progress(cls, v: int) -> int:
         """Validate progress is between 0 and 100."""
         if not 0 <= v <= 100:
             raise ValueError("Progress must be between 0 and 100")
@@ -136,7 +137,7 @@ class Schedule(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     @validator("end_date")
-    def validate_end_date(cls, v, values):
+    def validate_end_date(cls, v: date | None, values: dict[str, Any]) -> date | None:
         """Validate end date is not before start date."""
         if v and values.get("start_date") and v < values["start_date"]:
             raise ValueError("End date cannot be before start date")

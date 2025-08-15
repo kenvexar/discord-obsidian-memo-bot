@@ -55,7 +55,7 @@ class Subscription(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.now)
 
     @validator("currency")
-    def validate_currency(cls, v):
+    def validate_currency(cls, v: str) -> str:
         """Validate currency code."""
         valid_currencies = ["JPY", "USD", "EUR"]
         if v not in valid_currencies:

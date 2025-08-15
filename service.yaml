@@ -12,13 +12,13 @@ spec:
         # Resource allocation optimized for Discord bot workload
         run.googleapis.com/memory: "1Gi"
         run.googleapis.com/cpu: "1"
-        
+
         # Concurrency and scaling settings
         run.googleapis.com/execution-environment: gen2
         autoscaling.knative.dev/minScale: "0"
         autoscaling.knative.dev/maxScale: "10"
         run.googleapis.com/cpu-throttling: "false"
-        
+
         # Timeout optimized for long-running bot operations
         run.googleapis.com/timeout: "300s"
     spec:
@@ -30,7 +30,7 @@ spec:
         - name: http1
           containerPort: 8080
           protocol: TCP
-        
+
         env:
         # Core application settings
         - name: ENVIRONMENT
@@ -39,7 +39,7 @@ spec:
           value: "8080"
         - name: MOCK_MODE
           value: "false"
-        
+
         # Discord configuration
         - name: DISCORD_BOT_TOKEN
           valueFrom:
@@ -51,7 +51,7 @@ spec:
             secretKeyRef:
               name: discord-config
               key: guild_id
-        
+
         # AI and processing configuration
         - name: GEMINI_API_KEY
           valueFrom:
@@ -63,13 +63,13 @@ spec:
             secretKeyRef:
               name: speech-api-key
               key: key
-              
+
         # Storage and paths
         - name: OBSIDIAN_VAULT_PATH
           value: "/app/vault"
         - name: LOG_LEVEL
           value: "INFO"
-        
+
         # Health check configuration
         livenessProbe:
           httpGet:
@@ -79,7 +79,7 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 10
           failureThreshold: 3
-          
+
         readinessProbe:
           httpGet:
             path: /ready
@@ -88,7 +88,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 5
           failureThreshold: 3
-        
+
         # Resource limits and requests
         resources:
           requests:
@@ -97,14 +97,14 @@ spec:
           limits:
             cpu: "1000m"
             memory: "1Gi"
-        
+
         # Volume mounts for persistent data
         volumeMounts:
         - name: vault-data
           mountPath: /app/vault
         - name: logs
           mountPath: /app/logs
-      
+
       volumes:
       - name: vault-data
         emptyDir: {}

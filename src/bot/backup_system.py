@@ -43,7 +43,9 @@ class BackupStatus(str, Enum):
 class DataBackupSystem(LoggerMixin):
     """データバックアップとストレージ管理システム"""
 
-    def __init__(self, bot: commands.Bot, notification_system=None):
+    def __init__(
+        self, bot: commands.Bot, notification_system: Any | None = None
+    ) -> None:
         self.bot = bot
         self.notification_system = notification_system
 
@@ -70,12 +72,12 @@ class DataBackupSystem(LoggerMixin):
         # スケジューラータスクの初期化
         self._setup_scheduled_backup()
 
-    def _setup_scheduled_backup(self):
+    def _setup_scheduled_backup(self) -> None:
         """定期バックアップスケジューラーセットアップ"""
         try:
 
             @tasks.loop(hours=self.backup_interval_hours)
-            async def scheduled_backup():
+            async def scheduled_backup() -> None:
                 if self.auto_backup_enabled:
                     await self.run_backup(BackupType.INCREMENTAL, auto_triggered=True)
 
@@ -85,7 +87,7 @@ class DataBackupSystem(LoggerMixin):
         except Exception as e:
             self.logger.error("Failed to setup backup scheduler", error=str(e))
 
-    async def start(self):
+    async def start(self) -> None:
         """バックアップシステム開始"""
         try:
             if self.auto_backup_enabled:
@@ -99,7 +101,7 @@ class DataBackupSystem(LoggerMixin):
                 "Failed to start backup system", error=str(e), exc_info=True
             )
 
-    async def stop(self):
+    async def stop(self) -> None:
         """バックアップシステム停止"""
         try:
             if hasattr(self, "scheduled_backup_task"):
@@ -131,7 +133,7 @@ class DataBackupSystem(LoggerMixin):
                 )
 
             backup_destinations = destinations or self.backup_destinations
-            backup_result = {
+            backup_result: dict[str, Any] = {
                 "backup_id": backup_id,
                 "type": backup_type.value,
                 "start_time": datetime.now(),
@@ -153,9 +155,14 @@ class DataBackupSystem(LoggerMixin):
                 backup_result.update(await self._run_config_backup(backup_id))
 
             backup_result["end_time"] = datetime.now()
-            backup_result["duration_seconds"] = (
-                backup_result["end_time"] - backup_result["start_time"]
-            ).total_seconds()
+            end_time = backup_result["end_time"]
+            start_time = backup_result["start_time"]
+            if isinstance(end_time, datetime) and isinstance(start_time, datetime):
+                backup_result["duration_seconds"] = (
+                    end_time - start_time
+                ).total_seconds()
+            else:
+                backup_result["duration_seconds"] = 0.0
 
             # バックアップ先への保存
             for destination in backup_destinations:
@@ -164,9 +171,10 @@ class DataBackupSystem(LoggerMixin):
                         backup_id, destination, backup_result
                     )
                 except Exception as e:
-                    backup_result["errors"].append(
-                        f"Destination {destination.value}: {str(e)}"
-                    )
+                    errors = backup_result.get("errors", [])
+                    if isinstance(errors, list):
+                        errors.append(f"Destination {destination.value}: {str(e)}")
+                        backup_result["errors"] = errors
 
             # 結果判定
             if backup_result["errors"]:
@@ -295,9 +303,9 @@ class DataBackupSystem(LoggerMixin):
             "backup_file": str(backup_path),
             "files_backed_up": files_backed_up,
             "total_size_mb": round(total_size / (1024 * 1024), 2),
-            "last_backup_time": last_backup_time.isoformat()
-            if last_backup_time
-            else None,
+            "last_backup_time": (
+                last_backup_time.isoformat() if last_backup_time else None
+            ),
         }
 
     async def _run_obsidian_backup(self, backup_id: str) -> dict[str, Any]:
@@ -387,7 +395,7 @@ class DataBackupSystem(LoggerMixin):
         backup_id: str,
         destination: BackupDestination,
         backup_result: dict[str, Any],
-    ):
+    ) -> None:
         """バックアップ先への保存"""
         if destination == BackupDestination.LOCAL:
             # ローカル保存は既に完了
@@ -440,7 +448,7 @@ class DataBackupSystem(LoggerMixin):
             self.logger.error(f"Backup restore failed: {e}", exc_info=True)
             return {"error": str(e)}
 
-    async def _cleanup_old_backups(self):
+    async def _cleanup_old_backups(self) -> None:
         """古いバックアップファイルのクリーンアップ"""
         try:
             backup_files = sorted(
@@ -478,14 +486,22 @@ class DataBackupSystem(LoggerMixin):
             return None
 
         last_backup = max(successful_backups, key=lambda x: x["start_time"])
-        return last_backup["start_time"]
+        start_time = last_backup["start_time"]
+        if isinstance(start_time, datetime):
+            return start_time
+        elif isinstance(start_time, str):
+            return datetime.fromisoformat(start_time)
+        return None
 
     async def _send_backup_completion_notification(
         self, backup_result: dict[str, Any], auto_triggered: bool
-    ):
+    ) -> None:
         """バックアップ完了通知"""
         if auto_triggered and backup_result["status"] == BackupStatus.SUCCESS.value:
             # 自動バックアップが成功した場合は詳細通知をスキップ
+            return
+
+        if not self.notification_system:
             return
 
         if backup_result["status"] == BackupStatus.SUCCESS.value:
@@ -531,7 +547,7 @@ class DataBackupSystem(LoggerMixin):
             embed_fields=embed_fields,
         )
 
-    def _record_backup(self, backup_result: dict[str, Any]):
+    def _record_backup(self, backup_result: dict[str, Any]) -> None:
         """バックアップ履歴記録"""
         # datetimeオブジェクトを文字列に変換
         serializable_result = backup_result.copy()

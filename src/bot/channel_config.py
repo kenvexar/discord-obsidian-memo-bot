@@ -186,12 +186,18 @@ class ChannelConfig(LoggerMixin):
         """Get finance expenses channel if exists."""
         if not self.bot or not hasattr(settings, "channel_expenses"):
             return None
-        channel = self.bot.get_channel(getattr(settings, "channel_expenses", None))
+        channel_id = getattr(settings, "channel_expenses", None)
+        if not isinstance(channel_id, int):
+            return None
+        channel = self.bot.get_channel(channel_id)
         return channel if isinstance(channel, discord.TextChannel) else None
 
     def get_finance_income_channel(self) -> discord.TextChannel | None:
         """Get finance income channel if exists."""
         if not self.bot or not hasattr(settings, "channel_income"):
             return None
-        channel = self.bot.get_channel(getattr(settings, "channel_income", None))
+        channel_id = getattr(settings, "channel_income", None)
+        if not isinstance(channel_id, int):
+            return None
+        channel = self.bot.get_channel(channel_id)
         return channel if isinstance(channel, discord.TextChannel) else None

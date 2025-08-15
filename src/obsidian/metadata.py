@@ -95,7 +95,12 @@ class MetadataManager(LoggerMixin):
                 limit=limit,
             )
 
-            results = {"processed": 0, "updated": 0, "errors": 0, "updated_notes": []}
+            results: dict[str, Any] = {
+                "processed": 0,
+                "updated": 0,
+                "errors": 0,
+                "updated_notes": [],
+            }
 
             # 条件に合致するノートを検索
             notes = await self.file_manager.search_notes(
@@ -169,7 +174,7 @@ class MetadataManager(LoggerMixin):
             # ノートを取得
             notes = await self.file_manager.search_notes(limit=limit)
 
-            analysis = {
+            analysis: dict[str, Any] = {
                 "total_notes": len(notes),
                 "notes_with_tags": 0,
                 "total_tags": 0,
@@ -289,7 +294,7 @@ class MetadataManager(LoggerMixin):
 
             notes = await self.file_manager.search_notes(limit=limit)
 
-            analysis = {
+            analysis: dict[str, Any] = {
                 "total_notes": len(notes),
                 "content_length_stats": {
                     "min": float("inf"),

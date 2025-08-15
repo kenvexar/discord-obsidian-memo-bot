@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 from datetime import date, datetime
+from typing import Any
 
 import discord
 from structlog import get_logger
@@ -30,7 +31,7 @@ class FinanceReminderSystem:
         self.channel_config = channel_config
         self.subscription_manager = subscription_manager
         self.budget_manager = budget_manager
-        self._reminder_task: asyncio.Task | None = None
+        self._reminder_task: asyncio.Task[Any] | None = None
         self._is_running = False
 
     async def start(self) -> None:

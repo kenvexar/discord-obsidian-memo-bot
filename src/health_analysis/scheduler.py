@@ -6,42 +6,15 @@ import asyncio
 from datetime import date, datetime, timedelta
 from typing import Any
 
-try:
-    from ..config import settings
-except ImportError:
-    # For standalone testing
-    class MockSettings:
-        gemini_api_daily_limit = 1500
-
-    settings = MockSettings()
-
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
-
-
-try:
-    from ..garmin import GarminClient
-    from ..obsidian import DailyNoteIntegration
-except ImportError:
-    # For standalone testing
-    class GarminClient:
-        pass
-
-    class DailyNoteIntegration:
-        pass
-
-
+from ..config.settings import get_settings
+from ..garmin.client import GarminClient
+from ..obsidian.daily_integration import DailyNoteIntegration
+from ..utils.logger import LoggerMixin
 from .analyzer import HealthDataAnalyzer
 from .integrator import HealthActivityIntegrator
 from .models import AnalysisReport, ChangeDetection, ChangeType
+
+settings = get_settings()
 
 
 class HealthAnalysisScheduler(LoggerMixin):
@@ -53,7 +26,7 @@ class HealthAnalysisScheduler(LoggerMixin):
         analyzer: HealthDataAnalyzer,
         integrator: HealthActivityIntegrator,
         daily_integration: DailyNoteIntegration,
-    ):
+    ) -> None:
         """
         初期化処理
 
@@ -234,7 +207,7 @@ class HealthAnalysisScheduler(LoggerMixin):
     async def _save_analysis_to_daily_note(
         self,
         analysis_report: AnalysisReport,
-        correlation_analysis,  # ActivityCorrelation型だが、importを避けるため Any使用
+        correlation_analysis: Any,  # ActivityCorrelation型だが、importを避けるため Any使用
         current_date: date,
     ) -> None:
         """分析結果をデイリーノートに保存"""
@@ -260,7 +233,7 @@ class HealthAnalysisScheduler(LoggerMixin):
             )
 
     def _format_analysis_for_daily_note(
-        self, analysis_report: AnalysisReport, correlation_analysis
+        self, analysis_report: AnalysisReport, correlation_analysis: Any
     ) -> str:
         """分析結果をデイリーノート用Markdownに整形"""
 

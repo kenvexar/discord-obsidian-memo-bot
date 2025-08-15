@@ -8,9 +8,8 @@ from decimal import Decimal
 import aiofiles
 from structlog import get_logger
 
-from config import get_settings
-from obsidian import ObsidianFileManager
-
+from ..config import get_settings
+from ..obsidian import ObsidianFileManager
 from .models import (
     BudgetCategory,
     ExpenseRecord,
@@ -122,8 +121,9 @@ class ExpenseManager:
                 else expense_data
             )
 
-            if (start_date <= expense.date <= end_date and 
-                (category is None or expense.category == category)):
+            if start_date <= expense.date <= end_date and (
+                category is None or expense.category == category
+            ):
                 result.append(expense)
 
         return sorted(result, key=lambda x: x.date, reverse=True)
@@ -172,7 +172,7 @@ class ExpenseManager:
     ) -> Decimal:
         """Get total income for a period."""
         incomes = await self.get_income_by_period(start_date, end_date)
-        return sum(income.amount for income in incomes)
+        return sum(income.amount for income in incomes) or Decimal("0")
 
     async def get_total_expenses(
         self,
@@ -181,7 +181,7 @@ class ExpenseManager:
     ) -> Decimal:
         """Get total expenses for a period."""
         expenses = await self.get_expenses_by_period(start_date, end_date)
-        return sum(expense.amount for expense in expenses)
+        return sum(expense.amount for expense in expenses) or Decimal("0")
 
     async def get_net_balance(
         self,
@@ -278,11 +278,16 @@ class ExpenseManager:
     ) -> None:
         """Add expense/income to daily note."""
         try:
-            from obsidian.daily_integration import DailyNoteIntegrator
+            from ..obsidian.daily_integration import (
+                DailyNoteIntegration as DailyNoteIntegrator,
+            )
 
             daily_integrator = DailyNoteIntegrator(self.file_manager)
 
             if record_type == "expense":
+                from .models import ExpenseRecord
+
+                assert isinstance(record, ExpenseRecord)
                 content = f"- **支出**: {record.description} - ¥{record.amount:,} ({record.category.value})"
                 if record.notes:
                     content += f" - {record.notes}"
@@ -291,10 +296,16 @@ class ExpenseManager:
                 if record.notes:
                     content += f" - {record.notes}"
 
-            await daily_integrator.append_to_section(
-                record.date,
-                "## Finance",
-                content,
+            # Add to daily note using activity log
+            message_data = {
+                "content": f"Finance: {content}",
+                "category": "Finance",
+                "type": record_type,
+            }
+            from datetime import datetime as dt
+
+            await daily_integrator.add_activity_log_entry(
+                message_data, dt.combine(record.date, dt.min.time())
             )
 
         except Exception as e:

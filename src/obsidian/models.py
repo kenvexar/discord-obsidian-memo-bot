@@ -101,7 +101,7 @@ class NoteFrontmatter(BaseModel):
 
     @field_validator("ai_tags")
     @classmethod
-    def validate_ai_tags(cls, v):
+    def validate_ai_tags(cls, v: list[str]) -> list[str]:
         """AIタグの正規化"""
         validated_tags = []
         for tag in v:
@@ -114,7 +114,7 @@ class NoteFrontmatter(BaseModel):
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, v):
+    def validate_tags(cls, v: list[str]) -> list[str]:
         """タグの正規化（#なし）"""
         validated_tags = []
         for tag in v:
@@ -138,7 +138,7 @@ class ObsidianNote(BaseModel):
 
     @field_validator("filename")
     @classmethod
-    def validate_filename(cls, v):
+    def validate_filename(cls, v: str) -> str:
         """ファイル名の検証"""
         if not v.endswith(".md"):
             raise ValueError("Filename must end with .md")

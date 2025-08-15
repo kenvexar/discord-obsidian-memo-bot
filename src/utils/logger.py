@@ -10,11 +10,13 @@ import structlog
 from rich.console import Console
 from rich.logging import RichHandler
 
-from ..config import settings
+from ..config.settings import get_settings
 
 
 def setup_logging() -> None:
     """Set up structured logging with rich formatting"""
+
+    settings = get_settings()
 
     # Configure log level
     log_level = getattr(logging, settings.log_level.upper(), logging.INFO)
@@ -66,7 +68,8 @@ def setup_logging() -> None:
 
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Get a structured logger instance"""
-    return structlog.get_logger(name)
+    logger = structlog.get_logger(name)
+    return logger  # type: ignore[no-any-return]  # type: ignore[return-value]
 
 
 class LoggerMixin:

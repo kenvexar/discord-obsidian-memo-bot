@@ -4,13 +4,13 @@ import json
 import uuid
 from datetime import date, datetime, time
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 from structlog import get_logger
 
-from config import get_settings
-from obsidian import ObsidianFileManager
-
+from ..config import get_settings
+from ..obsidian import ObsidianFileManager
 from .models import Schedule, ScheduleType
 
 logger = get_logger(__name__)
@@ -47,6 +47,7 @@ class ScheduleManager:
             title=title,
             description=description,
             schedule_type=schedule_type,
+            notes=None,
             start_date=start_date,
             start_time=start_time,
             end_date=end_date,
@@ -126,7 +127,7 @@ class ScheduleManager:
     async def update_schedule(
         self,
         schedule_id: str,
-        **updates,
+        **updates: Any,
     ) -> Schedule | None:
         """Update schedule details."""
         schedules = await self._load_schedules()
@@ -297,7 +298,25 @@ updated: {schedule.updated_at.isoformat()}
 - [[Weekly Planning]]
 """
 
-            await self.file_manager.create_file(file_path, content)
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            frontmatter = NoteFrontmatter(
+                ai_processed=True,
+                ai_summary=f"Schedule: {schedule.title}",
+                ai_tags=[],
+                ai_category="schedule",
+                tags=[],
+                obsidian_folder="Schedules",
+            )
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                content=content,
+                frontmatter=frontmatter,
+                created_at=datetime.now(),
+                modified_at=datetime.now(),
+            )
+            await self.file_manager.save_note(note)
 
         except Exception as e:
             logger.error(

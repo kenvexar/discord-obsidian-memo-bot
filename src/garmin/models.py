@@ -170,7 +170,6 @@ class HealthData(BaseModel):
             or any(activity.is_valid for activity in self.activities)
         )
 
-    @computed_field
     @property
     def available_data_types(self) -> list[str]:
         """利用可能なデータタイプのリストを取得"""
@@ -186,19 +185,16 @@ class HealthData(BaseModel):
         return data_types
 
     @computed_field
-    @property
     def failed_data_sources(self) -> list[DataSource]:
         """取得に失敗したデータソースのリスト"""
         return [error.source for error in self.detailed_errors]
 
     @computed_field
-    @property
     def recoverable_errors(self) -> list[DataError]:
         """回復可能なエラーのリスト"""
         return [error for error in self.detailed_errors if error.is_recoverable]
 
     @computed_field
-    @property
     def user_friendly_error_messages(self) -> list[str]:
         """ユーザー向けエラーメッセージのリスト"""
         messages = []
@@ -219,7 +215,9 @@ class HealthData(BaseModel):
 
     def assess_data_quality(self) -> str:
         """データ品質を自動評価"""
-        available_count = len(self.available_data_types)
+        # Get available data types (computed field)
+        available_data_list = self.available_data_types
+        available_count = len(available_data_list)
 
         if available_count >= 3:
             return "good"

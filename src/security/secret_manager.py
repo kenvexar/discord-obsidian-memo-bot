@@ -3,11 +3,15 @@ Google Cloud Secret Manager integration for secure credential management
 """
 
 import os
+from typing import TYPE_CHECKING
 
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import secretmanager
 
 from ..utils import LoggerMixin
+
+if TYPE_CHECKING:
+    from google.cloud.secretmanager import SecretManagerServiceClient
 
 
 class SecretManager(LoggerMixin):
@@ -15,11 +19,11 @@ class SecretManager(LoggerMixin):
 
     def __init__(self, project_id: str | None = None):
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
-        self.client = None
-        self._cache = {}
+        self.client: SecretManagerServiceClient | None = None
+        self._cache: dict[str, str] = {}
         self._initialize_client()
 
-    def _initialize_client(self):
+    def _initialize_client(self) -> None:
         """Initialize Google Cloud Secret Manager client"""
         if not self.project_id:
             self.logger.warning(
@@ -189,7 +193,7 @@ class SecretManager(LoggerMixin):
             self.logger.error(f"Failed to delete secret {secret_name}: {e}")
             return False
 
-    def clear_cache(self):
+    def clear_cache(self) -> None:
         """Clear the secret cache"""
         self._cache.clear()
         self.logger.debug("Secret cache cleared")

@@ -180,7 +180,7 @@ class AIProcessor(LoggerMixin):
 
         # AI処理実行
         errors = []
-        warnings = []
+        warnings: list[str] = []
         summary = None
         tags = None
         category = None
@@ -392,8 +392,8 @@ class AIProcessor(LoggerMixin):
             # Geminiクライアントで埋め込み生成
             if hasattr(self.gemini_client, "generate_embeddings"):
                 embedding = await self.gemini_client.generate_embeddings(text)
-                if embedding:
-                    return embedding
+                if embedding and isinstance(embedding, list):
+                    return list(embedding)
 
             # フォールバック: 簡単なハッシュベースのダミー埋め込み
             text_hash = hashlib.sha256(text.encode()).hexdigest()
@@ -441,7 +441,7 @@ URL: {url}
 
             if summary:
                 self.logger.debug("URL content summarized successfully", url=url)
-                return summary.strip()
+                return summary.summary.strip()
 
             return None
 
@@ -507,7 +507,10 @@ URL: {url}
 
             # レスポンスからリンクを抽出
             links = []
-            for line in response.split("\n"):
+            response_text = (
+                response.summary if hasattr(response, "summary") else str(response)
+            )
+            for line in response_text.split("\n"):
                 if "[[" in line and "]]" in line:
                     links.append(line.strip())
 

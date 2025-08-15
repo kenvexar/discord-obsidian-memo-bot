@@ -41,7 +41,7 @@ class NonRetryableAPIError(Exception):
 class SpeechProcessor(LoggerMixin):
     """音声処理と統合文字起こしシステム（複数エンジン対応）"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初期化処理"""
         self.usage_tracker = SpeechAPIUsage()
         self.supported_formats = {
@@ -54,7 +54,7 @@ class SpeechProcessor(LoggerMixin):
         }
 
         # 文字起こしエンジンの優先順位と利用可能性確認
-        self.transcription_engines = []
+        self.transcription_engines: list[dict[str, Any]] = []
         self._setup_transcription_engines()
 
         # API利用可能性フラグ
@@ -149,7 +149,7 @@ class SpeechProcessor(LoggerMixin):
         try:
             # whisper パッケージの確認
             import importlib.util
-            
+
             if importlib.util.find_spec("whisper") is not None:
                 self.logger.info("Local Whisper model available")
                 return True
@@ -380,6 +380,8 @@ class SpeechProcessor(LoggerMixin):
             }
 
             # API キーを使用してリクエスト
+            if settings.google_cloud_speech_api_key is None:
+                raise ValueError("Google Cloud Speech API key is not configured")
             api_key = settings.google_cloud_speech_api_key.get_secret_value()
             url = f"https://speech.googleapis.com/v1/speech:recognize?key={api_key}"
 
@@ -671,7 +673,7 @@ class SpeechProcessor(LoggerMixin):
 
     async def _validate_audio_quality(
         self, file_data: bytes, audio_format: AudioFormat
-    ) -> dict:
+    ) -> dict[str, Any]:
         """音声品質の事前検証"""
         try:
             from io import BytesIO

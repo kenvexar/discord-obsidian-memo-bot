@@ -74,7 +74,7 @@ class TagResult(BaseModel):
 
     @field_validator("tags")
     @classmethod
-    def validate_tags(cls, v):
+    def validate_tags(cls, v: list[str]) -> list[str]:
         """タグが正しい形式かチェック"""
         validated_tags = []
         for tag in v:
@@ -129,7 +129,7 @@ class ProcessingRequest(BaseModel):
 
     @field_validator("text_content")
     @classmethod
-    def validate_text_content(cls, v):
+    def validate_text_content(cls, v: str) -> str:
         """テキスト内容のバリデーション"""
         if not v or len(v.strip()) == 0:
             raise ValueError("Text content cannot be empty")

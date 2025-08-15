@@ -5,13 +5,13 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import aiofiles
 from structlog import get_logger
 
-from config import get_settings
-from obsidian import ObsidianFileManager
-
+from ..config import get_settings
+from ..obsidian import ObsidianFileManager
 from .models import (
     PaymentRecord,
     Subscription,
@@ -119,7 +119,7 @@ class SubscriptionManager:
     async def update_subscription(
         self,
         subscription_id: str,
-        **updates,
+        **updates: Any,
     ) -> Subscription | None:
         """Update subscription details."""
         subscriptions = await self._load_subscriptions()
@@ -238,7 +238,12 @@ class SubscriptionManager:
         return [
             PaymentRecord(**payment) if isinstance(payment, dict) else payment
             for payment in payments.values()
-            if payment.get("subscription_id") == subscription_id
+            if (
+                payment.get("subscription_id")
+                if isinstance(payment, dict)
+                else payment.subscription_id
+            )
+            == subscription_id
         ]
 
     async def _load_subscriptions(self) -> dict[str, Subscription]:
@@ -369,7 +374,25 @@ updated: {subscription.updated_at.isoformat()}
 - [[Budget Tracking]]
 """
 
-            await self.file_manager.create_file(file_path, content)
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            frontmatter = NoteFrontmatter(
+                ai_processed=True,
+                ai_summary=f"Subscription: {subscription.name}",
+                ai_tags=[],
+                ai_category="finance",
+                tags=[],
+                obsidian_folder="Finance",
+            )
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                content=content,
+                frontmatter=frontmatter,
+                created_at=datetime.now(),
+                modified_at=datetime.now(),
+            )
+            await self.file_manager.save_note(note)
 
         except Exception as e:
             logger.error(
@@ -389,7 +412,8 @@ updated: {subscription.updated_at.isoformat()}
             file_path = Path("06_Finance") / "Subscriptions" / filename
 
             # Read existing content
-            existing_content = await self.file_manager.read_file(file_path)
+            note = await self.file_manager.load_note(file_path)
+            existing_content = note.content if note else None
             if not existing_content:
                 await self._create_subscription_note(subscription)
                 return
@@ -428,7 +452,17 @@ updated: {subscription.updated_at.isoformat()}
                 updated_lines.append(payment_entry)
 
             updated_content = "\n".join(updated_lines)
-            await self.file_manager.update_file(file_path, updated_content)
+            # Create an ObsidianNote instance and save it
+            from ..obsidian.models import NoteFrontmatter, ObsidianNote
+
+            frontmatter = NoteFrontmatter(obsidian_folder="06_Finance")
+            note = ObsidianNote(
+                filename=file_path.name,
+                file_path=file_path,
+                frontmatter=frontmatter,
+                content=updated_content,
+            )
+            await self.file_manager.save_note(note, overwrite=True)
 
         except Exception as e:
             logger.error(

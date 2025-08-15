@@ -161,7 +161,7 @@ async def test_url_processing():
         text_with_urls = """
         AIに関する興味深い記事を見つけました:
         https://httpbin.org/html
-        
+
         この記事では、人工知能の最新動向について述べられています。
         参考にしてください。
         """
@@ -182,9 +182,12 @@ async def test_url_processing():
                     timeout = aiohttp.ClientTimeout(total=10)
                     headers = {"User-Agent": "Mozilla/5.0 (compatible; TestBot/1.0)"}
 
-                    async with aiohttp.ClientSession(
-                        timeout=timeout, headers=headers
-                    ) as session, session.get(url) as response:
+                    async with (
+                        aiohttp.ClientSession(
+                            timeout=timeout, headers=headers
+                        ) as session,
+                        session.get(url) as response,
+                    ):
                         if response.status == 200:
                             content = await response.text()
                             soup = BeautifulSoup(content, "html.parser")

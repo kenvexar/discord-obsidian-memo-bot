@@ -25,11 +25,13 @@ class ReviewType(str, Enum):
 class AutoReviewSystem(LoggerMixin):
     """自動レビューと整理提案システム"""
 
-    def __init__(self, bot: commands.Bot, notification_system=None):
+    def __init__(
+        self, bot: commands.Bot, notification_system: Any | None = None
+    ) -> None:
         self.bot = bot
         self.notification_system = notification_system
-        self.obsidian_manager = None
-        self.ai_processor = None
+        self.obsidian_manager: Any | None = None
+        self.ai_processor: Any | Any | None = None
 
         # レビュー実行履歴
         self.review_history: list[dict[str, Any]] = []
@@ -42,7 +44,7 @@ class AutoReviewSystem(LoggerMixin):
         # タスクの初期化
         self._setup_scheduled_tasks()
 
-    async def initialize_dependencies(self):
+    async def initialize_dependencies(self) -> None:
         """依存関係の初期化"""
         try:
             from ..ai import AIProcessor
@@ -67,12 +69,12 @@ class AutoReviewSystem(LoggerMixin):
                 exc_info=True,
             )
 
-    def _setup_scheduled_tasks(self):
+    def _setup_scheduled_tasks(self) -> None:
         """スケジュールされたタスクのセットアップ"""
         try:
             # 週次レビュー（毎週日曜日 9:00）
             @tasks.loop(hours=24)
-            async def weekly_review():
+            async def weekly_review() -> None:
                 if (
                     datetime.now().weekday() == 6 and datetime.now().hour == 9
                 ):  # Sunday 9 AM
@@ -80,7 +82,7 @@ class AutoReviewSystem(LoggerMixin):
 
             # 月次サマリー（毎月1日 10:00）
             @tasks.loop(hours=24)
-            async def monthly_summary():
+            async def monthly_summary() -> None:
                 if (
                     datetime.now().day == 1 and datetime.now().hour == 10
                 ):  # 1st of month 10 AM
@@ -88,7 +90,7 @@ class AutoReviewSystem(LoggerMixin):
 
             # 長期滞在メモチェック（毎日 11:00）
             @tasks.loop(hours=24)
-            async def long_term_check():
+            async def long_term_check() -> None:
                 if datetime.now().hour == 11:  # 11 AM daily
                     await self.run_long_term_notes_check()
 
@@ -101,7 +103,7 @@ class AutoReviewSystem(LoggerMixin):
         except Exception as e:
             self.logger.error("Failed to setup scheduled tasks", error=str(e))
 
-    async def start(self):
+    async def start(self) -> None:
         """レビューシステム開始"""
         try:
             await self.initialize_dependencies()
@@ -120,7 +122,7 @@ class AutoReviewSystem(LoggerMixin):
                 "Failed to start review system", error=str(e), exc_info=True
             )
 
-    async def stop(self):
+    async def stop(self) -> None:
         """レビューシステム停止"""
         try:
             if hasattr(self, "weekly_review_task"):
@@ -233,7 +235,8 @@ class AutoReviewSystem(LoggerMixin):
             )
 
             # 通知送信
-            await self._send_monthly_summary_notification(summary_data, last_month)
+            if summary_data:
+                await self._send_monthly_summary_notification(summary_data, last_month)
 
             # 履歴記録
             self._record_review(
@@ -287,9 +290,11 @@ class AutoReviewSystem(LoggerMixin):
                 ReviewType.LONG_TERM_NOTES,
                 {
                     "long_term_count": len(long_term_notes),
-                    "oldest_days": max([item["days_old"] for item in long_term_notes])
-                    if long_term_notes
-                    else 0,
+                    "oldest_days": (
+                        max([item["days_old"] for item in long_term_notes])
+                        if long_term_notes
+                        else 0
+                    ),
                 },
             )
 
@@ -387,7 +392,7 @@ class AutoReviewSystem(LoggerMixin):
                 return None
 
             # ノート内容を統合してプロンプトを作成
-            categories = {}
+            categories: dict[str, int] = {}
             total_words = 0
 
             for note in notes[:50]:  # 最大50ノートを分析
@@ -422,11 +427,14 @@ class AutoReviewSystem(LoggerMixin):
             self.logger.error("AI summary generation failed", error=str(e))
             return None
 
-    async def _find_related_notes(self, target_note) -> list:
+    async def _find_related_notes(self, target_note: Any) -> list:
         """関連ノートを検索"""
-        related_notes = []
+        related_notes: list[Any] = []
 
         try:
+            if not self.obsidian_manager:
+                return related_notes
+
             # タグベースの検索
             if target_note.frontmatter.tags or target_note.frontmatter.ai_tags:
                 all_tags = (
@@ -469,7 +477,7 @@ class AutoReviewSystem(LoggerMixin):
             return []
 
     async def _generate_integration_suggestions(
-        self, target_note, related_notes
+        self, target_note: Any, related_notes: Any
     ) -> list[dict[str, str]]:
         """統合提案生成"""
         suggestions = []
@@ -505,7 +513,7 @@ class AutoReviewSystem(LoggerMixin):
 
     async def _send_review_notification(
         self, review_type: ReviewType, title: str, message: str, details: dict[str, Any]
-    ):
+    ) -> None:
         """レビュー通知送信"""
         if self.notification_system:
             await self.notification_system.send_notification(
@@ -516,7 +524,9 @@ class AutoReviewSystem(LoggerMixin):
                 details=details,
             )
 
-    async def _send_weekly_review_notification(self, unorganized_notes, suggestions):
+    async def _send_weekly_review_notification(
+        self, unorganized_notes: Any, suggestions: Any
+    ) -> None:
         """週次レビュー通知送信"""
         if not self.notification_system:
             return
@@ -556,7 +566,9 @@ class AutoReviewSystem(LoggerMixin):
             embed_fields=embed_fields,
         )
 
-    async def _send_monthly_summary_notification(self, summary_data: str, month: date):
+    async def _send_monthly_summary_notification(
+        self, summary_data: str, month: date
+    ) -> None:
         """月次サマリー通知送信"""
         if not self.notification_system:
             return
@@ -573,7 +585,7 @@ class AutoReviewSystem(LoggerMixin):
             },
         )
 
-    async def _send_long_term_notes_notification(self, long_term_notes):
+    async def _send_long_term_notes_notification(self, long_term_notes: Any) -> None:
         """長期滞在メモ通知送信"""
         if not self.notification_system:
             return
@@ -600,14 +612,16 @@ class AutoReviewSystem(LoggerMixin):
             message=f"{len(long_term_notes)}件のメモが30日以上Inboxに残っています。",
             details={
                 "long_term_count": len(long_term_notes),
-                "oldest_days": max([item["days_old"] for item in long_term_notes])
-                if long_term_notes
-                else 0,
+                "oldest_days": (
+                    max([item["days_old"] for item in long_term_notes])
+                    if long_term_notes
+                    else 0
+                ),
             },
             embed_fields=embed_fields,
         )
 
-    def _record_review(self, review_type: ReviewType, data: dict[str, Any]):
+    def _record_review(self, review_type: ReviewType, data: dict[str, Any]) -> None:
         """レビュー履歴記録"""
         record = {
             "timestamp": datetime.now(),

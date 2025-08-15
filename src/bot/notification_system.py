@@ -37,7 +37,7 @@ class NotificationCategory(str, Enum):
 class NotificationSystem(LoggerMixin):
     """統合通知システム"""
 
-    def __init__(self, bot: commands.Bot, channel_config):
+    def __init__(self, bot: commands.Bot | Any, channel_config: Any) -> None:
         self.bot = bot
         self.channel_config = channel_config
         self.notification_history: list[dict[str, Any]] = []
@@ -115,7 +115,7 @@ class NotificationSystem(LoggerMixin):
                     embed.add_field(
                         name=field.get("name", "情報"),
                         value=field.get("value", "N/A"),
-                        inline=field.get("inline", False),
+                        inline=bool(field.get("inline", False)),
                     )
 
             # 詳細情報
@@ -135,7 +135,13 @@ class NotificationSystem(LoggerMixin):
 
             # メッセージ送信
             content = user_mention if user_mention else None
-            await channel.send(content=content, embed=embed)
+            if hasattr(channel, "send"):
+                await channel.send(content=content, embed=embed)
+            else:
+                self.logger.error(
+                    "Channel does not support sending messages",
+                    channel_type=type(channel).__name__,
+                )
 
             # 履歴に記録
             self._record_notification(level, category, title, message, details)
@@ -167,7 +173,7 @@ class NotificationSystem(LoggerMixin):
         channel_name: str,
         note_path: str,
         processing_details: dict[str, Any],
-    ):
+    ) -> None:
         """メッセージ処理完了通知"""
         await self.send_notification(
             level=NotificationLevel.SUCCESS,
@@ -182,7 +188,7 @@ class NotificationSystem(LoggerMixin):
                 "categories": processing_details.get("categories", []),
             },
             embed_fields=[
-                {"name": "📝 保存先", "value": f"`{note_path}`", "inline": False}
+                {"name": "📝 保存先", "value": f"`{note_path}`", "inline": "False"}
             ],
         )
 
@@ -192,7 +198,7 @@ class NotificationSystem(LoggerMixin):
         error_message: str,
         context: dict[str, Any],
         user_mention: str | None = None,
-    ):
+    ) -> None:
         """エラー通知"""
         await self.send_notification(
             level=NotificationLevel.ERROR,
@@ -208,7 +214,7 @@ class NotificationSystem(LoggerMixin):
         event_type: str,
         description: str,
         system_info: dict[str, Any] | None = None,
-    ):
+    ) -> None:
         """システムイベント通知"""
         await self.send_notification(
             level=NotificationLevel.SYSTEM,
@@ -223,7 +229,7 @@ class NotificationSystem(LoggerMixin):
         reminder_type: str,
         items: list[dict[str, Any]],
         channel_id: int | None = None,
-    ):
+    ) -> None:
         """リマインダー通知"""
         if not items:
             return
@@ -270,7 +276,7 @@ class NotificationSystem(LoggerMixin):
 
     async def send_ai_processing_notification(
         self, success: bool, processing_info: dict[str, Any]
-    ):
+    ) -> None:
         """AI処理結果通知"""
         level = NotificationLevel.SUCCESS if success else NotificationLevel.WARNING
         title = "🤖 AI処理完了" if success else "🤖 AI処理制限"
@@ -296,7 +302,7 @@ class NotificationSystem(LoggerMixin):
         title: str,
         message: str,
         details: dict[str, Any] | None,
-    ):
+    ) -> None:
         """通知履歴に記録"""
         record = {
             "timestamp": datetime.now(),

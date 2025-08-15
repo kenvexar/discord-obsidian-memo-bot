@@ -3,6 +3,7 @@ Mock Discord client for development and testing
 """
 
 import asyncio
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
@@ -28,35 +29,35 @@ class MockMessage:
         return self.content
 
     @property
-    def author(self):
+    def author(self) -> "MockUser":
         return MockUser(self.author_id, self.author_name)
 
     @property
-    def channel(self):
+    def channel(self) -> "MockChannel":
         """Mock channel property for compatibility"""
         return MockChannel(self.channel_id, f"channel_{self.channel_id}", self.guild_id)
 
     @property
-    def type(self):
+    def type(self) -> str:
         """Mock message type property"""
         return "default"
 
     @property
-    def guild(self):
+    def guild(self) -> "MockGuild":
         """Mock guild property"""
         return MockGuild(self.guild_id, "Test Guild", 5)
 
     @property
-    def created_at(self):
+    def created_at(self) -> datetime:
         """Mock created_at property"""
         return self.timestamp
 
     @property
-    def flags(self):
+    def flags(self) -> Any:
         """Mock flags property"""
 
         class MockFlags:
-            def __iter__(self):
+            def __iter__(self) -> Iterator[Any]:
                 return iter([])
 
         return MockFlags()
@@ -73,6 +74,7 @@ class MockUser:
 
     id: int
     name: str
+    discriminator: str = "0000"
 
     @property
     def bot(self) -> bool:
@@ -100,9 +102,13 @@ class MockGuild:
 class MockDiscordBot(LoggerMixin):
     """Mock Discord bot for testing without real Discord connection"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.is_ready = False
+        self._start_time = datetime.now()
         self.guild = MockGuild(id=123456789, name="Test Guild", member_count=5)
+        self.user = MockUser(id=98765, name="MockBot", discriminator="0001")
+        self.guilds = [self.guild]
+        self._event_handlers: dict[str, Callable[..., Any]] = {}
 
         # Mock channels based on configuration
         self.channels = {
@@ -119,9 +125,9 @@ class MockDiscordBot(LoggerMixin):
             123456799: MockChannel(123456799, "daily-tasks", 123456789),
         }
 
-        self.message_handlers = []
-        self.ready_handlers = []
-        self.error_handlers = []
+        self.message_handlers: list[Callable[..., Any]] = []
+        self.ready_handlers: list[Callable[..., Any]] = []
+        self.error_handlers: list[Callable[..., Any]] = []
 
         self.logger.info("Mock Discord bot initialized")
 
@@ -172,17 +178,22 @@ class MockDiscordBot(LoggerMixin):
         else:
             self.logger.warning("Mock channel not found", channel_id=channel_id)
 
-    def on_ready(self, handler):
+    def event(self, handler: Any) -> Any:
+        """Register event handler (decorator)"""
+        self._event_handlers[handler.__name__] = handler
+        return handler
+
+    def on_ready(self, handler: Any) -> Any:
         """Register ready handler"""
         self.ready_handlers.append(handler)
         return handler
 
-    def on_message(self, handler):
+    def on_message(self, handler: Any) -> Any:
         """Register message handler"""
         self.message_handlers.append(handler)
         return handler
 
-    def on_error(self, handler):
+    def on_error(self, handler: Any) -> Any:
         """Register error handler"""
         self.error_handlers.append(handler)
         return handler
@@ -221,10 +232,12 @@ class MockDiscordBot(LoggerMixin):
         for msg_data in test_messages:
             message = MockMessage(
                 id=message_id,
-                content=msg_data["content"],
+                content=str(msg_data["content"]),
                 author_id=12345,
-                author_name=msg_data["author"],
-                channel_id=msg_data["channel_id"],
+                author_name=str(msg_data["author"]),
+                channel_id=int(msg_data["channel_id"])
+                if isinstance(msg_data["channel_id"], (str, int))
+                else 0,
                 guild_id=self.guild.id,
                 timestamp=datetime.now(),
                 attachments=[],

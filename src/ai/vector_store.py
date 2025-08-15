@@ -10,17 +10,7 @@ from typing import Any
 
 import aiofiles
 
-try:
-    from ..utils import LoggerMixin
-except ImportError:
-    # For standalone testing
-    import logging
-
-    class LoggerMixin:
-        @property
-        def logger(self):
-            return logging.getLogger(self.__class__.__name__)
-
+from ..utils.logger import LoggerMixin
 
 try:
     from ..config import settings
@@ -30,10 +20,10 @@ except ImportError:
     class MockSettings:
         obsidian_vault_path = "/tmp/vault"
 
-    settings = MockSettings()
+    settings = MockSettings()  # type: ignore
 
     class MockObsidianFileManager:
-        async def search_notes(self, **kwargs):
+        async def search_notes(self, **kwargs: Any) -> list[Any]:
             return []
 
     class MockAIProcessor:
