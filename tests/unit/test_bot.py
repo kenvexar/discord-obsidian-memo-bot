@@ -26,7 +26,7 @@ os.environ.update(
     }
 )
 
-from src.bot.channel_config import ChannelCategory, ChannelConfig
+from src.bot.channel_config import ChannelConfig
 from src.bot.handlers import MessageHandler
 
 

@@ -148,10 +148,13 @@ class SpeechProcessor(LoggerMixin):
         """ローカル Whisper の利用可能性を確認"""
         try:
             # whisper パッケージの確認
-            import whisper
-
-            self.logger.info("Local Whisper model available")
-            return True
+            import importlib.util
+            
+            if importlib.util.find_spec("whisper") is not None:
+                self.logger.info("Local Whisper model available")
+                return True
+            else:
+                return False
         except ImportError:
             self.logger.debug(
                 "Local Whisper not available (whisper package not installed)"

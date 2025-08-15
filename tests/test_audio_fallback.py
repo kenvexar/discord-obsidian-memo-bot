@@ -9,7 +9,6 @@ import pytest
 
 from src.audio.models import AudioFormat, TranscriptionResult
 from src.audio.speech_processor import (
-    NonRetryableAPIError,
     RetryableAPIError,
     SpeechProcessor,
 )
@@ -120,17 +119,15 @@ class TestSpeechProcessorFallback:
             {"name": "file_save_fallback", "method": None},
         ]
 
-        with patch.object(speech_processor, "transcription_engines", test_engines):
-            # ファイル保存フォールバックメソッドをモック
-            with patch.object(
-                speech_processor,
-                "_save_audio_file_for_manual_processing",
-                new_callable=AsyncMock,
-            ) as mock_save:
-                mock_save.return_value = "/tmp/test_audio.mp3"
+        with patch.object(speech_processor, "transcription_engines", test_engines), patch.object(
+            speech_processor,
+            "_save_audio_file_for_manual_processing",
+            new_callable=AsyncMock,
+        ) as mock_save:
+            mock_save.return_value = "/tmp/test_audio.mp3"
 
-                # _handle_fallbackメソッドをモック
-                with patch.object(
+            # _handle_fallbackメソッドをモック
+            with patch.object(
                     speech_processor, "_handle_fallback", new_callable=AsyncMock
                 ) as mock_fallback:
                     from src.audio.models import AudioProcessingResult
@@ -240,7 +237,7 @@ async def test_retry_mechanism():
             raise RetryableAPIError("API temporarily unavailable")
 
         # tenacityのRetryErrorを期待
-        with pytest.raises((RetryableAPIError, Exception)) as exc_info:
+        with pytest.raises((RetryableAPIError, Exception)):
             await failing_function()
 
         # RetryErrorまたはRetryableAPIErrorのいずれかが発生することを確認

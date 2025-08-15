@@ -437,27 +437,26 @@ class MessageProcessor(LoggerMixin):
         try:
             save_path.parent.mkdir(parents=True, exist_ok=True)
 
-            async with aiohttp.ClientSession() as session:
-                async with session.get(attachment.url) as response:
-                    if response.status == 200:
-                        async with aiofiles.open(save_path, "wb") as file:
-                            async for chunk in response.content.iter_chunked(8192):
-                                await file.write(chunk)
+            async with aiohttp.ClientSession() as session, session.get(attachment.url) as response:
+                if response.status == 200:
+                    async with aiofiles.open(save_path, "wb") as file:
+                        async for chunk in response.content.iter_chunked(8192):
+                            await file.write(chunk)
 
-                        self.logger.info(
-                            "Attachment downloaded",
-                            filename=attachment.filename,
-                            size=attachment.size,
-                            save_path=str(save_path),
-                        )
-                        return True
-                    else:
-                        self.logger.error(
-                            "Failed to download attachment",
-                            filename=attachment.filename,
-                            status=response.status,
-                        )
-                        return False
+                    self.logger.info(
+                        "Attachment downloaded",
+                        filename=attachment.filename,
+                        size=attachment.size,
+                        save_path=str(save_path),
+                    )
+                    return True
+                else:
+                    self.logger.error(
+                        "Failed to download attachment",
+                        filename=attachment.filename,
+                        status=response.status,
+                    )
+                    return False
 
         except Exception as e:
             self.logger.error(

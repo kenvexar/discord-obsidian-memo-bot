@@ -4,12 +4,10 @@ URL processor standalone test
 """
 
 import asyncio
-import logging
 
 # シンプルなURL抽出とWebスクレイピングのテスト
 import re
 import sys
-from pathlib import Path
 
 import aiohttp
 from bs4 import BeautifulSoup
@@ -186,35 +184,34 @@ async def test_url_processing():
 
                     async with aiohttp.ClientSession(
                         timeout=timeout, headers=headers
-                    ) as session:
-                        async with session.get(url) as response:
-                            if response.status == 200:
-                                content = await response.text()
-                                soup = BeautifulSoup(content, "html.parser")
+                    ) as session, session.get(url) as response:
+                        if response.status == 200:
+                            content = await response.text()
+                            soup = BeautifulSoup(content, "html.parser")
 
-                                # メタデータ抽出
-                                title = soup.find("title")
-                                title_text = title.get_text() if title else "No title"
+                            # メタデータ抽出
+                            title = soup.find("title")
+                            title_text = title.get_text() if title else "No title"
 
-                                processed_urls.append(
-                                    {
-                                        "url": url,
-                                        "title": title_text,
-                                        "status": "success",
-                                        "content_length": len(content),
-                                    }
-                                )
+                            processed_urls.append(
+                                {
+                                    "url": url,
+                                    "title": title_text,
+                                    "status": "success",
+                                    "content_length": len(content),
+                                }
+                            )
 
-                                print(f"  ✓ Title: {title_text}")
-                                print(f"  ✓ Content: {len(content)} chars")
-                            else:
-                                processed_urls.append(
-                                    {
-                                        "url": url,
-                                        "status": "error",
-                                        "error": f"HTTP {response.status}",
-                                    }
-                                )
+                            print(f"  ✓ Title: {title_text}")
+                            print(f"  ✓ Content: {len(content)} chars")
+                        else:
+                            processed_urls.append(
+                                {
+                                    "url": url,
+                                    "status": "error",
+                                    "error": f"HTTP {response.status}",
+                                }
+                            )
 
                 except Exception as e:
                     processed_urls.append(
@@ -222,7 +219,7 @@ async def test_url_processing():
                     )
                     print(f"  ✗ Error: {e}")
 
-        print(f"\nProcessed URLs summary:")
+        print("\nProcessed URLs summary:")
         for result in processed_urls:
             status = "✓" if result["status"] == "success" else "✗"
             print(f"  {status} {result['url']} - {result['status']}")

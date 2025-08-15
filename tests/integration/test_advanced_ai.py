@@ -5,7 +5,6 @@ Advanced AI features test script
 
 import asyncio
 import sys
-from datetime import datetime
 from pathlib import Path
 
 # Add src to path

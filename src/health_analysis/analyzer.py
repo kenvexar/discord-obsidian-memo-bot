@@ -176,19 +176,19 @@ class HealthDataAnalyzer(LoggerMixin):
         total_steps = 0
         active_days = 0
         for data in valid_data:
-            if data.steps and data.steps.is_valid:
-                if data.steps.total_steps:
-                    daily_steps.append(data.steps.total_steps)
-                    total_steps += data.steps.total_steps
-                    if data.steps.total_steps >= 5000:  # アクティブ基準
-                        active_days += 1
+            if (data.steps and data.steps.is_valid and 
+                data.steps.total_steps):
+                daily_steps.append(data.steps.total_steps)
+                total_steps += data.steps.total_steps
+                if data.steps.total_steps >= 5000:  # アクティブ基準
+                    active_days += 1
 
         # 心拍数データの集計
         resting_hrs = []
         for data in valid_data:
-            if data.heart_rate and data.heart_rate.is_valid:
-                if data.heart_rate.resting_heart_rate:
-                    resting_hrs.append(data.heart_rate.resting_heart_rate)
+            if (data.heart_rate and data.heart_rate.is_valid and 
+                data.heart_rate.resting_heart_rate):
+                resting_hrs.append(data.heart_rate.resting_heart_rate)
 
         # ワークアウトデータの集計
         total_workouts = sum(len(data.activities) for data in valid_data)
@@ -744,9 +744,9 @@ class HealthDataAnalyzer(LoggerMixin):
                 )
 
         # 活動に関する洞察
-        if weekly_summary.avg_daily_steps:
-            if weekly_summary.avg_daily_steps < 8000:
-                insights.append(
+        if (weekly_summary.avg_daily_steps and 
+            weekly_summary.avg_daily_steps < 8000):
+            insights.append(
                     HealthInsight(
                         category="活動",
                         insight_type="daily_activity",

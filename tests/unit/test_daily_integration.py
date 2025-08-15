@@ -4,7 +4,7 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -29,7 +29,6 @@ os.environ.update(
 
 from src.obsidian.daily_integration import DailyNoteIntegration
 from src.obsidian.file_manager import ObsidianFileManager
-from src.obsidian.models import NoteFrontmatter, ObsidianNote
 
 
 @pytest.mark.asyncio

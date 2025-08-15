@@ -4,9 +4,8 @@ Garmin integration test script
 """
 
 import asyncio
-import os
 import sys
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 
 # Add src to path
@@ -25,9 +24,9 @@ async def test_cache_functionality():
         cache_dir = Path.cwd() / ".test_cache"
         cache = GarminDataCache(cache_dir, max_age_hours=1.0)
 
-        print(f"✓ Cache initialized successfully")
+        print("✓ Cache initialized successfully")
         print(f"  - Cache directory: {cache_dir}")
-        print(f"  - Max age: 1.0 hours")
+        print("  - Max age: 1.0 hours")
 
         # キャッシュ統計
         print("\n--- Initial Cache Statistics ---")
@@ -56,7 +55,7 @@ async def test_cache_functionality():
         # キャッシュから読み込み
         cached_data = cache.load_health_data(test_date)
         if cached_data:
-            print(f"✓ Successfully loaded data from cache")
+            print("✓ Successfully loaded data from cache")
             print(f"  - Cache age: {cached_data.cache_age_hours:.2f} hours")
             print(
                 f"  - User-friendly errors: {cached_data.user_friendly_error_messages}"
@@ -116,7 +115,7 @@ async def test_health_data_models():
             cache_age_hours=2.5,
         )
 
-        print(f"✓ HealthData created")
+        print("✓ HealthData created")
         print(f"  - Has any data: {health_data.has_any_data}")
         print(f"  - Data quality: {health_data.data_quality}")
         print(

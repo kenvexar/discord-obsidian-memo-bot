@@ -265,7 +265,6 @@ class TestAIProcessor:
 @pytest.mark.asyncio
 async def test_ai_processing_integration():
     """Test AI processing integration with message handler"""
-    from unittest.mock import Mock
 
     import discord
 

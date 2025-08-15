@@ -5,7 +5,6 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import discord
-import pytest
 
 # Set up test environment variables before importing modules
 os.environ.update(

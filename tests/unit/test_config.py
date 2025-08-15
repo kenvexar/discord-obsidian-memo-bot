@@ -3,8 +3,6 @@
 import os
 from pathlib import Path
 
-import pytest
-
 
 def test_config_import():
     """Test that configuration can be imported without error"""

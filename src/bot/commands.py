@@ -2,8 +2,9 @@
 Discord bot commands implementation
 """
 
-import discord
 from datetime import datetime
+
+import discord
 from discord.ext import commands
 
 from ..ai import AIProcessor, ProcessingSettings

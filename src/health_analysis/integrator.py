@@ -303,8 +303,8 @@ class HealthActivityIntegrator(LoggerMixin):
             "ai_processing_ratio": [],
         }
 
-        for date in sorted(common_dates):
-            activity = discord_activity[date]
+        for current_date in sorted(common_dates):
+            activity = discord_activity[current_date]
 
             metrics["message_count"].append(float(activity["message_count"]))
             metrics["active_hours_count"].append(float(len(activity["active_hours"])))
@@ -339,8 +339,8 @@ class HealthActivityIntegrator(LoggerMixin):
             "resting_hr": [],
         }
 
-        for date in sorted(common_dates):
-            health_data = health_by_date[date]
+        for current_date in sorted(common_dates):
+            health_data = health_by_date[current_date]
 
             # 睡眠データ
             if health_data.sleep and health_data.sleep.is_valid:
@@ -582,21 +582,19 @@ class HealthActivityIntegrator(LoggerMixin):
             discord_corr = correlations["discord_correlations"]
 
             for correlation_key, value in discord_corr.items():
-                if abs(value) > 0.5:  # 中程度以上の相関
-                    if (
-                        "message_count" in correlation_key
-                        and "sleep" in correlation_key
-                    ):
-                        if value > 0:
-                            recommendations.append(
-                                "Discord活動と睡眠時間に正の相関があります。"
-                                "適度な活動は良い睡眠につながっているようです。"
-                            )
-                        else:
-                            recommendations.append(
-                                "Discord活動が多い日は睡眠不足になりがちです。"
-                                "活動時間と就寝時間のバランスを見直しましょう。"
-                            )
+                if (abs(value) > 0.5 and  # 中程度以上の相関
+                    "message_count" in correlation_key and
+                    "sleep" in correlation_key):
+                    if value > 0:
+                        recommendations.append(
+                            "Discord活動と睡眠時間に正の相関があります。"
+                            "適度な活動は良い睡眠につながっているようです。"
+                        )
+                    else:
+                        recommendations.append(
+                            "Discord活動が多い日は睡眠不足になりがちです。"
+                            "活動時間と就寝時間のバランスを見直しましょう。"
+                        )
 
             # 健康データ内の相関に基づく推奨事項
             if correlations["sleep_steps"] and abs(correlations["sleep_steps"]) > 0.3:

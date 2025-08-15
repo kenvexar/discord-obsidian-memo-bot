@@ -6,8 +6,8 @@ Discord-Obsidian Memo Bot テスト実行スクリプト
 """
 
 import asyncio
-import sys
 import os
+import sys
 from pathlib import Path
 
 # プロジェクトのルートをPythonパスに追加
@@ -39,7 +39,7 @@ async def run_basic_tests():
         print(f"✓ 設定読み込み成功 (環境: {settings.environment})")
         
         # ログシステムのテスト
-        from src.utils import setup_logging, get_logger
+        from src.utils import get_logger, setup_logging
         setup_logging()
         logger = get_logger("test")
         logger.info("テストログメッセージ")

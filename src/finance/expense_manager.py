@@ -122,9 +122,9 @@ class ExpenseManager:
                 else expense_data
             )
 
-            if start_date <= expense.date <= end_date:
-                if category is None or expense.category == category:
-                    result.append(expense)
+            if (start_date <= expense.date <= end_date and 
+                (category is None or expense.category == category)):
+                result.append(expense)
 
         return sorted(result, key=lambda x: x.date, reverse=True)
 

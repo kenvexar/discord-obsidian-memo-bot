@@ -296,18 +296,17 @@ class AccessLogger(LoggerMixin):
         temp_file = self.log_file.with_suffix(".tmp")
 
         try:
-            async with aiofiles.open(self.log_file) as infile:
-                async with aiofiles.open(temp_file, "w") as outfile:
-                    async for line in infile:
-                        try:
-                            event_data = json.loads(line.strip())
-                            event_time = datetime.fromisoformat(event_data["timestamp"])
+            async with aiofiles.open(self.log_file) as infile, aiofiles.open(temp_file, "w") as outfile:
+                async for line in infile:
+                    try:
+                        event_data = json.loads(line.strip())
+                        event_time = datetime.fromisoformat(event_data["timestamp"])
 
-                            if event_time > cutoff_time:
-                                await outfile.write(line)
-                        except (json.JSONDecodeError, KeyError, ValueError):
-                            # Keep malformed lines for manual review
+                        if event_time > cutoff_time:
                             await outfile.write(line)
+                    except (json.JSONDecodeError, KeyError, ValueError):
+                        # Keep malformed lines for manual review
+                        await outfile.write(line)
 
             # Replace original file
             temp_file.replace(self.log_file)

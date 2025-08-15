@@ -178,9 +178,9 @@ class BudgetManager:
         alerts = []
         for budget in budgets:
             # Only check active budgets
-            if budget.period_start <= today <= budget.period_end:
-                if budget.is_near_limit(threshold) or budget.is_over_budget():
-                    alerts.append(budget)
+            if (budget.period_start <= today <= budget.period_end and 
+                (budget.is_near_limit(threshold) or budget.is_over_budget())):
+                alerts.append(budget)
 
         return alerts
 

@@ -12,14 +12,14 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 
 # テスト対象のモジュールをインポート
 from src.bot.client import DiscordBot
 from src.bot.handlers import MessageHandler
-from src.bot.notification_system import NotificationSystem
-from src.security.access_logger import AccessLogger, SecurityEventType
 from src.config import get_settings
+from src.security.access_logger import AccessLogger, SecurityEventType
 
 
 class MockMessage:
@@ -101,8 +101,8 @@ class TestCompleteMessageProcessingFlow:
 
                     # 結果の検証
                     assert result is not None
-                    assert result.get("ai_processed") == True
-                    assert result.get("note_created") == True
+                    assert result.get("ai_processed")
+                    assert result.get("note_created")
                     assert "processing_time" in result
 
                     # AI処理が呼ばれたことを確認
@@ -135,8 +135,8 @@ class TestCompleteMessageProcessingFlow:
 
             # フォールバック処理の確認
             assert result is not None
-            assert result.get("ai_processed") == False
-            assert result.get("error_handled") == True
+            assert not result.get("ai_processed")
+            assert result.get("error_handled")
 
         print("✓ API制限エラーハンドリングが正常に動作")
 
@@ -166,14 +166,14 @@ class TestSecurityIntegration:
             await logger.log_event(event)
 
             # ログファイルの確認
-            with open(temp_file.name, "r") as f:
+            with open(temp_file.name) as f:
                 log_line = f.readline()
                 log_data = json.loads(log_line)
 
                 assert log_data["event_type"] == "command_execution"
                 assert log_data["user_id"] == "test_user"
                 assert log_data["action"] == "help"
-                assert log_data["success"] == True
+                assert log_data["success"]
 
             # ファイルクリーンアップ
             os.unlink(temp_file.name)
@@ -201,7 +201,7 @@ class TestSecurityIntegration:
                 await logger.log_event(event)
 
             # 不審活動フラグの確認
-            assert logger.is_user_suspicious(user_id) == True
+            assert logger.is_user_suspicious(user_id)
 
             # セキュリティレポートの生成
             report = await logger.get_security_report(hours=1)

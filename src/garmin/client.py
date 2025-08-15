@@ -184,23 +184,23 @@ class GarminClient(LoggerMixin):
             self.logger.info("Successfully authenticated with Garmin Connect")
             return True
 
-        except asyncio.TimeoutError:
+        except asyncio.TimeoutError as e:
             self._enter_backoff_period()
-            raise GarminTimeoutError("Authentication request timed out")
+            raise GarminTimeoutError("Authentication request timed out") from e
 
         except GarminConnectAuthenticationError as e:
             self._enter_backoff_period()
             self.logger.error("Garmin authentication failed", error=str(e))
-            raise GarminAuthenticationError(f"Authentication failed: {str(e)}")
+            raise GarminAuthenticationError(f"Authentication failed: {str(e)}") from e
 
         except GarminConnectTooManyRequestsError as e:
             self.logger.error("Garmin rate limit exceeded", error=str(e))
-            raise GarminRateLimitError(f"Rate limit exceeded: {str(e)}")
+            raise GarminRateLimitError(f"Rate limit exceeded: {str(e)}") from e
 
         except GarminConnectConnectionError as e:
             self._enter_backoff_period()
             self.logger.error("Garmin connection error", error=str(e))
-            raise GarminConnectionError(f"Connection error: {str(e)}")
+            raise GarminConnectionError(f"Connection error: {str(e)}") from e
 
         except Exception as e:
             self._enter_backoff_period()
@@ -211,7 +211,7 @@ class GarminClient(LoggerMixin):
             )
             raise GarminAuthenticationError(
                 f"Unexpected authentication error: {str(e)}"
-            )
+            ) from e
 
     def _create_client(self) -> Garmin:
         """Garminクライアントを作成（同期処理）"""
@@ -462,7 +462,7 @@ class GarminClient(LoggerMixin):
                 date=target_date.isoformat(),
                 error=str(e),
             )
-            raise GarminDataRetrievalError(f"Sleep data retrieval failed: {str(e)}")
+            raise GarminDataRetrievalError(f"Sleep data retrieval failed: {str(e)}") from e
 
     async def _get_steps_data_with_delay(self, target_date: date) -> StepsData:
         """遅延付き歩数データ取得"""
@@ -515,7 +515,7 @@ class GarminClient(LoggerMixin):
                 date=target_date.isoformat(),
                 error=str(e),
             )
-            raise GarminDataRetrievalError(f"Steps data retrieval failed: {str(e)}")
+            raise GarminDataRetrievalError(f"Steps data retrieval failed: {str(e)}") from e
 
     async def _get_heart_rate_data_with_delay(self, target_date: date) -> HeartRateData:
         """遅延付き心拍数データ取得"""
@@ -572,7 +572,7 @@ class GarminClient(LoggerMixin):
             )
             raise GarminDataRetrievalError(
                 f"Heart rate data retrieval failed: {str(e)}"
-            )
+            ) from e
 
     async def _get_activities_data_with_delay(
         self, target_date: date
@@ -656,7 +656,7 @@ class GarminClient(LoggerMixin):
             )
             raise GarminDataRetrievalError(
                 f"Activities data retrieval failed: {str(e)}"
-            )
+            ) from e
 
     def _parse_datetime(
         self, timestamp: str | None, duration_seconds: int | None = None
