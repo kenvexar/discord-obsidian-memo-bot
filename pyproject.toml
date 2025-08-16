@@ -74,4 +74,5 @@ dev = [
     "types-aiofiles",
     "types-requests",
     "types-beautifulsoup4",
+    "pre-commit>=4.3.0",
 ]
