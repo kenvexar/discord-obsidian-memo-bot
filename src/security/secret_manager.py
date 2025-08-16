@@ -74,7 +74,7 @@ class SecretManager(LoggerMixin):
             self._cache[cache_key] = secret_value
 
             self.logger.debug(f"Retrieved secret: {secret_name}")
-            return secret_value
+            return str(secret_value) if secret_value is not None else None
 
         except Exception as e:
             self.logger.warning(

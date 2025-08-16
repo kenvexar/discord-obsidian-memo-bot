@@ -51,7 +51,7 @@ class SimpleURLExtractor:
             return False
 
 
-async def test_url_extraction():
+async def test_url_extraction() -> bool:
     """URL抽出のテスト"""
     print("=== Testing URL Extraction ===")
 
@@ -98,7 +98,7 @@ async def test_url_extraction():
         return False
 
 
-async def test_web_scraping():
+async def test_web_scraping() -> bool:
     """簡単なWebスクレイピングテスト"""
     print("\n=== Testing Web Scraping ===")
 
@@ -150,7 +150,7 @@ async def test_web_scraping():
         return False
 
 
-async def test_url_processing():
+async def test_url_processing() -> bool:
     """URL処理の統合テスト"""
     print("\n=== Testing URL Processing Integration ===")
 
@@ -238,7 +238,7 @@ async def test_url_processing():
         return False
 
 
-async def main():
+async def main() -> bool:
     """メインテスト関数"""
     print("Starting URL Processing Tests...")
     print("=" * 60)
@@ -249,7 +249,7 @@ async def main():
         test_url_processing,
     ]
 
-    results = []
+    results: list[bool] = []
     for test_func in tests:
         try:
             result = await test_func()

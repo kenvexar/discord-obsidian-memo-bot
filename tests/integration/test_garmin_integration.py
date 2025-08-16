@@ -15,7 +15,7 @@ from garmin.cache import GarminDataCache
 from garmin.models import DataError, DataSource, HealthData
 
 
-async def test_cache_functionality():
+async def test_cache_functionality() -> None:
     """キャッシュ機能のテスト"""
     print("=== Testing Cache Functionality ===")
 
@@ -87,7 +87,7 @@ async def test_cache_functionality():
         traceback.print_exc()
 
 
-async def test_health_data_models():
+async def test_health_data_models() -> None:
     """HealthDataモデルのテスト"""
     print("\n=== Testing Health Data Models ===")
 
@@ -135,7 +135,7 @@ async def test_health_data_models():
         traceback.print_exc()
 
 
-async def test_formatter():
+async def test_formatter() -> None:
     """フォーマッタのテスト"""
     print("\n=== Testing Formatter ===")
 

@@ -150,7 +150,7 @@ async def test_health_analysis_models() -> None:
         traceback.print_exc()
 
 
-async def test_health_analyzer():
+async def test_health_analyzer() -> None:
     """HealthDataAnalyzerのテスト"""
     print("\n=== Testing HealthDataAnalyzer ===")
 
@@ -195,7 +195,7 @@ async def test_health_analyzer():
         traceback.print_exc()
 
 
-async def test_markdown_formatting():
+async def test_markdown_formatting() -> None:
     """Markdown整形のテスト"""
     print("\n=== Testing Markdown Formatting ===")
 

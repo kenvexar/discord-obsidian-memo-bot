@@ -7,4 +7,4 @@ class LoggerMixin:
     @property
     def logger(self) -> structlog.stdlib.BoundLogger:
         """Get logger instance for this class"""
-        return structlog.get_logger(self.__class__.__name__)  # type: ignore[no-any-return]
+        return structlog.get_logger(self.__class__.__name__)

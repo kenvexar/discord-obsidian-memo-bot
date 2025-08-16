@@ -3,6 +3,7 @@ Test audio fallback functionality
 """
 
 import importlib.util
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +20,7 @@ HAS_PYDUB = importlib.util.find_spec("pydub") is not None
 
 
 @pytest.fixture
-def mock_settings():
+def mock_settings() -> Any:
     """Mock settings for testing"""
     with patch("src.audio.speech_processor.get_settings") as mock_get_settings:
         mock_settings = mock_get_settings.return_value
@@ -30,7 +31,7 @@ def mock_settings():
 
 
 @pytest.fixture
-def speech_processor(mock_settings):
+def speech_processor(mock_settings) -> Any:
     """Create SpeechProcessor instance for testing"""
     return SpeechProcessor()
 
@@ -38,7 +39,7 @@ def speech_processor(mock_settings):
 class TestSpeechProcessorFallback:
     """Test speech processor fallback functionality"""
 
-    def test_engine_setup_no_engines_available(self, speech_processor):
+    def test_engine_setup_no_engines_available(self, speech_processor) -> None:
         """Test engine setup when no engines are available"""
         # ファイル保存フォールバックは常に利用可能
         assert len(speech_processor.transcription_engines) >= 1
@@ -52,7 +53,7 @@ class TestSpeechProcessorFallback:
     )  # モックでGoogle Cloudクライアントをパッチ
     def test_google_speech_api_availability_with_env_var(
         self, mock_speech_client, mock_env_get, mock_settings
-    ):
+    ) -> None:
         """Test Google Speech API availability check with environment variable"""
         mock_env_get.return_value = "dummy_key"
 
@@ -72,7 +73,7 @@ class TestSpeechProcessorFallback:
         engine_names = [engine["name"] for engine in processor.transcription_engines]
         assert "google_cloud_speech" in engine_names
 
-    def test_user_friendly_error_messages(self, speech_processor):
+    def test_user_friendly_error_messages(self, speech_processor) -> None:
         """Test user-friendly error message conversion"""
         assert "今月のAPI利用上限" in speech_processor._get_user_friendly_error_message(
             "429"
@@ -91,7 +92,7 @@ class TestSpeechProcessorFallback:
         )
 
     @pytest.mark.asyncio
-    async def test_audio_quality_validation_short_audio(self, speech_processor):
+    async def test_audio_quality_validation_short_audio(self, speech_processor) -> None:
         """Test audio quality validation for short audio"""
         # pydubが利用できない場合をシミュレート
         with patch("pydub.AudioSegment") as mock_audio:
@@ -108,7 +109,7 @@ class TestSpeechProcessorFallback:
                 assert True
 
     @pytest.mark.asyncio
-    async def test_transcription_engine_fallback(self, speech_processor):
+    async def test_transcription_engine_fallback(self, speech_processor) -> None:
         """Test transcription engine fallback mechanism"""
         # すべてのエンジンが失敗する場合をシミュレート
         mock_engine1 = AsyncMock(side_effect=Exception("Engine 1 failed"))
@@ -165,7 +166,7 @@ class TestSpeechProcessorFallback:
     @pytest.mark.asyncio
     async def test_process_audio_file_with_quality_check_failure(
         self, speech_processor
-    ):
+    ) -> None:
         """Test audio processing with quality check failure"""
         mock_data = b"test_audio_data"
         filename = "test.mp3"
@@ -179,7 +180,7 @@ class TestSpeechProcessorFallback:
             assert "音声が短すぎます" in result.error_message
 
     @pytest.mark.asyncio
-    async def test_local_whisper_transcription(self, speech_processor):
+    async def test_local_whisper_transcription(self, speech_processor) -> None:
         """Test local Whisper transcription (mock)"""
         # Whisperが利用可能な場合をシミュレート
         # whisperパッケージが存在しない環境でも動作するようにモックを設定
@@ -221,7 +222,7 @@ class TestSpeechProcessorFallback:
 
 
 @pytest.mark.asyncio
-async def test_retry_mechanism():
+async def test_retry_mechanism() -> None:
     """Test retry mechanism for API calls"""
     from src.audio.speech_processor import RetryableAPIError
 

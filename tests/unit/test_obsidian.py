@@ -42,7 +42,7 @@ from src.obsidian.templates import DailyNoteTemplate, MessageNoteTemplate
 class TestObsidianModels:
     """Test Obsidian data models"""
 
-    def test_note_frontmatter_creation(self):
+    def test_note_frontmatter_creation(self) -> None:
         """Test note frontmatter creation"""
         frontmatter = NoteFrontmatter(
             discord_message_id=123456789,
@@ -61,7 +61,7 @@ class TestObsidianModels:
         assert frontmatter.ai_tags == ["#programming", "#ai", "#test"]
         assert frontmatter.tags == ["discord", "automated"]
 
-    def test_obsidian_note_creation(self):
+    def test_obsidian_note_creation(self) -> None:
         """Test Obsidian note creation"""
         frontmatter = NoteFrontmatter(obsidian_folder="00_Inbox")
 
@@ -76,7 +76,7 @@ class TestObsidianModels:
         assert note.title == "note"  # ファイル名"test_note.md"から"test_"を削除した部分
         assert "# Test Note" in note.content
 
-    def test_note_filename_generation(self):
+    def test_note_filename_generation(self) -> None:
         """Test note filename generation"""
         timestamp = datetime(2024, 1, 15, 14, 30, 0)
 
@@ -99,7 +99,7 @@ class TestObsidianModels:
         assert "\\" not in filename
         assert ":" not in filename
 
-    def test_folder_mapping(self):
+    def test_folder_mapping(self) -> None:
         """Test folder mapping functionality"""
         # Test category mapping
         work_folder = FolderMapping.get_folder_for_category("仕事")
@@ -119,13 +119,13 @@ class TestObsidianModels:
 class TestObsidianTemplates:
     """Test Obsidian template functionality"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.message_template = MessageNoteTemplate(self.temp_dir)
         self.daily_template = DailyNoteTemplate(self.temp_dir)
 
-    def test_message_note_template_frontmatter(self):
+    def test_message_note_template_frontmatter(self) -> None:
         """Test message note frontmatter generation"""
         message_data = {
             "metadata": {
@@ -155,7 +155,7 @@ class TestObsidianTemplates:
         assert "discord" in frontmatter.tags
         assert "auto-generated" in frontmatter.tags
 
-    def test_message_note_content_generation(self):
+    def test_message_note_content_generation(self) -> None:
         """Test message note content generation"""
         message_data = {
             "metadata": {
@@ -179,7 +179,7 @@ class TestObsidianTemplates:
         assert "## 📊 メタデータ" in content
         assert "TestUser" in content
 
-    def test_daily_note_generation(self):
+    def test_daily_note_generation(self) -> None:
         """Test daily note generation"""
         date = datetime(2024, 1, 15)
         daily_stats = {
@@ -204,14 +204,14 @@ class TestObsidianTemplates:
 class TestObsidianFileManager:
     """Test Obsidian file manager"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.temp_dir = Path(tempfile.mkdtemp())
 
         # Create file manager with temporary directory
         self.file_manager = ObsidianFileManager(self.temp_dir)
 
-    async def test_vault_initialization(self):
+    async def test_vault_initialization(self) -> None:
         """Test vault structure initialization"""
         success = await self.file_manager.initialize_vault()
 
@@ -228,7 +228,7 @@ class TestObsidianFileManager:
         templates_folder = self.temp_dir / VaultFolder.TEMPLATES.value
         assert templates_folder.exists()
 
-    async def test_note_saving_and_loading(self):
+    async def test_note_saving_and_loading(self) -> None:
         """Test note saving and loading"""
         # Initialize vault
         await self.file_manager.initialize_vault()
@@ -257,7 +257,7 @@ class TestObsidianFileManager:
         assert loaded_note.frontmatter.discord_message_id == 123456789
         assert "This is a test note content" in loaded_note.content
 
-    async def test_note_search(self):
+    async def test_note_search(self) -> None:
         """Test note search functionality"""
         # Initialize vault and create test notes
         await self.file_manager.initialize_vault()
@@ -291,7 +291,7 @@ class TestObsidianFileManager:
         results = await self.file_manager.search_notes(limit=2)
         assert len(results) == 2
 
-    async def test_vault_stats(self):
+    async def test_vault_stats(self) -> None:
         """Test vault statistics collection"""
         # Initialize vault and create test notes
         await self.file_manager.initialize_vault()
@@ -324,7 +324,7 @@ class TestObsidianFileManager:
 
 
 @pytest.mark.asyncio
-async def test_obsidian_integration_with_message_handler():
+async def test_obsidian_integration_with_message_handler() -> None:
     """Test Obsidian integration with message handler"""
 
     import discord
@@ -408,8 +408,10 @@ async def test_obsidian_integration_with_message_handler():
                 model_used="test-model",
             )
 
+            from src.ai.models import ProcessingCategory
+
             mock_category = CategoryResult(
-                category="仕事",
+                category=ProcessingCategory.WORK,
                 confidence_score=0.8,
                 processing_time_ms=75,
                 model_used="test-model",
@@ -443,7 +445,7 @@ async def test_obsidian_integration_with_message_handler():
             assert result["ai_processing"] is not None
 
 
-def test_obsidian_models_validation():
+def test_obsidian_models_validation() -> None:
     """Test Obsidian models validation"""
     # Test invalid filename
     with pytest.raises(ValueError):
@@ -466,7 +468,7 @@ def test_obsidian_models_validation():
     assert note.filename == "valid_filename.md"
 
 
-def test_note_markdown_generation():
+def test_note_markdown_generation() -> None:
     """Test Markdown generation"""
     frontmatter = NoteFrontmatter(
         obsidian_folder="00_Inbox",

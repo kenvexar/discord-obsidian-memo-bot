@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 
 
-def test_config_import():
+def test_config_import() -> None:
     """Test that configuration can be imported without error"""
     # Set required environment variables for testing
     os.environ["DISCORD_BOT_TOKEN"] = "test_token"

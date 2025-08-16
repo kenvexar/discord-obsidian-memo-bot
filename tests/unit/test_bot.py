@@ -33,7 +33,7 @@ from src.bot.handlers import MessageHandler
 class TestChannelConfig:
     """Test channel configuration"""
 
-    def test_channel_config_initialization(self):
+    def test_channel_config_initialization(self) -> None:
         """Test channel config loads correctly"""
         os.environ.update(
             {
@@ -55,7 +55,7 @@ class TestChannelConfig:
             config.channels[list(config.channels.keys())[0]].id
         )
 
-    def test_get_channels_by_category(self, monkeypatch):
+    def test_get_channels_by_category(self, monkeypatch) -> None:
         """Test getting channels by category with mocked settings"""
         # Use monkeypatch to set environment variables for this test
         monkeypatch.setenv("CHANNEL_INBOX", "111111111")
@@ -97,13 +97,13 @@ class TestChannelConfig:
 class TestMessageHandler:
     """Test message handler functionality"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.channel_config = ChannelConfig()
         self.handler = MessageHandler(self.channel_config)
 
     @pytest.mark.asyncio
-    async def test_bot_message_ignored(self):
+    async def test_bot_message_ignored(self) -> None:
         """Test that bot messages are ignored"""
         # Create mock bot message
         mock_message = Mock(spec=discord.Message)
@@ -113,7 +113,7 @@ class TestMessageHandler:
         assert result is None
 
     @pytest.mark.asyncio
-    async def test_unmonitored_channel_ignored(self):
+    async def test_unmonitored_channel_ignored(self) -> None:
         """Test that unmonitored channels are ignored"""
         # Create mock message from unmonitored channel
         mock_message = Mock(spec=discord.Message)
@@ -128,7 +128,7 @@ class TestMessageHandler:
             assert result is None
 
     @pytest.mark.asyncio
-    async def test_valid_message_processing(self):
+    async def test_valid_message_processing(self) -> None:
         """Test processing of valid messages"""
         # Get a valid channel ID
         valid_channel_id = list(self.channel_config.channels.keys())[0]
@@ -168,9 +168,10 @@ class TestMessageHandler:
         mock_message.mention_everyone = False
 
         # Mock the routing method to avoid actual processing
-        self.handler._route_message_by_category = AsyncMock()
-
-        result = await self.handler.process_message(mock_message)
+        with patch.object(
+            self.handler, "_route_message_by_category", new_callable=AsyncMock
+        ) as mock_route:
+            result = await self.handler.process_message(mock_message)
 
         assert result is not None
         assert "metadata" in result
@@ -188,4 +189,4 @@ class TestMessageHandler:
         assert "timing" in metadata
 
         # Verify routing was called
-        self.handler._route_message_by_category.assert_called_once()
+        mock_route.assert_called_once()

@@ -11,6 +11,7 @@ import os
 import tempfile
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import discord
@@ -44,7 +45,7 @@ class MockMessage:
         self.channel = MagicMock()
         self.channel.id = channel_id
         self.channel.name = "test-channel"
-        self.attachments = []
+        self.attachments: list[discord.Attachment] = []
         self.created_at = datetime.now()
         self.flags = MagicMock(spec=discord.MessageFlags)
         self.flags.crossposted = False
@@ -55,13 +56,13 @@ class MockMessage:
         self.guild.name = "Test Guild"  # 追加
         self.guild.id = 123456789  # 追加
         self.reference = None  # 追加
-        self.embeds = []  # 追加
-        self.reactions = []  # 追加
-        self.mentions = []  # 追加
-        self.role_mentions = []  # 追加
-        self.channel_mentions = []  # 追加
+        self.embeds: list[discord.Embed] = []  # 追加
+        self.reactions: list[discord.Reaction] = []  # 追加
+        self.mentions: list[discord.Member] = []  # 追加
+        self.role_mentions: list[discord.Role] = []  # 追加
+        self.channel_mentions: list[discord.abc.GuildChannel] = []  # 追加
         self.mention_everyone = False  # 追加
-        self.stickers = []  # 追加
+        self.stickers: list[discord.StickerItem] = []  # 追加
         self.edited_at = None  # 追加
 
 
@@ -78,7 +79,7 @@ class MockDiscordChannel:
 class TestCompleteMessageProcessingFlow:
     """完全なメッセージ処理フローのテスト"""
 
-    async def test_end_to_end_message_processing(self):
+    async def test_end_to_end_message_processing(self) -> None:
         """エンドツーエンドのメッセージ処理テスト"""
         print("=== エンドツーエンドメッセージ処理テスト ===")
 
@@ -151,7 +152,9 @@ class TestCompleteMessageProcessingFlow:
                     handler = MessageHandler(mock_channel_config)
 
                     # メッセージ処理の実行
-                    result = await handler.process_message(test_message)
+                    result = await handler.process_message(
+                        cast(discord.Message, test_message)
+                    )
 
                     # 結果の検証
                     assert result is not None
@@ -168,7 +171,7 @@ class TestCompleteMessageProcessingFlow:
 
         print("✓ エンドツーエンドメッセージ処理が正常に動作")
 
-    async def test_api_limit_handling(self):
+    async def test_api_limit_handling(self) -> None:
         """API制限到達時の処理テスト"""
         print("=== API制限処理テスト ===")
 
@@ -195,7 +198,7 @@ class TestCompleteMessageProcessingFlow:
             mock_ai_processor.return_value = mock_ai_instance
 
             # エラーハンドリングのテスト
-            result = await handler.process_message(test_message)
+            result = await handler.process_message(cast(discord.Message, test_message))
 
             # フォールバック処理の確認
             assert result is not None
@@ -210,7 +213,7 @@ class TestCompleteMessageProcessingFlow:
 class TestSecurityIntegration:
     """セキュリティ機能の統合テスト"""
 
-    async def test_access_logging_integration(self):
+    async def test_access_logging_integration(self) -> None:
         """アクセスログ機能の統合テスト"""
         print("=== アクセスログ統合テスト ===")
 
@@ -245,7 +248,7 @@ class TestSecurityIntegration:
 
         print("✓ アクセスログ機能が正常に動作")
 
-    async def test_suspicious_activity_detection(self):
+    async def test_suspicious_activity_detection(self) -> None:
         """不審な活動検知テスト"""
         print("=== 不審活動検知テスト ===")
 
@@ -282,7 +285,7 @@ class TestSecurityIntegration:
 class TestMonitoringIntegration:
     """監視システムの統合テスト"""
 
-    async def test_system_metrics_collection(self):
+    async def test_system_metrics_collection(self) -> None:
         """システムメトリクス収集テスト"""
         print("=== システムメトリクス統合テスト ===")
 
@@ -305,7 +308,7 @@ class TestMonitoringIntegration:
 
         print("✓ システムメトリクス収集が正常に動作")
 
-    async def test_api_usage_monitoring(self):
+    async def test_api_usage_monitoring(self) -> None:
         """API使用量監視テスト"""
         print("=== API使用量監視テスト ===")
 
@@ -335,7 +338,7 @@ class TestMonitoringIntegration:
 class TestFullSystemIntegration:
     """システム全体の統合テスト"""
 
-    async def test_bot_initialization_flow(self):
+    async def test_bot_initialization_flow(self) -> None:
         """ボット初期化フローの統合テスト"""
         print("=== ボット初期化統合テスト ===")
 
@@ -370,7 +373,7 @@ class TestFullSystemIntegration:
 
         print("✓ ボット初期化フローが正常に動作")
 
-    async def test_health_check_endpoints(self):
+    async def test_health_check_endpoints(self) -> None:
         """ヘルスチェックエンドポイントのテスト"""
         print("=== ヘルスチェック統合テスト ===")
 

@@ -106,6 +106,12 @@ strict_optional = true
 namespace_packages = true
 explicit_package_bases = true
 
+# テストファイルでは型チェックを緩和
+[[tool.mypy.overrides]]
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = "test_*.py"

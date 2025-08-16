@@ -40,19 +40,19 @@ from src.obsidian.template_system import TemplateEngine
 class TestTemplateEngine:
     """Test template engine functionality"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.template_engine = TemplateEngine(self.temp_dir)
 
-    async def test_template_directory_creation(self):
+    async def test_template_directory_creation(self) -> None:
         """Test template directory creation"""
         success = await self.template_engine.ensure_template_directory()
         assert success is True
         assert self.template_engine.template_path.exists()
         assert self.template_engine.template_path.is_dir()
 
-    async def test_create_default_templates(self):
+    async def test_create_default_templates(self) -> None:
         """Test default template creation"""
         success = await self.template_engine.create_default_templates()
         assert success is True
@@ -67,7 +67,7 @@ class TestTemplateEngine:
             template_file = self.template_engine.template_path / f"{template}.md"
             assert template_file.exists()
 
-    async def test_template_loading(self):
+    async def test_template_loading(self) -> None:
         """Test template loading functionality"""
         # Create test template
         test_template = self.template_engine.template_path / "test_template.md"
@@ -98,7 +98,7 @@ Created: {{date_format(current_date, "%Y-%m-%d")}}
         cached_content = await self.template_engine.load_template("test_template")
         assert cached_content == test_content
 
-    async def test_template_context_creation(self):
+    async def test_template_context_creation(self) -> None:
         """Test template context creation"""
         # Create test message data
         message_data = {
@@ -163,7 +163,7 @@ Created: {{date_format(current_date, "%Y-%m-%d")}}
         assert context["ai_tags"] == ["#tag1", "#tag2"]
         assert context["ai_category"] == "アイデア"
 
-    async def test_template_rendering_basic(self):
+    async def test_template_rendering_basic(self) -> None:
         """Test basic template rendering"""
         template_content = """# Hello {{author_name}}!
 
@@ -192,7 +192,7 @@ Date: {{date_format(current_date, "%Y-%m-%d")}}
         assert "#tag1 #tag2" in rendered
         assert "Date: 2024-01-15" in rendered
 
-    async def test_conditional_sections(self):
+    async def test_conditional_sections(self) -> None:
         """Test conditional sections in templates"""
         template_content = """# Test Template
 
@@ -236,7 +236,7 @@ Found {{attachment_count}} attachments.
         assert "## Attachments" in rendered
         assert "Found 2 attachments" in rendered
 
-    async def test_each_sections(self):
+    async def test_each_sections(self) -> None:
         """Test each sections in templates"""
         template_content = """# Key Points
 
@@ -264,7 +264,7 @@ Found {{attachment_count}} attachments.
         assert "Name: Item1, Value: 100" in rendered
         assert "Name: Item2, Value: 200" in rendered
 
-    async def test_custom_functions(self):
+    async def test_custom_functions(self) -> None:
         """Test custom functions in templates"""
         template_content = """# Template with Functions
 
@@ -289,7 +289,7 @@ Tags: {{tag_list(tags)}}
         assert "December 25" in rendered  # Check for the actual formatted output
         assert "Tags: #important #work #meeting" in rendered
 
-    async def test_frontmatter_parsing(self):
+    async def test_frontmatter_parsing(self) -> None:
         """Test YAML frontmatter parsing"""
         template_content = """---
 title: Test Note
@@ -319,7 +319,7 @@ This is the main content.
         assert "# Test Content" in content
         assert "This is the main content." in content
 
-    async def test_note_generation_from_template(self):
+    async def test_note_generation_from_template(self) -> None:
         """Test complete note generation from template"""
         # Create a test template
         await self.template_engine.create_default_templates()
@@ -350,7 +350,7 @@ This is the main content.
         assert note.frontmatter.ai_processed is False  # No AI result provided
 
 
-def test_value_formatting():
+def test_value_formatting() -> None:
     """Test value formatting functionality"""
     template_engine = TemplateEngine(Path("/tmp"))
 
@@ -376,7 +376,7 @@ def test_value_formatting():
     assert template_engine._format_value("hello") == "hello"
 
 
-def test_template_loading_nonexistent():
+def test_template_loading_nonexistent() -> None:
     """Test loading non-existent template"""
     template_engine = TemplateEngine(Path("/tmp/nonexistent"))
 

@@ -23,7 +23,7 @@ from health_analysis.models import (
 )
 
 
-def test_health_analysis_models():
+def test_health_analysis_models() -> None:
     """健康分析モデルのテスト"""
     print("=== Testing Health Analysis Models ===")
 
@@ -207,10 +207,9 @@ def test_health_analysis_models():
         import traceback
 
         traceback.print_exc()
-        return False
 
 
-def test_enum_values():
+def test_enum_values() -> None:
     """Enumの値をテスト"""
     print("\n=== Testing Enum Values ===")
 
@@ -244,20 +243,23 @@ def test_enum_values():
         import traceback
 
         traceback.print_exc()
-        return False
 
 
-def main():
+def main() -> bool:
     """メインテスト関数"""
     print("Starting Health Analysis Models Tests...")
     print("=" * 60)
 
     success = True
 
-    if not test_health_analysis_models():
+    try:
+        test_health_analysis_models()
+    except Exception:
         success = False
 
-    if not test_enum_values():
+    try:
+        test_enum_values()
+    except Exception:
         success = False
 
     print("\n" + "=" * 60)

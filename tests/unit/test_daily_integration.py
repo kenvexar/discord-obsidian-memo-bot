@@ -35,13 +35,13 @@ from src.obsidian.file_manager import ObsidianFileManager
 class TestDailyNoteIntegration:
     """Test daily note integration functionality"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.temp_dir = Path(tempfile.mkdtemp())
         self.file_manager = ObsidianFileManager(self.temp_dir)
         self.daily_integration = DailyNoteIntegration(self.file_manager)
 
-    async def test_add_activity_log_entry(self):
+    async def test_add_activity_log_entry(self) -> None:
         """Test adding activity log entry to daily note"""
         # Setup message data
         message_data = {
@@ -76,7 +76,7 @@ class TestDailyNoteIntegration:
         assert "14:30" in daily_note.content
         assert "Started working on project documentation" in daily_note.content
 
-    async def test_add_daily_task_entry(self):
+    async def test_add_daily_task_entry(self) -> None:
         """Test adding daily task entry to daily note"""
         # Setup message data with task content
         message_data = {
@@ -112,7 +112,7 @@ class TestDailyNoteIntegration:
         assert "- [ ] Update documentation" in daily_note.content
         assert "- [ ] Test new features" in daily_note.content
 
-    async def test_task_parsing(self):
+    async def test_task_parsing(self) -> None:
         """Test task parsing functionality"""
         # Test various task formats
         test_cases = [
@@ -134,7 +134,7 @@ class TestDailyNoteIntegration:
             parsed_tasks = self.daily_integration._parse_tasks(input_content)
             assert parsed_tasks == expected_tasks, f"Failed for input: {input_content}"
 
-    async def test_section_management(self):
+    async def test_section_management(self) -> None:
         """Test section management in daily notes"""
         # Create initial daily note
         date = datetime(2024, 1, 15)
@@ -153,7 +153,7 @@ class TestDailyNoteIntegration:
 
         assert f"- **12:00** {test_content}" in updated_content
 
-    async def test_multiple_entries_same_day(self):
+    async def test_multiple_entries_same_day(self) -> None:
         """Test adding multiple entries to the same daily note"""
         date = datetime(2024, 1, 15)
 
@@ -209,7 +209,7 @@ class TestDailyNoteIntegration:
         assert "15:30" in daily_note.content and "Second activity" in daily_note.content
         assert "- [ ] Important task to complete" in daily_note.content
 
-    async def test_empty_message_handling(self):
+    async def test_empty_message_handling(self) -> None:
         """Test handling of empty or whitespace-only messages"""
         message_data = {
             "metadata": {
@@ -232,7 +232,7 @@ class TestDailyNoteIntegration:
         assert task_success is False
 
 
-def test_task_parsing_edge_cases():
+def test_task_parsing_edge_cases() -> None:
     """Test edge cases in task parsing"""
     daily_integration = DailyNoteIntegration(Mock())
 
@@ -257,7 +257,7 @@ def test_task_parsing_edge_cases():
     assert "- [ ] Another task" in parsed
 
 
-def test_section_management_edge_cases():
+def test_section_management_edge_cases() -> None:
     """Test edge cases in section management"""
     daily_integration = DailyNoteIntegration(Mock())
 

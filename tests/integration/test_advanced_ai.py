@@ -6,6 +6,7 @@ Advanced AI features test script
 import asyncio
 import sys
 from pathlib import Path
+from typing import Any
 
 # Add src to path
 src_path = str(Path(__file__).parent / "src")
@@ -14,14 +15,14 @@ sys.path.insert(0, src_path)
 
 # スタンドアロンテスト用のモッククラス定義
 class MockURLContentExtractor:
-    def extract_urls_from_text(self, text):
+    def extract_urls_from_text(self, text) -> Any:
         import re
 
         url_pattern = r'https?://[^\s<>"\'{}|\\^`\[\]]+[^\s<>"\'{}|\\^`\[\].,;!?)]'
         urls = re.findall(url_pattern, text, re.IGNORECASE)
         return list(set(urls))
 
-    def is_valid_url(self, url):
+    def is_valid_url(self, url) -> Any:
         from urllib.parse import urlparse
 
         try:
@@ -51,22 +52,22 @@ class MockVectorStore:
         self.obsidian_file_manager = obsidian_file_manager
         self.ai_processor = ai_processor
 
-    async def get_embedding_stats(self):
+    async def get_embedding_stats(self) -> Any:
         return {"total_embeddings": 0, "status": "mock_mode"}
 
-    async def add_note_embedding(self, file_path, title, content, metadata=None):
+    async def add_note_embedding(self, file_path, title, content, metadata=None) -> Any:
         return True
 
-    async def search_similar_notes(self, query_text, limit=5):
+    async def search_similar_notes(self, query_text, limit=5) -> Any:
         return []
 
 
 class MockAIProcessor:
-    async def generate_embeddings(self, text):
+    async def generate_embeddings(self, text) -> Any:
         # Simulate embedding generation
         return [0.1] * 768  # Mock 768-dimensional embedding
 
-    async def generate_internal_links(self, text, related_notes):
+    async def generate_internal_links(self, text, related_notes) -> Any:
         # Mock internal link generation
         links = []
         for note in related_notes[:2]:  # Limit to 2 links
@@ -79,10 +80,10 @@ class MockAdvancedNoteAnalyzer:
         self.obsidian_file_manager = obsidian_file_manager
         self.ai_processor = ai_processor
 
-    async def get_system_stats(self):
+    async def get_system_stats(self) -> Any:
         return {"system_status": "mock_mode", "total_notes": 0}
 
-    async def search_related_notes(self, query, limit=5):
+    async def search_related_notes(self, query, limit=5) -> Any:
         return []
 
 
@@ -95,7 +96,7 @@ AdvancedNoteAnalyzer = MockAdvancedNoteAnalyzer
 print("Running in standalone mode with mocks...")
 
 
-async def test_url_extraction():
+async def test_url_extraction() -> bool:
     """URL抽出機能のテスト"""
     print("=== Testing URL Extraction ===")
 
@@ -129,7 +130,7 @@ async def test_url_extraction():
         return False
 
 
-async def test_vector_store():
+async def test_vector_store() -> bool:
     """ベクトルストア機能のテスト"""
     print("=== Testing Vector Store (Mock Mode) ===")
 
@@ -171,7 +172,7 @@ async def test_vector_store():
         return False
 
 
-async def test_ai_processor_extensions():
+async def test_ai_processor_extensions() -> bool:
     """AI処理の拡張機能テスト"""
     print("=== Testing AI Processor Extensions ===")
 
@@ -221,7 +222,7 @@ async def test_ai_processor_extensions():
         return False
 
 
-async def test_note_analyzer_integration():
+async def test_note_analyzer_integration() -> bool:
     """ノート分析器の統合テスト"""
     print("=== Testing Note Analyzer Integration ===")
 
@@ -254,8 +255,8 @@ async def test_note_analyzer_integration():
         return False
 
 
-async def main():
-    """メイン테스ト関数"""
+async def main() -> bool:
+    """メインテスト関数"""
     print("Starting Advanced AI Features Tests...")
     print("=" * 60)
 
@@ -266,7 +267,7 @@ async def main():
         test_note_analyzer_integration,
     ]
 
-    results = []
+    results: list[bool] = []
     for test_func in tests:
         try:
             result = await test_func()

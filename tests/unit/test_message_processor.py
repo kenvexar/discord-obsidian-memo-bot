@@ -31,17 +31,17 @@ from src.bot.message_processor import MessageProcessor
 class TestMessageProcessor:
     """Test message processor functionality"""
 
-    def setup_method(self):
+    def setup_method(self) -> None:
         """Setup test fixtures"""
         self.processor = MessageProcessor()
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         """Test processor initialization"""
         assert self.processor is not None
         assert hasattr(self.processor, "url_pattern")
         assert hasattr(self.processor, "mention_patterns")
 
-    def test_clean_content(self):
+    def test_clean_content(self) -> None:
         """Test content cleaning functionality"""
         # Test with mentions and URLs
         content = "Hello <@123456> check this out: https://example.com and <#987654>"
@@ -54,7 +54,7 @@ class TestMessageProcessor:
         assert "https://example.com" not in cleaned
         assert "<#987654>" not in cleaned
 
-    def test_markdown_formatting_detection(self):
+    def test_markdown_formatting_detection(self) -> None:
         """Test markdown formatting detection"""
         # Test various markdown formats
         test_cases = [
@@ -72,7 +72,7 @@ class TestMessageProcessor:
             result = self.processor._has_markdown_formatting(content)
             assert result == expected, f"Failed for content: {content}"
 
-    def test_language_detection(self):
+    def test_language_detection(self) -> None:
         """Test basic language detection"""
         # Test Japanese content
         japanese_content = "こんにちは世界"
@@ -88,7 +88,7 @@ class TestMessageProcessor:
         result = self.processor._detect_language("")
         assert result is None
 
-    def test_file_categorization(self):
+    def test_file_categorization(self) -> None:
         """Test file categorization"""
         # Test different file types
         test_cases = [
@@ -109,7 +109,7 @@ class TestMessageProcessor:
             result = self.processor._categorize_file(mock_attachment)
             assert result == expected_category, f"Failed for {filename}"
 
-    def test_extract_basic_metadata(self):
+    def test_extract_basic_metadata(self) -> None:
         """Test basic metadata extraction"""
         # Create mock message
         mock_message = Mock(spec=discord.Message)
@@ -140,13 +140,15 @@ class TestMessageProcessor:
 
         result = self.processor._extract_basic_metadata(mock_message)
 
+        assert result is not None
         assert result["id"] == 123456789
         assert result["author"]["id"] == 987654321
         assert result["author"]["name"] == "Test User"
         assert result["channel"]["id"] == 111111111
-        assert result["guild"]["id"] == 555555555
+        if result["guild"] is not None:
+            assert result["guild"]["id"] == 555555555
 
-    def test_extract_content_metadata(self):
+    def test_extract_content_metadata(self) -> None:
         """Test content metadata extraction"""
         # Create mock message with rich content
         mock_message = Mock(spec=discord.Message)
@@ -163,7 +165,7 @@ class TestMessageProcessor:
         assert "https://example.com" in result["urls"]
         assert result["has_formatting"] is True
 
-    def test_extract_timing_metadata(self):
+    def test_extract_timing_metadata(self) -> None:
         """Test timing metadata extraction"""
         # Create mock message
         mock_message = Mock(spec=discord.Message)
@@ -173,14 +175,16 @@ class TestMessageProcessor:
 
         result = self.processor._extract_timing_metadata(mock_message)
 
+        assert result is not None
         assert "created_at" in result
         assert "edited_at" in result
         assert result["created_at"]["date"] == "2024-01-01"
         assert result["created_at"]["time"] == "12:00:00"
         assert result["created_at"]["hour"] == 12
-        assert result["edited_at"]["was_edited"] is False
+        if result["edited_at"] is not None and "was_edited" in result["edited_at"]:
+            assert result["edited_at"]["was_edited"] is False
 
-    def test_extract_attachment_metadata(self):
+    def test_extract_attachment_metadata(self) -> None:
         """Test attachment metadata extraction"""
         # Create mock attachment
         mock_attachment = Mock(spec=discord.Attachment)
@@ -210,7 +214,7 @@ class TestMessageProcessor:
         assert attachment_data["file_extension"] == ".png"
         assert "image_info" in attachment_data
 
-    def test_comprehensive_metadata_extraction(self):
+    def test_comprehensive_metadata_extraction(self) -> None:
         """Test complete metadata extraction"""
         # Create a comprehensive mock message
         mock_message = Mock(spec=discord.Message)

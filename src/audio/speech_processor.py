@@ -324,7 +324,10 @@ class SpeechProcessor(LoggerMixin):
                 hasattr(settings, "google_cloud_speech_api_key")
                 and settings.google_cloud_speech_api_key
             ):
-                return await self._transcribe_with_rest_api(file_data, audio_format)
+                from typing import cast
+
+                result = await self._transcribe_with_rest_api(file_data, audio_format)
+                return cast(TranscriptionResult, result)
             else:
                 return await self._transcribe_with_client_library(
                     file_data, audio_format
