@@ -337,112 +337,138 @@ async def test_obsidian_integration_with_message_handler() -> None:
     from src.bot.channel_config import ChannelConfig
     from src.bot.handlers import MessageHandler
 
-    # Setup
-    channel_config = ChannelConfig()
+    # Setup complete test environment variables
+    test_env = {
+        "ENVIRONMENT": "test",
+        "ENABLE_MOCK_MODE": "true",
+        "DISCORD_BOT_TOKEN": "test_token",
+        "DISCORD_GUILD_ID": "123456789",
+        "GEMINI_API_KEY": "test_api_key",
+        "CHANNEL_INBOX": "123456789",
+        "CHANNEL_VOICE": "123456789",
+        "CHANNEL_FILES": "123456789",
+        "CHANNEL_MONEY": "123456789",
+        "CHANNEL_FINANCE_REPORTS": "123456789",
+        "CHANNEL_TASKS": "123456789",
+        "CHANNEL_PRODUCTIVITY_REVIEWS": "123456789",
+        "CHANNEL_NOTIFICATIONS": "123456789",
+        "CHANNEL_COMMANDS": "123456789",
+        "CHANNEL_ACTIVITY_LOG": "123456789",
+        "CHANNEL_DAILY_TASKS": "123456789",
+    }
 
-    with (
-        tempfile.TemporaryDirectory() as temp_dir,
-        patch.dict(os.environ, {"OBSIDIAN_VAULT_PATH": str(Path(temp_dir))}),
-    ):
-        handler = MessageHandler(channel_config)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        test_env["OBSIDIAN_VAULT_PATH"] = str(Path(temp_dir))
 
-        # Verify Obsidian integration is available
-        assert handler.obsidian_manager is not None
-        assert handler.note_template is not None
+        with patch.dict(os.environ, test_env, clear=False):
+            # Clear settings cache to ensure fresh settings with new env vars
+            from src.config.settings import get_settings
 
-        # Create mock message
-        mock_message = Mock(spec=discord.Message)
-        mock_message.id = 123456789
-        mock_message.content = "This is a test message for Obsidian integration testing"
-        mock_message.author.bot = False
-        mock_message.author.id = 987654321
-        mock_message.author.display_name = "Test User"
-        mock_message.author.name = "testuser"
-        mock_message.author.discriminator = "1234"
-        mock_message.author.avatar = None
-        mock_message.author.mention = "<@987654321>"
+            if hasattr(get_settings, "cache_clear"):
+                get_settings.cache_clear()
 
-        # Get valid channel ID for capture
-        capture_channels = channel_config.get_capture_channels()
-        valid_channel_id = (
-            list(capture_channels)[0]
-            if capture_channels
-            else list(channel_config.channels.keys())[0]
-        )
+            channel_config = ChannelConfig()
+            handler = MessageHandler(channel_config)
 
-        mock_message.channel.id = valid_channel_id
-        mock_message.channel.name = "test-channel"
-        mock_message.channel.type = discord.ChannelType.text
-        mock_message.channel.category = None
-        mock_message.created_at = datetime(2024, 1, 15, 14, 30, 0)
-        mock_message.edited_at = None
-        mock_message.guild.id = 111111111
-        mock_message.guild.name = "Test Guild"
-        mock_message.attachments = []
-        mock_message.embeds = []
-        mock_message.mentions = []
-        mock_message.role_mentions = []
-        mock_message.channel_mentions = []
-        mock_message.reactions = []
-        mock_message.stickers = []
-        mock_message.reference = None
-        mock_message.type = discord.MessageType.default
-        mock_message.flags = discord.MessageFlags()
-        mock_message.pinned = False
-        mock_message.tts = False
-        mock_message.mention_everyone = False
+            # Verify Obsidian integration is available
+            assert handler.obsidian_manager is not None
+            assert handler.note_template is not None
 
-        # Mock AI processing
-        with patch.object(handler.ai_processor, "process_text") as mock_ai_process:
-            # Create mock AI result
-            mock_summary = SummaryResult(
-                summary="Test summary",
-                processing_time_ms=100,
-                model_used="test-model",
+            # Create mock message
+            mock_message = Mock(spec=discord.Message)
+            mock_message.id = 123456789
+            mock_message.content = (
+                "This is a test message for Obsidian integration testing"
+            )
+            mock_message.author.bot = False
+            mock_message.author.id = 987654321
+            mock_message.author.display_name = "Test User"
+            mock_message.author.name = "testuser"
+            mock_message.author.discriminator = "1234"
+            mock_message.author.avatar = None
+            mock_message.author.mention = "<@987654321>"
+
+            # Get valid channel ID for capture
+            capture_channels = channel_config.get_capture_channels()
+            valid_channel_id = (
+                list(capture_channels)[0]
+                if capture_channels
+                else list(channel_config.channels.keys())[0]
             )
 
-            mock_tags = TagResult(
-                tags=["#test", "#obsidian"],
-                raw_keywords=["test", "obsidian"],
-                processing_time_ms=50,
-                model_used="test-model",
-            )
+            mock_message.channel.id = valid_channel_id
+            mock_message.channel.name = "test-channel"
+            mock_message.channel.type = discord.ChannelType.text
+            mock_message.channel.category = None
+            mock_message.created_at = datetime(2024, 1, 15, 14, 30, 0)
+            mock_message.edited_at = None
+            mock_message.guild.id = 111111111
+            mock_message.guild.name = "Test Guild"
+            mock_message.attachments = []
+            mock_message.embeds = []
+            mock_message.mentions = []
+            mock_message.role_mentions = []
+            mock_message.channel_mentions = []
+            mock_message.reactions = []
+            mock_message.stickers = []
+            mock_message.reference = None
+            mock_message.type = discord.MessageType.default
+            mock_message.flags = discord.MessageFlags()
+            mock_message.pinned = False
+            mock_message.tts = False
+            mock_message.mention_everyone = False
 
-            from src.ai.models import ProcessingCategory
+            # Mock AI processing
+            with patch.object(handler.ai_processor, "process_text") as mock_ai_process:
+                # Create mock AI result
+                mock_summary = SummaryResult(
+                    summary="Test summary",
+                    processing_time_ms=100,
+                    model_used="test-model",
+                )
 
-            mock_category = CategoryResult(
-                category=ProcessingCategory.WORK,
-                confidence_score=0.8,
-                processing_time_ms=75,
-                model_used="test-model",
-            )
+                mock_tags = TagResult(
+                    tags=["#test", "#obsidian"],
+                    raw_keywords=["test", "obsidian"],
+                    processing_time_ms=50,
+                    model_used="test-model",
+                )
 
-            mock_ai_result = AIProcessingResult(
-                message_id=123456789,
-                processed_at=datetime.now(),
-                summary=mock_summary,
-                tags=mock_tags,
-                category=mock_category,
-                total_processing_time_ms=225,
-            )
+                from src.ai.models import ProcessingCategory
 
-            mock_ai_process.return_value = mock_ai_result
+                mock_category = CategoryResult(
+                    category=ProcessingCategory.WORK,
+                    confidence_score=0.8,
+                    processing_time_ms=75,
+                    model_used="test-model",
+                )
 
-            # Process message
-            result = await handler.process_message(mock_message)
+                mock_ai_result = AIProcessingResult(
+                    message_id=123456789,
+                    processed_at=datetime.now(),
+                    summary=mock_summary,
+                    tags=mock_tags,
+                    category=mock_category,
+                    total_processing_time_ms=225,
+                )
 
-            # Verify result
-            assert result is not None
-            assert "metadata" in result
-            assert "ai_processing" in result
-            assert "channel_info" in result
+                mock_ai_process.return_value = mock_ai_result
 
-            # Verify AI processing was called
-            mock_ai_process.assert_called_once()
+                # Process message
+                result = await handler.process_message(mock_message)
 
-            # Check that Obsidian note should be created
-            # (We can't easily verify file creation in this test without more complex setup)
-            assert result["ai_processing"] is not None
+                # Verify result
+                assert result is not None
+                assert "metadata" in result
+                assert "ai_processing" in result
+                assert "channel_info" in result
+
+                # Verify AI processing was called
+                mock_ai_process.assert_called_once()
+
+                # Check that Obsidian note should be created
+                # (We can't easily verify file creation in this test without more complex setup)
+                assert result["ai_processing"] is not None
 
 
 def test_obsidian_models_validation() -> None:
