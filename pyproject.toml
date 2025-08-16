@@ -2,50 +2,33 @@
 name = "discord-obsidian-memo-bot"
 version = "0.1.0"
 description = "Discord bot for automated memo processing and Obsidian integration with AI processing"
-authors = [
-    {name = "Kent", email = "your.email@example.com"}
-]
+authors = [{name = "Kent", email = "your.email@example.com"}]
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.10"
+requires-python = ">=3.13"
+
 dependencies = [
     "discord.py>=2.5.2",
-    "google-generativeai>=0.3.2",
+    "google-genai>=0.2.0",
     "google-cloud-speech>=2.21.0",
     "google-cloud-secret-manager>=2.20.0",
     "garminconnect>=0.2.28",
-    "pydantic>=2.5.0",
-    "pydantic-settings>=2.1.0",
-    "python-dotenv>=1.0.0",
-    "aiofiles>=23.2.1",
-    "aiohttp>=3.9.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.1",
+    "aiofiles>=24.1.0",
+    "aiohttp>=3.11.0",
     "asyncio-throttle>=1.0.2",
-    "pyyaml>=6.0.1",
-    "rich>=13.7.0",
-    "structlog>=23.2.0",
+    "pyyaml>=6.0.2",
+    "rich>=13.9.0",
+    "structlog>=24.4.0",
     "tenacity>=9.1.2",
     "pydub>=0.25.1",
     "python-dateutil>=2.9.0.post0",
-    "numpy>=1.24.0",
-    "scikit-learn>=1.3.0",
-    "beautifulsoup4>=4.12.0",
-    "requests>=2.31.0",
-]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=7.4.3",
-    "pytest-asyncio>=0.21.1",
-    "pytest-mock>=3.12.0",
-    "ruff>=0.8.0",
-    "mypy>=1.7.1",
-    "pre-commit>=3.6.0",
-    # Type stubs for mypy (matching pre-commit config)
-    "types-python-dateutil",
-    "types-pyyaml",
-    "types-aiofiles",
-    "types-requests",
-    "types-beautifulsoup4",
+    "numpy>=2.1.0",
+    "scikit-learn>=1.5.0",
+    "beautifulsoup4>=4.12.3",
+    "requests>=2.32.0",
 ]
 
 [build-system]
@@ -56,84 +39,25 @@ build-backend = "hatchling.build"
 packages = ["src"]
 
 [tool.ruff]
-# Same as Black.
 line-length = 88
-indent-width = 4
-
-# Assume Python 3.10
-target-version = "py310"
+target-version = "py313"
 
 [tool.ruff.lint]
-# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
-select = [
-    "E4", "E7", "E9", "F",  # Default
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "SIM", # flake8-simplify
-    "I",   # isort
-]
-ignore = []
-
-# Allow fix for all enabled rules (when `--fix`) is provided.
-fixable = ["ALL"]
-unfixable = []
-
-# Allow unused variables when underscore-prefixed.
-dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.format]
-# Like Black, use double quotes for strings.
-quote-style = "double"
-
-# Like Black, indent with spaces, rather than tabs.
-indent-style = "space"
-
-# Like Black, respect magic trailing commas.
-skip-magic-trailing-comma = false
-
-# Like Black, automatically detect the appropriate line ending.
-line-ending = "auto"
+select = ["E", "F", "UP", "B", "I"]
+ignore = ["E501"]  # Line too long (handled by formatter)
 
 [tool.mypy]
-python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-# 追加推奨設定
-ignore_missing_imports = true  # スタブがないライブラリのエラーを無視
-disallow_any_unimported = false
-check_untyped_defs = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-# 必要な型スタブが不足している場合の設定
-no_implicit_optional = true
-strict_optional = true
-# 相対インポートサポート
-namespace_packages = true
-explicit_package_bases = true
-# Pydanticプラグインを有効化
+python_version = "3.13"
+strict = false
+ignore_missing_imports = true
 plugins = ["pydantic.mypy"]
 
-# テストファイルでは型チェックを緩和
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
-disallow_incomplete_defs = false
-
-# 一時的に型エラーを無視（後で修正予定）
-[[tool.mypy.overrides]]
-module = "src.garmin.client"
-ignore_errors = true
-
-[[tool.mypy.overrides]]
-module = "src.audio.speech_processor"
-warn_return_any = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = "test_*.py"
-python_classes = "Test*"
-python_functions = "test_*"
 asyncio_mode = "auto"
 pythonpath = ["src"]
 
@@ -145,37 +69,9 @@ dev = [
     "pytest-cov>=6.0.0",
     "ruff>=0.12.8",
     "mypy>=1.17.1",
-    "types-python-dateutil>=2.9.0.20250809",
-    "types-pyyaml>=6.0.12.20250809",
-    "types-aiofiles>=24.1.0.20250809",
-    # 追加の型スタブ
-    "types-requests>=2.31.0.20240406",
-    "types-beautifulsoup4>=4.12.0.20240516",
-    "pre-commit>=4.3.0",
+    "types-python-dateutil",
+    "types-pyyaml",
+    "types-aiofiles",
+    "types-requests",
+    "types-beautifulsoup4",
 ]
-
-[tool.coverage.run]
-source = ["src"]
-omit = [
-    "src/*/test_*.py",
-    "src/*/tests/*",
-    "src/main.py",
-]
-
-[tool.coverage.report]
-exclude_lines = [
-    "pragma: no cover",
-    "def __repr__",
-    "if self.debug:",
-    "if __name__ == .__main__.:",
-    "raise AssertionError",
-    "raise NotImplementedError",
-    "@abstract",
-    "except ImportError:",
-]
-show_missing = true
-skip_covered = false
-precision = 2
-
-[tool.coverage.html]
-directory = "htmlcov"

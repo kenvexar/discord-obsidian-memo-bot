@@ -3,7 +3,7 @@ Advanced message processing and metadata extraction
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypedDict, cast
 
@@ -221,7 +221,7 @@ class MessageProcessor(LoggerMixin):
         inline_code = re.findall(r"`[^`]+`", content)
 
         return cast(
-            ContentMetadata,
+            "ContentMetadata",
             {
                 "raw_content": content,
                 "cleaned_content": self._clean_content(content),
@@ -311,7 +311,7 @@ class MessageProcessor(LoggerMixin):
     def _extract_discord_features(self, message: discord.Message) -> DiscordFeatures:
         """Extract Discord-specific features"""
         return cast(
-            DiscordFeatures,
+            "DiscordFeatures",
             {
                 "embeds": [
                     {
@@ -379,8 +379,8 @@ class MessageProcessor(LoggerMixin):
         edited_at = message.edited_at
 
         # Convert to local timezone for better usability
-        created_at.replace(tzinfo=timezone.utc)
-        edited_at.replace(tzinfo=timezone.utc) if edited_at else None
+        created_at.replace(tzinfo=UTC)
+        edited_at.replace(tzinfo=UTC) if edited_at else None
 
         return {
             "created_at": {
@@ -401,9 +401,7 @@ class MessageProcessor(LoggerMixin):
                 else {"was_edited": False}
             ),
             "age_seconds": int(
-                (
-                    datetime.now(timezone.utc) - created_at.replace(tzinfo=timezone.utc)
-                ).total_seconds()
+                (datetime.now(UTC) - created_at.replace(tzinfo=UTC)).total_seconds()
             ),
         }
 
@@ -457,7 +455,7 @@ class MessageProcessor(LoggerMixin):
 
         if len(japanese_chars) > len(english_chars):
             return "ja"
-        elif len(english_chars) > 0:
+        if len(english_chars) > 0:
             return "en"
 
         return "unknown"
@@ -557,13 +555,12 @@ class MessageProcessor(LoggerMixin):
                         save_path=str(save_path),
                     )
                     return True
-                else:
-                    self.logger.error(
-                        "Failed to download attachment",
-                        filename=attachment.filename,
-                        status=response.status,
-                    )
-                    return False
+                self.logger.error(
+                    "Failed to download attachment",
+                    filename=attachment.filename,
+                    status=response.status,
+                )
+                return False
 
         except Exception as e:
             self.logger.error(

@@ -249,7 +249,7 @@ gcloud logs read "resource.type=cloud_run_revision AND severity>=ERROR" --limit=
 2. **セキュリティパッチの適用**
    ```bash
    # ベースイメージの更新
-   docker pull python:3.12-slim
+   docker pull python:3.13-slim
    ```
 
 3. **ログの確認**

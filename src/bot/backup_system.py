@@ -492,7 +492,7 @@ class DataBackupSystem(LoggerMixin):
         start_time = last_backup["start_time"]
         if isinstance(start_time, datetime):
             return start_time
-        elif isinstance(start_time, str):
+        if isinstance(start_time, str):
             return datetime.fromisoformat(start_time)
         return None
 

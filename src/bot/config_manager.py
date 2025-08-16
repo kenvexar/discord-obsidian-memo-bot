@@ -228,23 +228,25 @@ class DynamicConfigManager(LoggerMixin):
 
         try:
             if api_name == "gemini":
-                # Gemini API キーの検証
-                import google.generativeai as genai
+                # Gemini API キーの検証（新しいgoogle-genai SDK使用）
+                from google import genai
+                from google.genai import types
 
-                genai.configure(api_key=api_key)
+                client = genai.Client(api_key=api_key)
 
                 # 簡単なテストリクエスト
-                model = genai.GenerativeModel("gemini-pro")
-                response = model.generate_content(
-                    "Hello",
-                    generation_config=genai.types.GenerationConfig(
-                        candidate_count=1, max_output_tokens=10
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash-001",
+                    contents="Hello",
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=10,
+                        temperature=0.1,
                     ),
                 )
 
                 if response.text:
                     validation_result["valid"] = True
-                    validation_result["details"]["model"] = "gemini-pro"
+                    validation_result["details"]["model"] = "gemini-2.0-flash-001"
                     validation_result["details"]["response_received"] = True
 
             elif api_name == "google_speech":

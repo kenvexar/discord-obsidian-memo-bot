@@ -363,9 +363,8 @@ class DailyNoteIntegration(LoggerMixin):
                     ),
                 )
                 return True
-            else:
-                self.logger.error("Failed to save updated daily note with health data")
-                return False
+            self.logger.error("Failed to save updated daily note with health data")
+            return False
 
         except Exception as e:
             self.logger.error(
@@ -462,11 +461,8 @@ class DailyNoteIntegration(LoggerMixin):
                     ),
                 )
                 return True
-            else:
-                self.logger.error(
-                    "Failed to save updated daily note with health analysis"
-                )
-                return False
+            self.logger.error("Failed to save updated daily note with health analysis")
+            return False
 
         except Exception as e:
             self.logger.error(

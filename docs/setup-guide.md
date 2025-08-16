@@ -5,7 +5,7 @@
 ### 1. 前提条件の確認
 
 #### 必要なソフトウェア
-- Python 3.10以上
+- Python 3.13以上
 - uv (Python パッケージマネージャー)
 - Docker (デプロイ時)
 - Google Cloud CLI (Cloud Run デプロイ時)

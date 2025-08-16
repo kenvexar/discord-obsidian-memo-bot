@@ -135,7 +135,7 @@ class URLContentExtractor(LoggerMixin):
 
                 return result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self.logger.warning("Timeout when fetching URL", url=url)
             return None
 

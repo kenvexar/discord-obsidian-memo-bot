@@ -117,16 +117,15 @@ class TemplateEngine(LoggerMixin):
         """値をフォーマット"""
         if value is None:
             return ""
-        elif isinstance(value, bool):
+        if isinstance(value, bool):
             return "true" if value else "false"
-        elif isinstance(value, int | float):
+        if isinstance(value, int | float):
             return str(value)
-        elif isinstance(value, datetime):
+        if isinstance(value, datetime):
             return value.strftime("%Y-%m-%d %H:%M:%S")
-        elif isinstance(value, list):
+        if isinstance(value, list):
             return ", ".join(str(item) for item in value)
-        else:
-            return str(value)
+        return str(value)
 
     async def _process_conditional_sections(
         self, content: str, context: dict[str, Any]
@@ -141,8 +140,7 @@ class TemplateEngine(LoggerMixin):
             # 条件を評価
             if condition in context and context[condition]:
                 return section_content
-            else:
-                return ""
+            return ""
 
         return str(re.sub(pattern, replace_conditional, content, flags=re.DOTALL))
 
@@ -201,7 +199,7 @@ class TemplateEngine(LoggerMixin):
                 format_str = args[1].strip().strip("\"'")
 
                 if date_key in context and isinstance(context[date_key], datetime):
-                    date_value = cast(datetime, context[date_key])
+                    date_value = cast("datetime", context[date_key])
                     return date_value.strftime(format_str)
             return ""
 

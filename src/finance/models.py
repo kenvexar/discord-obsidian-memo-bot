@@ -70,15 +70,15 @@ class Subscription(BaseModel):
             from datetime import timedelta
 
             return base_date + timedelta(weeks=1)
-        elif self.frequency == SubscriptionFrequency.MONTHLY:
+        if self.frequency == SubscriptionFrequency.MONTHLY:
             from dateutil.relativedelta import relativedelta
 
             return base_date + relativedelta(months=1)
-        elif self.frequency == SubscriptionFrequency.QUARTERLY:
+        if self.frequency == SubscriptionFrequency.QUARTERLY:
             from dateutil.relativedelta import relativedelta
 
             return base_date + relativedelta(months=3)
-        elif self.frequency == SubscriptionFrequency.YEARLY:
+        if self.frequency == SubscriptionFrequency.YEARLY:
             from dateutil.relativedelta import relativedelta
 
             return base_date + relativedelta(years=1)
@@ -153,7 +153,7 @@ class Budget(BaseModel):
     currency: str = Field(default="JPY", description="Currency code")
     period_start: date = Field(..., description="Budget period start")
     period_end: date = Field(..., description="Budget period end")
-    spent_amount: Decimal = Field(default=Decimal("0"), description="Amount spent")
+    spent_amount: Decimal = Field(default=Decimal(0), description="Amount spent")
     created_at: datetime = Field(default_factory=lambda: datetime.now())
     updated_at: datetime = Field(default_factory=lambda: datetime.now())
 
@@ -182,10 +182,10 @@ class FinanceSummary(BaseModel):
     """Finance summary data model."""
 
     total_subscriptions: int = Field(default=0)
-    total_subscription_cost: Decimal = Field(default=Decimal("0"))
-    total_expenses: Decimal = Field(default=Decimal("0"))
-    total_income: Decimal = Field(default=Decimal("0"))
-    net_balance: Decimal = Field(default=Decimal("0"))
+    total_subscription_cost: Decimal = Field(default=Decimal(0))
+    total_expenses: Decimal = Field(default=Decimal(0))
+    total_income: Decimal = Field(default=Decimal(0))
+    net_balance: Decimal = Field(default=Decimal(0))
     budget_usage: dict[str, float] = Field(default_factory=dict)
     upcoming_payments: list[Subscription] = Field(default_factory=list)
     overdue_payments: list[Subscription] = Field(default_factory=list)

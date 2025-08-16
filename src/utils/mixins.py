@@ -10,5 +10,6 @@ class LoggerMixin:
         from typing import cast
 
         return cast(
-            structlog.stdlib.BoundLogger, structlog.get_logger(self.__class__.__name__)
+            "structlog.stdlib.BoundLogger",
+            structlog.get_logger(self.__class__.__name__),
         )

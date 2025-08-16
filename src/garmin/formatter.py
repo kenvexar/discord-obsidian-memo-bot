@@ -261,34 +261,31 @@ def _get_sleep_score_icon(score: int) -> str:
     """睡眠スコアに応じたアイコンを取得"""
     if score >= 80:
         return "🌟"
-    elif score >= 70:
+    if score >= 70:
         return "😊"
-    elif score >= 60:
+    if score >= 60:
         return "😐"
-    else:
-        return "😴"
+    return "😴"
 
 
 def _get_step_count_icon(steps: int) -> str:
     """歩数に応じたアイコンを取得"""
     if steps >= 10000:
         return "🏆"
-    elif steps >= 8000:
+    if steps >= 8000:
         return "👍"
-    elif steps >= 5000:
+    if steps >= 5000:
         return "📈"
-    else:
-        return "📊"
+    return "📊"
 
 
 def _get_heart_rate_icon(resting_hr: int) -> str:
     """安静時心拍数に応じたアイコンを取得"""
     if resting_hr < 60:
         return "💪"  # アスリートレベル
-    elif resting_hr < 80:
+    if resting_hr < 80:
         return "❤️"  # 正常範囲
-    else:
-        return "⚠️"  # やや高め
+    return "⚠️"  # やや高め
 
 
 def _get_activity_icon(activity_type: str) -> str:

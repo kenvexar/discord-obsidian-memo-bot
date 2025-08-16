@@ -29,13 +29,9 @@ from .models import (
 class RetryableAPIError(Exception):
     """リトライ可能なAPIエラー"""
 
-    pass
-
 
 class NonRetryableAPIError(Exception):
     """リトライ不可能なAPIエラー"""
-
-    pass
 
 
 class SpeechProcessor(LoggerMixin):
@@ -154,8 +150,7 @@ class SpeechProcessor(LoggerMixin):
             if importlib.util.find_spec("whisper") is not None:
                 self.logger.info("Local Whisper model available")
                 return True
-            else:
-                return False
+            return False
         except ImportError:
             self.logger.debug(
                 "Local Whisper not available (whisper package not installed)"
@@ -324,10 +319,7 @@ class SpeechProcessor(LoggerMixin):
                 and settings.google_cloud_speech_api_key
             ):
                 return await self._transcribe_with_rest_api(file_data, audio_format)
-            else:
-                return await self._transcribe_with_client_library(
-                    file_data, audio_format
-                )
+            return await self._transcribe_with_client_library(file_data, audio_format)
 
         except (RetryableAPIError, NonRetryableAPIError) as e:
             self.logger.error("API transcription failed after retries", error=str(e))
@@ -454,15 +446,14 @@ class SpeechProcessor(LoggerMixin):
                     words=alternative.get("words", []),
                     alternatives=result["results"][0].get("alternatives", []),
                 )
-            else:
-                # 結果なし
-                self.logger.info("No speech detected in audio")
-                return TranscriptionResult.create_from_confidence(
-                    transcript="[音声が検出されませんでした]",
-                    confidence=0.0,
-                    processing_time_ms=processing_time,
-                    model_used="google-speech-latest_short",
-                )
+            # 結果なし
+            self.logger.info("No speech detected in audio")
+            return TranscriptionResult.create_from_confidence(
+                transcript="[音声が検出されませんでした]",
+                confidence=0.0,
+                processing_time_ms=processing_time,
+                model_used="google-speech-latest_short",
+            )
 
         except (RetryableAPIError, NonRetryableAPIError):
             # これらは既に適切にログ出力されているので、再発生させる
@@ -663,16 +654,13 @@ class SpeechProcessor(LoggerMixin):
         """ユーザーフレンドリーなエラーメッセージに変換"""
         if "API rate limit exceeded" in error_msg or "429" in error_msg:
             return "今月のAPI利用上限に達しました。来月までお待ちいただくか、手動での文字起こしをお願いします"
-        elif "Server error" in error_msg or "5" in error_msg[:1]:
+        if "Server error" in error_msg or "5" in error_msg[:1]:
             return "APIサーバーで一時的な問題が発生しています。しばらくしてからもう一度お試しください"
-        elif "Bad request" in error_msg or "400" in error_msg:
+        if "Bad request" in error_msg or "400" in error_msg:
             return "音声ファイルの形式に問題があります。サポートされている形式（MP3、WAV、FLAC等）をご利用ください"
-        elif "timeout" in error_msg.lower():
+        if "timeout" in error_msg.lower():
             return "処理時間が長すぎるため、タイムアウトしました。短い音声ファイルでお試しください"
-        else:
-            return (
-                "一時的なエラーが発生しました。しばらくしてからもう一度お試しください"
-            )
+        return "一時的なエラーが発生しました。しばらくしてからもう一度お試しください"
 
     async def _validate_audio_quality(
         self, file_data: bytes, audio_format: AudioFormat

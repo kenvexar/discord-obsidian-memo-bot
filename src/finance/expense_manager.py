@@ -160,7 +160,7 @@ class ExpenseManager:
         totals = {}
         for expense in expenses:
             if expense.category not in totals:
-                totals[expense.category] = Decimal("0")
+                totals[expense.category] = Decimal(0)
             totals[expense.category] += expense.amount
 
         return totals
@@ -172,7 +172,7 @@ class ExpenseManager:
     ) -> Decimal:
         """Get total income for a period."""
         incomes = await self.get_income_by_period(start_date, end_date)
-        return sum(income.amount for income in incomes) or Decimal("0")
+        return sum(income.amount for income in incomes) or Decimal(0)
 
     async def get_total_expenses(
         self,
@@ -181,7 +181,7 @@ class ExpenseManager:
     ) -> Decimal:
         """Get total expenses for a period."""
         expenses = await self.get_expenses_by_period(start_date, end_date)
-        return sum(expense.amount for expense in expenses) or Decimal("0")
+        return sum(expense.amount for expense in expenses) or Decimal(0)
 
     async def get_net_balance(
         self,

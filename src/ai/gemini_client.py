@@ -7,7 +7,7 @@ import time
 from typing import Any
 
 try:
-    import google.generativeai as genai
+    import google.genai  # noqa: F401
 
     GENAI_AVAILABLE = True
 except ImportError:
@@ -45,10 +45,10 @@ class RateLimitExceeded(GeminiAPIError):
 
 
 class GeminiClient(LoggerMixin):
-    """Google Gemini API クライアント"""
+    """Google Gemini API クライアント（新しいgoogle-genai SDK使用）"""
 
     # プロンプトテンプレート
-    SUMMARY_PROMPT = """あなたは優秀なアシスタントです。以下のDiscordでの会話を、重要なポイントを箇条書きで3つにまとめてください。
+    SUMMARY_PROMPT = """あなたは優秀なアシスタントです。以下のDiscordでの会話を、重要なポイントを箇条書き3つにまとめてください。
 
 テキスト:
 ---
@@ -88,7 +88,7 @@ class GeminiClient(LoggerMixin):
         """
         self.model_config = model_config or AIModelConfig()
         self.api_usage = APIUsageInfo()
-        self._model: Any | None = None
+        self._client: Any | None = None
         self._last_request_time = 0
         self._min_request_interval = 4.0  # 15 RPM = 4秒間隔
 
@@ -103,28 +103,17 @@ class GeminiClient(LoggerMixin):
         """Gemini APIクライアントの初期化"""
         if not GENAI_AVAILABLE:
             raise ImportError(
-                "google-generativeai is not installed. "
-                "Please install it with: pip install google-generativeai"
+                "google-genai is not installed. "
+                "Please install it with: pip install google-genai"
             )
 
         try:
-            # API設定
+            # APIクライアント初期化
             settings = get_settings()
-            genai.configure(api_key=settings.gemini_api_key.get_secret_value())
+            from google import genai
 
-            # モデル初期化
-            from google.generativeai.types import GenerationConfig
-
-            generation_config = GenerationConfig(
-                temperature=self.model_config.temperature,
-                top_p=self.model_config.top_p,
-                top_k=self.model_config.top_k,
-                max_output_tokens=self.model_config.max_tokens,
-            )
-
-            self._model = genai.GenerativeModel(
-                model_name=self.model_config.model_name,
-                generation_config=generation_config,
+            self._client = genai.Client(
+                api_key=settings.gemini_api_key.get_secret_value()
             )
 
             self.logger.info(
@@ -163,7 +152,7 @@ class GeminiClient(LoggerMixin):
         Raises:
             GeminiAPIError: API呼び出しエラー
         """
-        if not self._model:
+        if not self._client:
             raise GeminiAPIError("Gemini client not initialized")
 
         await self._rate_limit_check()
@@ -181,8 +170,21 @@ class GeminiClient(LoggerMixin):
                         f"Prompt too long: {token_count} tokens (max: {self.model_config.max_tokens})"
                     )
 
-                # API呼び出し
-                response = await self._model.generate_content_async(prompt)
+                # API呼び出し（新しいSDKの設定）
+                from google.genai import types
+
+                generation_config = types.GenerateContentConfig(
+                    temperature=self.model_config.temperature,
+                    top_p=self.model_config.top_p,
+                    top_k=self.model_config.top_k,
+                    max_output_tokens=self.model_config.max_tokens,
+                )
+
+                response = await self._client.aio.models.generate_content(
+                    model=self.model_config.model_name,
+                    contents=prompt,
+                    config=generation_config,
+                )
 
                 if not response.text:
                     raise GeminiAPIError("Empty response from Gemini API")
@@ -212,8 +214,7 @@ class GeminiClient(LoggerMixin):
                         )
                         await asyncio.sleep(wait_time)
                         continue
-                    else:
-                        raise RateLimitExceeded() from e
+                    raise RateLimitExceeded() from e
 
                 # その他のAPIエラー
                 self.logger.error(
@@ -241,12 +242,14 @@ class GeminiClient(LoggerMixin):
             トークン数
         """
         try:
-            if self._model and hasattr(self._model, "count_tokens_async"):
-                result = await self._model.count_tokens_async(text)
-                return int(result.total_tokens)
-            else:
-                # フォールバック: 概算計算
-                return len(text.encode("utf-8")) // 4
+            if self._client:
+                response = await self._client.aio.models.count_tokens(
+                    model=self.model_config.model_name,
+                    contents=text,
+                )
+                return int(response.total_tokens)
+            # フォールバック: 概算計算
+            return len(text.encode("utf-8")) // 4
         except Exception as e:
             self.logger.warning("Failed to count tokens, using fallback", error=str(e))
             return len(text.encode("utf-8")) // 4
@@ -495,9 +498,8 @@ class GeminiClient(LoggerMixin):
                 and isinstance(category, CategoryResult)
             ):
                 return summary, tags, category
-            else:
-                # 例外があった場合はエラーを発生
-                raise GeminiAPIError("One or more parallel processing tasks failed")
+            # 例外があった場合はエラーを発生
+            raise GeminiAPIError("One or more parallel processing tasks failed")
 
         except Exception as e:
             self.logger.error("Parallel processing failed", error=str(e))

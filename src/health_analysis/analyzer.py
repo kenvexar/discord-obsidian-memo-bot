@@ -478,19 +478,18 @@ class HealthDataAnalyzer(LoggerMixin):
                     if change_ratio > 0.2
                     else ChangeType.SIGNIFICANT_CHANGE
                 )
-        else:
-            if metric_name in ["sleep_hours", "daily_steps"]:  # 少ない方が悪い
-                change_type = (
-                    ChangeType.DECLINE
-                    if change_ratio > 0.2
-                    else ChangeType.SIGNIFICANT_CHANGE
-                )
-            else:  # resting_hr など、少ない方が良い場合
-                change_type = (
-                    ChangeType.IMPROVEMENT
-                    if change_ratio > 0.2
-                    else ChangeType.SIGNIFICANT_CHANGE
-                )
+        elif metric_name in ["sleep_hours", "daily_steps"]:  # 少ない方が悪い
+            change_type = (
+                ChangeType.DECLINE
+                if change_ratio > 0.2
+                else ChangeType.SIGNIFICANT_CHANGE
+            )
+        else:  # resting_hr など、少ない方が良い場合
+            change_type = (
+                ChangeType.IMPROVEMENT
+                if change_ratio > 0.2
+                else ChangeType.SIGNIFICANT_CHANGE
+            )
 
         # 重要度スコアを計算
         significance_score = min(1.0, change_ratio * 2)  # 50%変化で最大スコア
@@ -558,7 +557,7 @@ class HealthDataAnalyzer(LoggerMixin):
 
         if change_type == ChangeType.IMPROVEMENT:
             return "この良い傾向を継続するよう心がけましょう"
-        elif change_type == ChangeType.DECLINE:
+        if change_type == ChangeType.DECLINE:
             action_map = {
                 "sleep_hours": "十分な睡眠時間の確保を意識してください",
                 "daily_steps": "日常的な歩行や運動を増やすことを検討してください",

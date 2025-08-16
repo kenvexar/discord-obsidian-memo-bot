@@ -217,8 +217,7 @@ class SecureConfigManager(LoggerMixin):
         """Get configuration value from secure storage or environment"""
         if key.lower() in self.sensitive_keys:
             return await self.secret_manager.get_secret(key.replace("_", "-"))
-        else:
-            return os.getenv(key.upper())
+        return os.getenv(key.upper())
 
     async def set_secure_config(self, key: str, value: str) -> bool:
         """Store sensitive configuration in Secret Manager"""

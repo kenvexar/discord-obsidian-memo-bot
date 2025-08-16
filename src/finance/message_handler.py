@@ -35,7 +35,7 @@ class FinanceMessageHandler:
         # Check if it's a finance channel
         if self._is_expense_channel(channel_id):
             return await self._handle_expense_message(message)
-        elif self._is_income_channel(channel_id):
+        if self._is_income_channel(channel_id):
             return await self._handle_income_message(message)
 
         return False

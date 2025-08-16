@@ -198,8 +198,8 @@ class BudgetManager:
 
         budgets = await self.get_all_budgets(period_start, period_end)
 
-        total_budget = Decimal("0")
-        total_spent = Decimal("0")
+        total_budget = Decimal(0)
+        total_spent = Decimal(0)
         over_budget_categories = []
         near_limit_categories = []
 
@@ -247,7 +247,7 @@ class BudgetManager:
             period_start, period_end, category
         )
         total = sum(expense.amount for expense in expenses)
-        return total or Decimal("0")
+        return total or Decimal(0)
 
     async def _load_budgets(self) -> dict[str, Budget]:
         """Load budgets from JSON file."""

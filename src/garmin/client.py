@@ -168,7 +168,7 @@ class GarminClient(LoggerMixin):
             self.logger.info("Successfully authenticated with Garmin Connect")
             return True
 
-        except asyncio.TimeoutError as e:
+        except TimeoutError as e:
             self._enter_backoff_period()
             raise GarminTimeoutError("Authentication request timed out") from e
 
@@ -233,12 +233,11 @@ class GarminClient(LoggerMixin):
                         cache_age_hours=cached_data.cache_age_hours,
                     )
                     return cached_data
-                else:
-                    self.logger.info(
-                        "Found stale cached data, attempting fresh retrieval",
-                        date=target_date.isoformat(),
-                        cache_age_hours=cached_data.cache_age_hours,
-                    )
+                self.logger.info(
+                    "Found stale cached data, attempting fresh retrieval",
+                    date=target_date.isoformat(),
+                    cache_age_hours=cached_data.cache_age_hours,
+                )
 
         try:
             # 新鮮なデータ取得を試行
@@ -373,14 +372,13 @@ class GarminClient(LoggerMixin):
         """ユーザーフレンドリーなエラーメッセージを生成"""
         if isinstance(error, GarminConnectAuthenticationError):
             return "Garminアカウントの認証に失敗しました。設定を確認してください。"
-        elif isinstance(error, GarminConnectTooManyRequestsError):
+        if isinstance(error, GarminConnectTooManyRequestsError):
             return "Garmin APIの利用制限に達しました。しばらく時間をおいてから再試行してください。"
-        elif isinstance(error, GarminConnectConnectionError):
+        if isinstance(error, GarminConnectConnectionError):
             return "Garminサーバーとの接続に問題があります。ネットワーク接続を確認してください。"
-        elif isinstance(error, asyncio.TimeoutError):
+        if isinstance(error, asyncio.TimeoutError):
             return "Garminサーバーからの応答がタイムアウトしました。"
-        else:
-            return "Garminとの連携で予期しないエラーが発生しました。"
+        return "Garminとの連携で予期しないエラーが発生しました。"
 
     async def _get_sleep_data_with_delay(self, target_date: date) -> SleepData:
         """遅延付き睡眠データ取得"""

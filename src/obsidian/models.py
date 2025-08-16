@@ -157,10 +157,9 @@ class ObsidianNote(BaseModel):
 
         if len(parts) >= 3:
             return parts[2]  # タイトル部分
-        elif len(parts) == 2:
+        if len(parts) == 2:
             return parts[1]  # カテゴリなしの場合
-        else:
-            return basename  # フォーマットが異なる場合
+        return basename  # フォーマットが異なる場合
 
     @property
     def category_from_filename(self) -> str | None:

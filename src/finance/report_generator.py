@@ -80,8 +80,8 @@ class FinanceReportGenerator:
             await self.subscription_manager.get_overdue_subscriptions()
         )
 
-        total_monthly_cost = Decimal("0")
-        total_yearly_cost = Decimal("0")
+        total_monthly_cost = Decimal(0)
+        total_yearly_cost = Decimal(0)
 
         for sub in active_subscriptions:
             if sub.frequency.value == "monthly":
@@ -171,7 +171,7 @@ class FinanceReportGenerator:
         overdue_payments = await self.subscription_manager.get_overdue_subscriptions()
 
         # Calculate subscription costs for the period
-        subscription_cost = Decimal("0")
+        subscription_cost = Decimal(0)
         for sub in active_subscriptions:
             # Calculate how much this subscription costs in the given period
             if sub.frequency.value == "monthly":

@@ -290,7 +290,7 @@ class FinanceCommands(app_commands.Group):
                 timestamp=datetime.now(),
             )
 
-            total_monthly_cost = Decimal("0")
+            total_monthly_cost = Decimal(0)
 
             for i, sub in enumerate(subscriptions, 1):
                 # Calculate monthly equivalent

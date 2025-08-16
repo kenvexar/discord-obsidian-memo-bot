@@ -211,7 +211,7 @@ All tests use `pytest-asyncio` with `asyncio_mode = "auto"` for seamless async t
 ## Important Notes
 
 - **Package Manager**: Always use `uv` instead of pip for consistency
-- **Python Version**: Requires Python 3.10+ (project uses 3.12)
+- **Python Version**: Requires Python 3.13+ (project uses 3.13)
 - **API Limits**: Respects Google Gemini free tier limits (1500/day, 15/minute)
 - **Security**: Uses `SecretStr` for sensitive data, gitleaks pre-commit hook for secret detection
 - **Voice Processing**: Optional feature with 60-minute monthly limit (Google Cloud Speech-to-Text free tier)

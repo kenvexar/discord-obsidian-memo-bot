@@ -709,13 +709,12 @@ class MessageHandler(LoggerMixin):
             async with aiohttp.ClientSession() as session, session.get(url) as response:
                 if response.status == 200:
                     return await response.read()
-                else:
-                    self.logger.error(
-                        "Failed to download attachment",
-                        url=url,
-                        status=response.status,
-                    )
-                    return None
+                self.logger.error(
+                    "Failed to download attachment",
+                    url=url,
+                    status=response.status,
+                )
+                return None
 
         except Exception as e:
             self.logger.error(

@@ -81,7 +81,7 @@ class MockAIProcessor(LoggerMixin):
 
         tags = TagResult(
             tags=self.mock_tags[tag_idx],
-            confidence_scores={tag: 0.80 for tag in self.mock_tags[tag_idx]},
+            confidence_scores=dict.fromkeys(self.mock_tags[tag_idx], 0.8),
             processing_time_ms=50,
             model_used="mock-gemini-pro",
         )

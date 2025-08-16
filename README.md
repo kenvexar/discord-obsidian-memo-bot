@@ -20,7 +20,7 @@ DiscordのメッセージをAIで整理し、Obsidianに自動保存する個人
 
 ## 必要なもの
 
-- Python 3.10以上
+- Python 3.13以上
 - [uv](https://github.com/astral-sh/uv) (高速なPythonパッケージ管理ツール)
 - Discord Botトークン ([Discord Developer Portal](https://discord.com/developers/applications)で取得)
 - Google Gemini APIキー ([Google AI Studio](https://aistudio.google.com/)で取得)

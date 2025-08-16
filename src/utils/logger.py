@@ -71,7 +71,7 @@ def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     from typing import cast
 
     logger = structlog.get_logger(name)
-    return cast(structlog.stdlib.BoundLogger, logger)
+    return cast("structlog.stdlib.BoundLogger", logger)
 
 
 def log_function_call(func_name: str, **kwargs: Any) -> None:

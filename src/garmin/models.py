@@ -221,30 +221,23 @@ class HealthData(BaseModel):
 
         if available_count >= 3:
             return "good"
-        elif available_count >= 2:
+        if available_count >= 2:
             return "partial"
-        elif available_count >= 1:
+        if available_count >= 1:
             return "poor"
-        else:
-            return "no_data"
+        return "no_data"
 
 
 class GarminConnectionError(Exception):
     """Garmin Connect接続エラー"""
 
-    pass
-
 
 class GarminAuthenticationError(Exception):
     """Garmin Connect認証エラー"""
 
-    pass
-
 
 class GarminDataRetrievalError(Exception):
     """Garminデータ取得エラー"""
-
-    pass
 
 
 class GarminRateLimitError(Exception):
@@ -258,10 +251,6 @@ class GarminRateLimitError(Exception):
 class GarminTimeoutError(Exception):
     """Garmin APIタイムアウトエラー"""
 
-    pass
-
 
 class GarminOfflineError(Exception):
     """オフライン・ネットワーク切断エラー"""
-
-    pass

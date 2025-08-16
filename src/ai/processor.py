@@ -212,7 +212,7 @@ class AIProcessor(LoggerMixin):
                 if self.settings.enable_categorization:
                     category = category_result
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             error_msg = (
                 f"Processing timeout after {self.settings.timeout_seconds} seconds"
             )
