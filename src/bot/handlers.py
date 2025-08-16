@@ -422,7 +422,10 @@ class MessageHandler(LoggerMixin):
                 message_data, original_channel_info, original_message
             )
 
-        # TODO: Process other file attachments if any
+        # Process other file attachments (documents, images, etc.)
+        await self._handle_document_attachments(
+            message_data, original_channel_info, original_message
+        )
 
     async def _handle_daily_note_integration(
         self, message_data: dict[str, Any], channel_info: Any
@@ -513,6 +516,68 @@ class MessageHandler(LoggerMixin):
             self.logger.error(
                 "Error processing audio attachments",
                 channel_name=channel_info.name,
+                error=str(e),
+                exc_info=True,
+            )
+
+    async def _handle_document_attachments(
+        self,
+        message_data: dict[str, Any],
+        channel_info: Any,
+        original_message: Any,
+    ) -> None:
+        """Handle document, image, and other file attachments"""
+
+        try:
+            attachments = message_data.get("attachments", [])
+            if not attachments:
+                return
+
+            # Filter out audio attachments (already handled)
+            audio_extensions = {".mp3", ".wav", ".m4a", ".ogg", ".flac", ".aac", ".wma"}
+            document_attachments = [
+                att
+                for att in attachments
+                if not any(
+                    att.get("filename", "").lower().endswith(ext)
+                    for ext in audio_extensions
+                )
+            ]
+
+            if not document_attachments:
+                return
+
+            self.logger.info(
+                f"Processing {len(document_attachments)} document attachment(s)",
+                channel=channel_info.name if channel_info else "unknown",
+            )
+
+            for attachment in document_attachments:
+                filename = attachment.get("filename", "unknown_file")
+                file_size = attachment.get("size", 0)
+
+                # Add attachment info to message data for obsidian integration
+                if "file_attachments" not in message_data:
+                    message_data["file_attachments"] = []
+
+                message_data["file_attachments"].append(
+                    {
+                        "filename": filename,
+                        "url": attachment.get("url"),
+                        "size": file_size,
+                        "type": "document",
+                    }
+                )
+
+                self.logger.debug(
+                    "Added document attachment to processing queue",
+                    filename=filename,
+                    size=file_size,
+                )
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to handle document attachments",
                 error=str(e),
                 exc_info=True,
             )
@@ -716,10 +781,28 @@ class MessageHandler(LoggerMixin):
             channel_name=message_data["channel_info"]["name"],
         )
 
-        # TODO: Implement finance message processing
-        # - Parse expense/income data
-        # - Update financial records
-        # - Generate financial summaries
+        # Process finance-related messages
+        try:
+            # Check if finance handler is available
+            if hasattr(self, "finance_handler"):
+                await self.finance_handler.process_message(message_data)
+            else:
+                # Basic expense detection for future implementation
+                content = message_data.get("content", "").lower()
+                if any(
+                    keyword in content
+                    for keyword in ["￥", "円", "expense", "cost", "paid", "買い物"]
+                ):
+                    self.logger.info(
+                        "Finance-related content detected", content=content[:50]
+                    )
+                    # Add finance tag for future processing
+                    if "tags" not in message_data["metadata"]:
+                        message_data["metadata"]["tags"] = []
+                    message_data["metadata"]["tags"].append("finance")
+
+        except ImportError:
+            self.logger.debug("Finance message handler not available")
 
     async def _handle_productivity_message(self, message_data: dict[str, Any]) -> None:
         """Handle messages from productivity channels"""
@@ -728,10 +811,47 @@ class MessageHandler(LoggerMixin):
             channel_name=message_data["channel_info"]["name"],
         )
 
-        # TODO: Implement productivity message processing
-        # - Parse task information
-        # - Update task management system
-        # - Handle schedule updates
+        # Process productivity-related messages
+        try:
+            content = message_data.get("content", "").lower()
+
+            # Detect task-related content
+            task_keywords = [
+                "todo",
+                "task",
+                "タスク",
+                "完了",
+                "done",
+                "deadline",
+                "期限",
+            ]
+            if any(keyword in content for keyword in task_keywords):
+                self.logger.info("Task-related content detected", content=content[:50])
+                # Add task tag for future processing
+                if "tags" not in message_data["metadata"]:
+                    message_data["metadata"]["tags"] = []
+                message_data["metadata"]["tags"].append("task")
+
+            # Detect schedule-related content
+            schedule_keywords = [
+                "schedule",
+                "meeting",
+                "appointment",
+                "予定",
+                "ミーティング",
+                "会議",
+            ]
+            if any(keyword in content for keyword in schedule_keywords):
+                self.logger.info(
+                    "Schedule-related content detected", content=content[:50]
+                )
+                # Add schedule tag for future processing
+                if "tags" not in message_data["metadata"]:
+                    message_data["metadata"]["tags"] = []
+                message_data["metadata"]["tags"].append("schedule")
+
+        except Exception as e:
+            self.logger.error("Error processing productivity message", error=str(e))
 
     async def _handle_system_message(self, message_data: dict[str, Any]) -> None:
         """Handle messages from system channels"""
@@ -739,7 +859,33 @@ class MessageHandler(LoggerMixin):
             "Handling system message", channel_name=message_data["channel_info"]["name"]
         )
 
-        # TODO: Implement system message processing
-        # - Process bot commands
-        # - Handle configuration updates
-        # - System notifications
+        # Process system-related messages
+        try:
+            content = message_data.get("content", "").strip()
+
+            # Detect bot commands (starting with / or !)
+            if content.startswith(("//", "!!")):
+                command = content.split()[0] if content.split() else ""
+                self.logger.info("Bot command detected", command=command)
+                # Add command tag for future processing
+                if "tags" not in message_data["metadata"]:
+                    message_data["metadata"]["tags"] = []
+                message_data["metadata"]["tags"].append("command")
+
+            # Detect configuration updates
+            config_keywords = ["config", "setting", "configure", "設定", "環境設定"]
+            if any(keyword in content.lower() for keyword in config_keywords):
+                self.logger.info("Configuration-related content detected")
+                # Add config tag for future processing
+                if "tags" not in message_data["metadata"]:
+                    message_data["metadata"]["tags"] = []
+                message_data["metadata"]["tags"].append("config")
+
+            # Log system notifications for monitoring
+            if (
+                content and len(content) > 10
+            ):  # Avoid logging empty or very short messages
+                self.logger.debug("System message logged", content_length=len(content))
+
+        except Exception as e:
+            self.logger.error("Error processing system message", error=str(e))

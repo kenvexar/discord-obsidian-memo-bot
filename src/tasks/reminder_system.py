@@ -8,8 +8,7 @@ from typing import Any
 import discord
 from structlog import get_logger
 
-from bot.channel_config import ChannelConfig
-
+from ..bot.channel_config import ChannelConfig
 from .models import Schedule, Task
 from .schedule_manager import ScheduleManager
 from .task_manager import TaskManager

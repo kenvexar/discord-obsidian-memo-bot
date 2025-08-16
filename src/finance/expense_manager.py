@@ -49,7 +49,7 @@ class ExpenseManager:
             amount=amount,
             currency=currency,
             category=category,
-            date=expense_date or date.today(),
+            expense_date=expense_date or date.today(),
             notes=notes,
         )
 
@@ -84,7 +84,7 @@ class ExpenseManager:
             description=description,
             amount=amount,
             currency=currency,
-            date=income_date or date.today(),
+            income_date=income_date or date.today(),
             notes=notes,
         )
 

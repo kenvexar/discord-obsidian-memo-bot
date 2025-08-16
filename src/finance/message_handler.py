@@ -7,8 +7,7 @@ from decimal import Decimal, InvalidOperation
 import discord
 from structlog import get_logger
 
-from bot.channel_config import ChannelConfig
-
+from ..bot.channel_config import ChannelConfig
 from .expense_manager import ExpenseManager
 from .models import BudgetCategory
 

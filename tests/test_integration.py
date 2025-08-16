@@ -377,7 +377,7 @@ class TestFullSystemIntegration:
         """ヘルスチェックエンドポイントのテスト"""
         print("=== ヘルスチェック統合テスト ===")
 
-        from src.health_server import HealthServer
+        from src.monitoring import HealthServer
 
         # モックボットインスタンス
         mock_bot = MagicMock()

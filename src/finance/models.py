@@ -51,8 +51,8 @@ class Subscription(BaseModel):
     status: SubscriptionStatus = Field(default=SubscriptionStatus.ACTIVE)
     category: str | None = Field(None, description="Service category")
     notes: str | None = Field(None, description="Additional notes")
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+    updated_at: datetime = Field(default_factory=lambda: datetime.now())
 
     @field_validator("currency")
     def validate_currency(cls, v: str) -> str:
@@ -106,7 +106,7 @@ class PaymentRecord(BaseModel):
     currency: str = Field(default="JPY", description="Currency code")
     payment_date: date = Field(..., description="Actual payment date")
     notes: str | None = Field(None, description="Payment notes")
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
 
 
 class ExpenseRecord(BaseModel):
@@ -117,9 +117,14 @@ class ExpenseRecord(BaseModel):
     amount: Decimal = Field(..., description="Expense amount", gt=0)
     currency: str = Field(default="JPY", description="Currency code")
     category: BudgetCategory = Field(..., description="Expense category")
-    date: date = Field(..., description="Expense date")
+    expense_date: date = Field(..., description="Expense date")
     notes: str | None = Field(None, description="Additional notes")
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+
+    @property
+    def date(self) -> date:
+        """Alias for expense_date for backward compatibility."""
+        return self.expense_date
 
 
 class IncomeRecord(BaseModel):
@@ -129,9 +134,14 @@ class IncomeRecord(BaseModel):
     description: str = Field(..., description="Income description")
     amount: Decimal = Field(..., description="Income amount", gt=0)
     currency: str = Field(default="JPY", description="Currency code")
-    date: date = Field(..., description="Income date")
+    income_date: date = Field(..., description="Income date")
     notes: str | None = Field(None, description="Additional notes")
-    created_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+
+    @property
+    def date(self) -> date:
+        """Alias for income_date for backward compatibility."""
+        return self.income_date
 
 
 class Budget(BaseModel):
@@ -144,8 +154,8 @@ class Budget(BaseModel):
     period_start: date = Field(..., description="Budget period start")
     period_end: date = Field(..., description="Budget period end")
     spent_amount: Decimal = Field(default=Decimal("0"), description="Amount spent")
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now())
+    updated_at: datetime = Field(default_factory=lambda: datetime.now())
 
     @property
     def remaining_amount(self) -> Decimal:

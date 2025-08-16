@@ -6,8 +6,7 @@ import discord
 from discord import app_commands
 from structlog import get_logger
 
-from bot.channel_config import ChannelConfig
-
+from ..bot.channel_config import ChannelConfig
 from ..obsidian import ObsidianFileManager
 from .models import ScheduleType, Task, TaskPriority, TaskStatus
 from .schedule_manager import ScheduleManager
@@ -598,6 +597,80 @@ class TaskCommands:
                 ephemeral=True,
             )
 
+    @app_commands.command(name="task_stats", description="タスクの統計情報を表示")  # type: ignore[type-var]
+    async def task_stats_command(self, interaction: discord.Interaction) -> None:
+        """Display task statistics and analytics."""
+        await interaction.response.defer()
+
+        try:
+            # Import report generator
+            try:
+                from tasks.report_generator import TaskReportGenerator
+            except ImportError:
+                from src.tasks.report_generator import TaskReportGenerator
+
+            # Generate comprehensive task statistics
+            report_generator = TaskReportGenerator(
+                self.task_manager, self.schedule_manager, self.file_manager
+            )
+
+            stats_report = await report_generator.generate_task_stats()
+
+            # Create a formatted Discord embed
+            embed = discord.Embed(
+                title="📊 タスク統計情報",
+                description="現在のタスク統計とパフォーマンス分析",
+                color=0x00D4AA,
+                timestamp=datetime.now(),
+            )
+
+            # Parse the stats report and create a more Discord-friendly format
+            lines = stats_report.split("\n")
+            current_section = ""
+            section_content = ""
+
+            for line in lines:
+                if line.startswith("##"):
+                    # Add previous section to embed if it exists
+                    if current_section and section_content.strip():
+                        embed.add_field(
+                            name=current_section.replace("##", "").strip(),
+                            value=section_content.strip()[:1024],  # Discord field limit
+                            inline=False,
+                        )
+
+                    # Start new section
+                    current_section = line
+                    section_content = ""
+                elif line.startswith("#"):
+                    continue  # Skip main title
+                elif line.strip():
+                    section_content += f"{line}\n"
+
+            # Add last section
+            if current_section and section_content.strip():
+                embed.add_field(
+                    name=current_section.replace("##", "").strip(),
+                    value=section_content.strip()[:1024],
+                    inline=False,
+                )
+
+            embed.set_footer(text="📋 タスク管理システム")
+
+            await interaction.followup.send(embed=embed)
+
+        except Exception as e:
+            logger.error(
+                "Error in task_stats_command",
+                error=str(e),
+                user_id=interaction.user.id,
+                exc_info=True,
+            )
+            await interaction.followup.send(
+                "❌ タスク統計の取得中にエラーが発生しました。管理者にお問い合わせください。",
+                ephemeral=True,
+            )
+
 
 def setup_task_commands(
     bot: discord.Client,
@@ -620,6 +693,7 @@ def setup_task_commands(
     bot.tree.add_command(commands.task_update_command)  # type: ignore[attr-defined]
     bot.tree.add_command(commands.task_done_command)  # type: ignore[attr-defined]
     bot.tree.add_command(commands.task_list_command)  # type: ignore[attr-defined]
+    bot.tree.add_command(commands.task_stats_command)  # type: ignore[attr-defined]
     bot.tree.add_command(commands.schedule_add_command)  # type: ignore[attr-defined]
 
     return commands

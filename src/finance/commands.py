@@ -8,9 +8,8 @@ from discord import app_commands
 from discord.ext import commands as discord_commands
 from structlog import get_logger
 
-from bot.channel_config import ChannelConfig
-from obsidian import ObsidianFileManager
-
+from ..bot.channel_config import ChannelConfig
+from ..obsidian import ObsidianFileManager
 from .budget_manager import BudgetManager
 from .expense_manager import ExpenseManager
 from .models import BudgetCategory, SubscriptionFrequency

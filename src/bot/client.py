@@ -23,7 +23,7 @@ class DiscordBot(LoggerMixin):
         self.channel_config = ChannelConfig()
         self.message_handler = MessageHandler(self.channel_config)
 
-        settings = get_settings()
+        self.settings = get_settings()
 
         # Track bot state
         self.is_ready = False
@@ -43,7 +43,7 @@ class DiscordBot(LoggerMixin):
         self.config_manager = None  # Will be initialized after client setup
 
         # Initialize client based on mock mode
-        if settings.is_mock_mode:
+        if self.settings.is_mock_mode:
             self.logger.info("Initializing Discord bot in MOCK mode")
             from .mock_client import MockDiscordBot
 
@@ -97,7 +97,9 @@ class DiscordBot(LoggerMixin):
         self.backup_system = DataBackupSystem(self.client, self.notification_system)  # type: ignore[arg-type]
         self.review_system = AutoReviewSystem(self.client, self.notification_system)  # type: ignore[arg-type]
 
-        self.logger.info("Discord bot initialized", mock_mode=settings.is_mock_mode)
+        self.logger.info(
+            "Discord bot initialized", mock_mode=self.settings.is_mock_mode
+        )
 
     def _register_events(self) -> None:
         """Register Discord event handlers"""
@@ -417,20 +419,21 @@ class DiscordBot(LoggerMixin):
             self.logger.info("All mock configured channels validated successfully")
 
     def _initialize_reminder_systems(self) -> None:
-        """Initialize reminder systems for finance and tasks"""
+        """Initialize all reminder systems"""
+        from ..finance import BudgetManager, ExpenseManager, SubscriptionManager
+        from ..finance.reminder_system import FinanceReminderSystem
+        from ..obsidian import ObsidianFileManager
+        from ..tasks import ScheduleManager, TaskManager
+        from ..tasks.reminder_system import TaskReminderSystem
+
         try:
-            settings = get_settings()
-            # Initialize finance reminder system
-            from ..finance import BudgetManager, ExpenseManager, SubscriptionManager
-            from ..finance.reminder_system import FinanceReminderSystem
-            from ..obsidian import ObsidianFileManager
+            # Create basic obsidian manager for reminder systems
+            obsidian_manager = ObsidianFileManager(self.settings.obsidian_vault_path)
 
-            # Create shared file manager
-            file_manager = ObsidianFileManager()
-
-            # Initialize expense manager first (needed by budget manager)
+            # Initialize financial reminder system
+            file_manager = obsidian_manager
             expense_manager = ExpenseManager(file_manager)
-
+            # subscription_manager requires SubscriptionManager
             subscription_manager = SubscriptionManager(file_manager)
             budget_manager = BudgetManager(file_manager, expense_manager)
 
@@ -443,9 +446,6 @@ class DiscordBot(LoggerMixin):
             self.reminder_systems.append(self.finance_reminder_system)
 
             # Initialize task reminder system
-            from ..tasks import ScheduleManager, TaskManager
-            from ..tasks.reminder_system import TaskReminderSystem
-
             task_manager = TaskManager(file_manager)
             schedule_manager = ScheduleManager(file_manager)
 
@@ -458,17 +458,56 @@ class DiscordBot(LoggerMixin):
             self.reminder_systems.append(self.task_reminder_system)
 
             # Initialize health analysis scheduler (if not in mock mode)
-            if not settings.is_mock_mode:
+            if (
+                not self.settings.is_mock_mode
+                and self.settings.garmin_username
+                and self.settings.garmin_password
+            ):
                 try:
-                    # TODO: Initialize HealthAnalysisScheduler with proper dependencies
-                    # This requires GarminClient, HealthDataAnalyzer, HealthActivityIntegrator, and DailyNoteIntegration
-                    # Temporarily disabled to fix basic type errors first
-                    self.logger.info("Health analysis scheduler temporarily disabled")
-                    # from ..health_analysis.scheduler import HealthAnalysisScheduler
-                    # self.health_scheduler = HealthAnalysisScheduler(...)
-                    # self.reminder_systems.append(self.health_scheduler)
-                except ImportError:
-                    self.logger.warning("Health analysis scheduler not available")
+                    from ..garmin import GarminClient
+                    from ..health_analysis import (
+                        HealthActivityIntegrator,
+                        HealthDataAnalyzer,
+                    )
+                    from ..health_analysis.scheduler import HealthAnalysisScheduler
+                    from ..obsidian import ObsidianFileManager
+                    from ..obsidian.daily_integration import DailyNoteIntegration
+
+                    # Initialize health analysis components
+                    garmin_client = (
+                        GarminClient()
+                    )  # Credentials loaded from environment
+                    health_analyzer = HealthDataAnalyzer()
+
+                    # Create file manager for health integrator
+                    obsidian_manager = ObsidianFileManager(
+                        self.settings.obsidian_vault_path
+                    )
+                    health_integrator = HealthActivityIntegrator(obsidian_manager)
+                    daily_integration = DailyNoteIntegration(obsidian_manager)
+
+                    # Initialize HealthAnalysisScheduler with proper dependencies
+                    self.health_scheduler = HealthAnalysisScheduler(
+                        garmin_client=garmin_client,
+                        analyzer=health_analyzer,
+                        integrator=health_integrator,
+                        daily_integration=daily_integration,
+                    )
+                    self.reminder_systems.append(self.health_scheduler)
+
+                    self.logger.info(
+                        "Health analysis scheduler initialized successfully"
+                    )
+                except ImportError as e:
+                    self.logger.warning(f"Health analysis scheduler not available: {e}")
+                except Exception as e:
+                    self.logger.error(
+                        f"Failed to initialize health analysis scheduler: {e}"
+                    )
+            else:
+                self.logger.info(
+                    "Health analysis scheduler skipped (mock mode or missing Garmin credentials)"
+                )
 
             self.logger.info(
                 "Reminder systems initialized", count=len(self.reminder_systems)
@@ -478,7 +517,6 @@ class DiscordBot(LoggerMixin):
             self.logger.error(
                 "Failed to initialize reminder systems", error=str(e), exc_info=True
             )
-            self.reminder_systems = []
 
     async def _start_reminder_systems(self) -> None:
         """Start all reminder systems"""

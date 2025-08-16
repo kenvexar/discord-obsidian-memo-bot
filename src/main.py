@@ -93,9 +93,9 @@ async def main() -> None:
 
         # Start health check server for Cloud Run
         try:
-            from health_server import HealthServer
+            from monitoring import HealthServer
         except ImportError:
-            from src.health_server import HealthServer
+            from src.monitoring import HealthServer
 
         health_server = HealthServer(bot_instance=bot, port=8080)
         health_server.start()
