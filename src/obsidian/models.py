@@ -10,8 +10,6 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..ai.models import ProcessingCategory
-
 
 class OperationType(Enum):
     """ファイル操作の種類"""
@@ -214,13 +212,7 @@ class FileOperation(BaseModel):
     error_message: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda dt: dt.isoformat(),
-            OperationType: lambda ot: ot.value,
-            Path: lambda p: str(p),
-        }
-    )
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class VaultStats(BaseModel):
@@ -247,11 +239,7 @@ class VaultStats(BaseModel):
 
     last_updated: datetime = Field(default_factory=datetime.now)
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda dt: dt.isoformat(),
-        }
-    )
+    model_config = ConfigDict()
 
 
 class AttachmentInfo(BaseModel):
@@ -268,13 +256,7 @@ class AttachmentInfo(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     linked_note_path: Path | None = None
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda dt: dt.isoformat(),
-            VaultFolder: lambda vf: vf.value,
-            Path: lambda p: str(p),
-        }
-    )
+    model_config = ConfigDict(use_enum_values=True)
 
 
 class FolderMapping:
@@ -282,12 +264,12 @@ class FolderMapping:
 
     # カテゴリベースのマッピング
     CATEGORY_FOLDER_MAPPING = {
-        ProcessingCategory.WORK: VaultFolder.WORK,
-        ProcessingCategory.LEARNING: VaultFolder.LEARNING,
-        ProcessingCategory.PROJECT: VaultFolder.PROJECTS,
-        ProcessingCategory.LIFE: VaultFolder.LIFE,
-        ProcessingCategory.IDEA: VaultFolder.IDEAS,
-        ProcessingCategory.OTHER: VaultFolder.INBOX,
+        "仕事": VaultFolder.WORK,
+        "学習": VaultFolder.LEARNING,
+        "プロジェクト": VaultFolder.PROJECTS,
+        "生活": VaultFolder.LIFE,
+        "アイデア": VaultFolder.IDEAS,
+        "その他": VaultFolder.INBOX,
     }
 
     # ファイル種別のマッピング
@@ -302,7 +284,7 @@ class FolderMapping:
     }
 
     @classmethod
-    def get_folder_for_category(cls, category: ProcessingCategory) -> VaultFolder:
+    def get_folder_for_category(cls, category: str) -> VaultFolder:
         """カテゴリに基づいてフォルダを取得"""
         return cls.CATEGORY_FOLDER_MAPPING.get(category, VaultFolder.INBOX)
 

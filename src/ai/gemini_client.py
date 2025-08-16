@@ -13,8 +13,9 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-from ..config.settings import settings
-from ..utils import LoggerMixin
+from config.settings import get_settings
+from src.utils.mixins import LoggerMixin
+
 from .models import (
     AIModelConfig,
     APIUsageInfo,
@@ -93,6 +94,7 @@ class GeminiClient(LoggerMixin):
         self._min_request_interval = 4.0  # 15 RPM = 4秒間隔
 
         # APIキーの検証
+        settings = get_settings()
         if not settings.gemini_api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment variables")
 
@@ -108,6 +110,7 @@ class GeminiClient(LoggerMixin):
 
         try:
             # API設定
+            settings = get_settings()
             genai.configure(api_key=settings.gemini_api_key.get_secret_value())
 
             # モデル初期化

@@ -9,11 +9,12 @@ import discord
 
 from ..ai import AIProcessor, ProcessingSettings
 from ..ai.mock_processor import MockAIProcessor
+from ..ai.models import AIProcessingResult
 from ..ai.note_analyzer import AdvancedNoteAnalyzer
 from ..audio import SpeechProcessor
 from ..obsidian import MessageNoteTemplate, ObsidianFileManager, TemplateEngine
 from ..obsidian.daily_integration import DailyNoteIntegration
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 from .channel_config import ChannelCategory, ChannelConfig
 from .message_processor import MessageProcessor
 
@@ -50,7 +51,9 @@ class MessageHandler(LoggerMixin):
         )
 
         # モードに応じてAIプロセッサーを初期化
-        from ..config import settings
+        from ..config import get_settings
+
+        settings = get_settings()
 
         if settings.is_mock_mode:
             self.logger.info("Initializing AI processor in MOCK mode")
@@ -150,12 +153,13 @@ class MessageHandler(LoggerMixin):
         metadata = self.message_processor.extract_metadata(message)
 
         # AI処理を実行（テキストがある場合のみ）
-        ai_result = None
+        ai_result: AIProcessingResult | None = None
         if message.content and len(message.content.strip()) > 20:
             try:
-                ai_result = await self.ai_processor.process_text(
+                result = await self.ai_processor.process_text(
                     text=message.content, message_id=message.id
                 )
+                ai_result = result if isinstance(result, AIProcessingResult) else None
 
                 # Record AI request metrics
                 if hasattr(self, "system_metrics"):
@@ -207,9 +211,7 @@ class MessageHandler(LoggerMixin):
         # Combine with channel information
         message_data = {
             "metadata": metadata,
-            "ai_processing": getattr(ai_result, "model_dump", lambda: None)()
-            if ai_result
-            else None,
+            "ai_processing": ai_result.model_dump() if ai_result else None,
             "channel_info": {
                 "name": channel_info.name,
                 "category": channel_info.category.value,
@@ -307,10 +309,8 @@ class MessageHandler(LoggerMixin):
         if self.obsidian_manager and self.note_template:
             try:
                 # AI処理結果をAIProcessingResultオブジェクトに変換
-                ai_result = None
+                ai_result: AIProcessingResult | None = None
                 if ai_processing:
-                    from ..ai.models import AIProcessingResult
-
                     ai_result = AIProcessingResult.model_validate(ai_processing)
 
                 # Obsidianノートを生成
@@ -429,7 +429,9 @@ class MessageHandler(LoggerMixin):
     ) -> None:
         """デイリーノート統合の処理"""
         try:
-            from ..config import settings
+            from ..config import get_settings
+
+            settings = get_settings()
 
             channel_id = channel_info.id
 

@@ -5,7 +5,7 @@ Obsidian metadata management
 from datetime import datetime
 from typing import Any
 
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 from .file_manager import ObsidianFileManager
 from .models import ObsidianNote, VaultStats
 

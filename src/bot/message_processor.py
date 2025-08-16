@@ -11,7 +11,7 @@ import aiofiles
 import aiohttp
 import discord
 
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 
 class ContentMetadata(TypedDict):

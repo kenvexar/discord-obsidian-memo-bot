@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 
 @dataclass

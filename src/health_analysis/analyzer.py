@@ -6,10 +6,11 @@ import uuid
 from datetime import date, timedelta
 from typing import Any
 
-from ..ai.processor import AIProcessor
-from ..config.settings import get_settings
-from ..garmin.models import HealthData
-from ..utils.logger import LoggerMixin
+from ai.processor import AIProcessor
+from src.config.settings import get_settings
+from src.garmin.models import HealthData
+from src.utils.mixins import LoggerMixin
+
 from .models import (
     AnalysisReport,
     AnalysisType,

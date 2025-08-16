@@ -5,11 +5,10 @@ from .secure_settings import (
     get_secure_settings,
     initialize_secure_settings,
 )
-from .settings import Settings, get_settings, settings
+from .settings import Settings, get_settings
 
 __all__ = [
     "Settings",
-    "settings",
     "get_settings",
     "SecureSettingsManager",
     "get_secure_settings",

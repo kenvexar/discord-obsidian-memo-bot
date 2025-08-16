@@ -4,7 +4,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class SubscriptionStatus(str, Enum):
@@ -54,7 +54,7 @@ class Subscription(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
 
-    @validator("currency")
+    @field_validator("currency")
     def validate_currency(cls, v: str) -> str:
         """Validate currency code."""
         valid_currencies = ["JPY", "USD", "EUR"]
@@ -119,7 +119,7 @@ class ExpenseRecord(BaseModel):
     category: BudgetCategory = Field(..., description="Expense category")
     date: date = Field(..., description="Expense date")
     notes: str | None = Field(None, description="Additional notes")
-    created_at: datetime = Field(default_factory=lambda: datetime.now())
+    created_at: datetime = Field(default_factory=datetime.now)
 
 
 class IncomeRecord(BaseModel):

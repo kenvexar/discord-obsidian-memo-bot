@@ -35,6 +35,19 @@ class TestChannelConfig:
 
     def test_channel_config_initialization(self):
         """Test channel config loads correctly"""
+        os.environ.update(
+            {
+                "CHANNEL_INBOX": "111111111",
+                "CHANNEL_VOICE": "222222222",
+                "CHANNEL_FILES": "333333333",
+                "CHANNEL_MONEY": "444444444",
+                "CHANNEL_FINANCE_REPORTS": "555555555",
+                "CHANNEL_TASKS": "666666666",
+                "CHANNEL_PRODUCTIVITY_REVIEWS": "777777777",
+                "CHANNEL_NOTIFICATIONS": "888888888",
+                "CHANNEL_COMMANDS": "999999999",
+            }
+        )
         config = ChannelConfig()
 
         assert len(config.channels) > 0
@@ -42,53 +55,43 @@ class TestChannelConfig:
             config.channels[list(config.channels.keys())[0]].id
         )
 
-    def test_get_channels_by_category(self):
+    def test_get_channels_by_category(self, monkeypatch):
         """Test getting channels by category with mocked settings"""
-        # settingsをモックしてテスト用のチャンネルIDを設定
-        with patch("src.bot.channel_config.settings") as mock_settings:
-            # CAPTUREカテゴリのチャンネル
-            mock_settings.channel_inbox = 111111111
-            mock_settings.channel_voice = 222222222
-            mock_settings.channel_files = 333333333
+        # Use monkeypatch to set environment variables for this test
+        monkeypatch.setenv("CHANNEL_INBOX", "111111111")
+        monkeypatch.setenv("CHANNEL_VOICE", "222222222")
+        monkeypatch.setenv("CHANNEL_FILES", "333333333")
+        monkeypatch.setenv("CHANNEL_MONEY", "444444444")
+        monkeypatch.setenv("CHANNEL_FINANCE_REPORTS", "555555555")
+        monkeypatch.setenv("CHANNEL_TASKS", "666666666")
+        monkeypatch.setenv("CHANNEL_PRODUCTIVITY_REVIEWS", "777777777")
+        monkeypatch.setenv("CHANNEL_NOTIFICATIONS", "888888888")
+        monkeypatch.setenv("CHANNEL_COMMANDS", "999999999")
 
-            # FINANCEカテゴリのチャンネル
-            mock_settings.channel_money = 444444444
-            mock_settings.channel_finance_reports = 555555555
+        # Re-import ChannelConfig to ensure it picks up the new environment variables
+        from src.bot.channel_config import ChannelConfig
 
-            # PRODUCTIVITYカテゴリのチャンネル
-            mock_settings.channel_tasks = 666666666
-            mock_settings.channel_productivity_reviews = 777777777
+        config = ChannelConfig()
 
-            # SYSTEMカテゴリのチャンネル
-            mock_settings.channel_notifications = 888888888
-            mock_settings.channel_commands = 999999999
+        capture_channels = config.get_capture_channels()
+        finance_channels = config.get_finance_channels()
 
-            # OptionalチャンネルはNoneに設定
-            mock_settings.channel_activity_log = None
-            mock_settings.channel_daily_tasks = None
+        assert len(capture_channels) > 0, (
+            f"capture_channels is empty: {capture_channels}"
+        )
+        assert len(finance_channels) > 0, (
+            f"finance_channels is empty: {finance_channels}"
+        )
+        assert capture_channels.isdisjoint(finance_channels), (
+            "Capture and finance channels should not overlap"
+        )
 
-            # モックされたsettingsでChannelConfigを作成
-            config = ChannelConfig()
+        # 具体的なチャンネルIDを確認
+        expected_capture = {111111111, 222222222, 333333333}
+        expected_finance = {444444444, 555555555}
 
-            capture_channels = config.get_capture_channels()
-            finance_channels = config.get_finance_channels()
-
-            assert len(capture_channels) > 0, (
-                f"capture_channels is empty: {capture_channels}"
-            )
-            assert len(finance_channels) > 0, (
-                f"finance_channels is empty: {finance_channels}"
-            )
-            assert capture_channels.isdisjoint(finance_channels), (
-                "Capture and finance channels should not overlap"
-            )
-
-            # 具体的なチャンネルIDを確認
-            expected_capture = {111111111, 222222222, 333333333}
-            expected_finance = {444444444, 555555555}
-
-            assert capture_channels == expected_capture
-            assert finance_channels == expected_finance
+        assert capture_channels == expected_capture
+        assert finance_channels == expected_finance
 
 
 class TestMessageHandler:

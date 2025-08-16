@@ -74,11 +74,14 @@ async def run_component_tests():
         if test_file.exists():
             import subprocess
 
+            env = os.environ.copy()
+            env["PYTHONPATH"] = f"{project_root}:{project_root / 'src'}"
             result = subprocess.run(
                 [sys.executable, str(test_file)],
                 capture_output=True,
                 text=True,
                 cwd=project_root,
+                env=env,
             )
 
             if result.returncode == 0:

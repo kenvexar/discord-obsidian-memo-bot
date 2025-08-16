@@ -9,8 +9,8 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from ..config import settings
-from ..utils import LoggerMixin
+from ..config import get_settings
+from ..utils.mixins import LoggerMixin
 
 
 class NotificationLevel(str, Enum):
@@ -86,7 +86,7 @@ class NotificationSystem(LoggerMixin):
         """
         try:
             # 通知先チャンネル決定
-            target_channel_id = channel_id or settings.channel_notifications
+            target_channel_id = channel_id or get_settings().channel_notifications
             channel = self.bot.get_channel(target_channel_id)
 
             if not channel:

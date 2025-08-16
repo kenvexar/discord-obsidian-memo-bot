@@ -10,7 +10,7 @@ import structlog
 from rich.console import Console
 from rich.logging import RichHandler
 
-from ..config.settings import get_settings
+from config.settings import get_settings
 
 
 def setup_logging() -> None:
@@ -69,16 +69,7 @@ def setup_logging() -> None:
 def get_logger(name: str) -> structlog.stdlib.BoundLogger:
     """Get a structured logger instance"""
     logger = structlog.get_logger(name)
-    return logger  # type: ignore[no-any-return]  # type: ignore[return-value]
-
-
-class LoggerMixin:
-    """Mixin class to add logging capabilities to any class"""
-
-    @property
-    def logger(self) -> structlog.stdlib.BoundLogger:
-        """Get logger instance for this class"""
-        return get_logger(self.__class__.__name__)
+    return logger
 
 
 def log_function_call(func_name: str, **kwargs: Any) -> None:

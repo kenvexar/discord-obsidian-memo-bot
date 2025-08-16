@@ -10,7 +10,7 @@ from typing import Any, cast
 import aiofiles
 
 from ..ai.models import AIProcessingResult
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 from .models import NoteFrontmatter, ObsidianNote, VaultFolder
 
 

@@ -1,7 +1,6 @@
 """Utility modules for Discord-Obsidian Memo Bot"""
 
 from .logger import (
-    LoggerMixin,
     get_logger,
     log_api_usage,
     log_function_call,
@@ -11,7 +10,6 @@ from .logger import (
 __all__ = [
     "get_logger",
     "setup_logging",
-    "LoggerMixin",
     "log_function_call",
     "log_api_usage",
 ]

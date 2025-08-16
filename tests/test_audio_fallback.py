@@ -21,11 +21,12 @@ HAS_PYDUB = importlib.util.find_spec("pydub") is not None
 @pytest.fixture
 def mock_settings():
     """Mock settings for testing"""
-    with patch("src.audio.speech_processor.settings") as mock:
-        mock.google_cloud_speech_api_key = None
-        mock.google_application_credentials = None
-        mock.obsidian_vault_path = "/tmp/test_vault"
-        yield mock
+    with patch("src.audio.speech_processor.get_settings") as mock_get_settings:
+        mock_settings = mock_get_settings.return_value
+        mock_settings.google_cloud_speech_api_key = None
+        mock_settings.google_application_credentials = None
+        mock_settings.obsidian_vault_path = "/tmp/test_vault"
+        yield mock_settings
 
 
 @pytest.fixture

@@ -10,7 +10,7 @@ from discord.ext import commands
 
 from ..ai import AIProcessor, ProcessingSettings
 from ..ai.note_analyzer import AdvancedNoteAnalyzer
-from ..config import settings
+from ..config import get_settings
 from ..obsidian import (
     DailyNoteIntegration,
     MetadataManager,
@@ -18,7 +18,7 @@ from ..obsidian import (
     TemplateEngine,
     VaultOrganizer,
 )
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 from .channel_config import ChannelConfig
 
 
@@ -107,11 +107,11 @@ class BasicCommands(commands.Cog, LoggerMixin):
         embed.add_field(
             name="📋 監視チャンネル",
             value=(
-                f"📥 受信箱: <#{settings.channel_inbox}>\n"
-                f"🎤 音声: <#{settings.channel_voice}>\n"
-                f"📎 ファイル: <#{settings.channel_files}>\n"
-                f"💰 家計: <#{settings.channel_money}>\n"
-                f"📋 タスク: <#{settings.channel_tasks}>"
+                f"📥 受信箱: <#{get_settings().channel_inbox}>\n"
+                f"🎤 音声: <#{get_settings().channel_voice}>\n"
+                f"📎 ファイル: <#{get_settings().channel_files}>\n"
+                f"💰 家計: <#{get_settings().channel_money}>\n"
+                f"📋 タスク: <#{get_settings().channel_tasks}>"
             ),
             inline=False,
         )
@@ -171,8 +171,8 @@ class BasicCommands(commands.Cog, LoggerMixin):
         embed.add_field(
             name="🔧 設定",
             value=(
-                f"**環境**: {settings.environment}\n"
-                f"**ログレベル**: {settings.log_level}\n"
+                f"**環境**: {get_settings().environment}\n"
+                f"**ログレベル**: {get_settings().log_level}\n"
                 f"**Obsidian Vault**: 設定済み"
             ),
             inline=False,

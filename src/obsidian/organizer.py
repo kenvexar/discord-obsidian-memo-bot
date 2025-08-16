@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 from .file_manager import ObsidianFileManager
 from .models import (
     FolderMapping,
@@ -71,7 +71,7 @@ class VaultOrganizer(LoggerMixin):
                         try:
                             category = ProcessingCategory(note.frontmatter.ai_category)
                             target_folder = FolderMapping.get_folder_for_category(
-                                category
+                                category.value
                             )
                         except ValueError:
                             self.logger.warning(

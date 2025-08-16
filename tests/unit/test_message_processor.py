@@ -120,7 +120,7 @@ class TestMessageProcessor:
         mock_message.tts = False
 
         # Mock author
-        mock_message.author.id = 987654321
+        mock_message.author = Mock(spec=discord.Member, id=987654321)
         mock_message.author.display_name = "Test User"
         mock_message.author.name = "testuser"
         mock_message.author.discriminator = "1234"
@@ -235,7 +235,7 @@ class TestMessageProcessor:
         mock_message.reference = None
 
         # Mock author
-        mock_message.author.id = 987654321
+        mock_message.author = Mock(spec=discord.Member, id=987654321)
         mock_message.author.display_name = "Test User"
         mock_message.author.name = "testuser"
         mock_message.author.discriminator = "1234"

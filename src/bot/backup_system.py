@@ -10,8 +10,8 @@ from typing import Any
 
 from discord.ext import commands, tasks
 
-from ..config import settings
-from ..utils import LoggerMixin
+from ..config.settings import get_settings
+from ..utils.mixins import LoggerMixin
 
 
 class BackupType(str, Enum):
@@ -61,6 +61,9 @@ class DataBackupSystem(LoggerMixin):
         self.backup_interval_hours = 24
         self.max_backup_files = 30
         self.backup_destinations = [BackupDestination.LOCAL]
+
+        # settingsインスタンスを取得
+        settings = get_settings()
 
         # バックアップ対象ディレクトリ
         self.backup_sources = {

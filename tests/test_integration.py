@@ -13,7 +13,16 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import discord
 import pytest
+
+from src.ai.models import (
+    AIProcessingResult,
+    CategoryResult,
+    ProcessingCategory,
+    SummaryResult,
+    TagResult,
+)
 
 # テスト対象のモジュールをインポート
 from src.bot.client import DiscordBot
@@ -25,19 +34,35 @@ from src.security.access_logger import AccessLogger, SecurityEventType
 class MockMessage:
     """Discord メッセージのモック"""
 
-    def __init__(
-        self, content: str, author_id: str = "user123", channel_id: int = 12345
-    ):
+    def __init__(self, content: str, author_id: int = 123, channel_id: int = 12345):
         self.id = 123456789
         self.content = content
-        self.author = MagicMock()
-        self.author.id = author_id
+        self.author = MagicMock(spec=discord.Member)
+        self.author.configure_mock(id=author_id)
         self.author.mention = f"<@{author_id}>"
+        self.author.bot = False  # Fix: Ensure message is not from bot
         self.channel = MagicMock()
         self.channel.id = channel_id
         self.channel.name = "test-channel"
         self.attachments = []
         self.created_at = datetime.now()
+        self.flags = MagicMock(spec=discord.MessageFlags)
+        self.flags.crossposted = False
+        self.type = discord.MessageType.default
+        self.pinned = False  # 追加
+        self.tts = False  # 追加
+        self.guild = MagicMock(name="mock_guild")  # 追加
+        self.guild.name = "Test Guild"  # 追加
+        self.guild.id = 123456789  # 追加
+        self.reference = None  # 追加
+        self.embeds = []  # 追加
+        self.reactions = []  # 追加
+        self.mentions = []  # 追加
+        self.role_mentions = []  # 追加
+        self.channel_mentions = []  # 追加
+        self.mention_everyone = False  # 追加
+        self.stickers = []  # 追加
+        self.edited_at = None  # 追加
 
 
 class MockDiscordChannel:
@@ -62,33 +87,59 @@ class TestCompleteMessageProcessingFlow:
             # モックの設定
             mock_channel_config = MagicMock()
             mock_channel_config.get_channel_category.return_value = "INBOX"
-
-            # メッセージハンドラーの初期化
-            handler = MessageHandler(mock_channel_config)
-
-            # テストメッセージの作成
-            test_message = MockMessage(
-                content="今日は素晴らしい一日でした。新しいプロジェクトのアイデアが浮かびました。",
-                author_id="test_user_123",
-                channel_id=12345,
+            mock_channel_config.is_monitored_channel.return_value = (
+                True  # Fix: Ensure channel is monitored
             )
 
+            # Channel info mock setup
+            mock_channel_info = MagicMock()
+            mock_channel_info.name = "test-channel"
+            mock_channel_info.id = 12345
+            from src.bot.channel_config import ChannelCategory
+
+            mock_channel_info.category = ChannelCategory.CAPTURE
+            mock_channel_info.description = "Test channel"
+            mock_channel_config.get_channel_info.return_value = mock_channel_info
+
             # AI処理をモック
-            with patch("src.ai.gemini_client.GeminiClient") as mock_gemini:
-                mock_gemini_instance = AsyncMock()
-                mock_gemini_instance.process_message.return_value = {
-                    "summary": "新しいプロジェクトアイデアについて",
-                    "categories": ["アイデア", "プロジェクト"],
-                    "keywords": ["プロジェクト", "アイデア"],
-                    "confidence": 0.95,
-                }
-                mock_gemini.return_value = mock_gemini_instance
+            with patch(
+                "src.ai.mock_processor.MockAIProcessor.process_text"
+            ) as mock_process_text:
+                # テストメッセージの作成
+                test_message = MockMessage(
+                    content="今日は素晴らしい一日でした。新しいプロジェクトのアイデアが浮かびました。",
+                    author_id=123,  # 修正
+                    channel_id=12345,
+                )
+
+                mock_ai_result_instance = AIProcessingResult(
+                    message_id=test_message.id,
+                    processed_at=datetime.now(),
+                    summary=SummaryResult(
+                        summary="新しいプロジェクトアイデアについて",
+                        processing_time_ms=100,
+                        model_used="mock-gemini-pro",
+                    ),
+                    tags=TagResult(
+                        tags=["アイデア", "プロジェクト"],
+                        processing_time_ms=50,
+                        model_used="mock-gemini-pro",
+                    ),
+                    category=CategoryResult(
+                        category=ProcessingCategory.PROJECT,
+                        confidence_score=0.95,
+                        processing_time_ms=70,
+                        model_used="mock-gemini-pro",
+                    ),
+                    total_processing_time_ms=1500,
+                )
+                mock_process_text.return_value = mock_ai_result_instance
 
                 # Obsidianファイル作成をモック
-                with patch(
-                    "src.obsidian.file_manager.ObsidianFileManager"
-                ) as mock_obsidian:
+                with patch("src.bot.handlers.ObsidianFileManager") as mock_obsidian:
                     mock_obsidian_instance = AsyncMock()
+                    # vault_path を設定
+                    mock_obsidian_instance.vault_path = Path(temp_dir)
                     mock_obsidian_instance.create_note.return_value = {
                         "success": True,
                         "file_path": Path(temp_dir) / "test_note.md",
@@ -96,20 +147,24 @@ class TestCompleteMessageProcessingFlow:
                     }
                     mock_obsidian.return_value = mock_obsidian_instance
 
+                    # メッセージハンドラーの初期化をモックのスコープ内に移動
+                    handler = MessageHandler(mock_channel_config)
+
                     # メッセージ処理の実行
                     result = await handler.process_message(test_message)
 
                     # 結果の検証
                     assert result is not None
-                    assert result.get("ai_processed")
-                    assert result.get("note_created")
-                    assert "processing_time" in result
+                    assert result.get("metadata") is not None
+                    assert result.get("ai_processing") is not None
+                    assert result.get("channel_info") is not None
+                    assert result.get("processing_timestamp") is not None
 
                     # AI処理が呼ばれたことを確認
-                    mock_gemini_instance.process_message.assert_called_once()
+                    mock_process_text.assert_called_once()
 
                     # Obsidianファイル作成が呼ばれたことを確認
-                    mock_obsidian_instance.create_note.assert_called_once()
+                    mock_obsidian_instance.save_note.assert_called_once()
 
         print("✓ エンドツーエンドメッセージ処理が正常に動作")
 
@@ -118,25 +173,35 @@ class TestCompleteMessageProcessingFlow:
         print("=== API制限処理テスト ===")
 
         mock_channel_config = MagicMock()
+        mock_channel_config.is_monitored_channel.return_value = True
+        # Channel info mock setup
+        mock_channel_info = MagicMock()
+        mock_channel_info.name = "test-channel"
+        mock_channel_info.id = 12345
+        from src.bot.channel_config import ChannelCategory
+
+        mock_channel_info.category = ChannelCategory.CAPTURE
+        mock_channel_info.description = "Test channel"
+        mock_channel_config.get_channel_info.return_value = mock_channel_info
+
         handler = MessageHandler(mock_channel_config)
 
-        test_message = MockMessage("テストメッセージ")
+        test_message = MockMessage("テストメッセージ", author_id=123)
 
         # APIエラーをシミュレート
-        with patch("src.ai.gemini_client.GeminiClient") as mock_gemini:
-            mock_gemini_instance = AsyncMock()
-            mock_gemini_instance.process_message.side_effect = Exception(
-                "API quota exceeded"
-            )
-            mock_gemini.return_value = mock_gemini_instance
+        with patch("src.ai.processor.AIProcessor") as mock_ai_processor:
+            mock_ai_instance = AsyncMock()
+            mock_ai_instance.process_text.side_effect = Exception("API quota exceeded")
+            mock_ai_processor.return_value = mock_ai_instance
 
             # エラーハンドリングのテスト
             result = await handler.process_message(test_message)
 
             # フォールバック処理の確認
             assert result is not None
-            assert not result.get("ai_processed")
-            assert result.get("error_handled")
+            assert result.get("metadata") is not None
+            # AI処理が失敗した場合、ai_processingはNoneになる
+            assert result.get("ai_processing") is None
 
         print("✓ API制限エラーハンドリングが正常に動作")
 
@@ -290,7 +355,6 @@ class TestFullSystemIntegration:
                 "OBSIDIAN_VAULT_PATH": "/tmp/test_vault",
             },
         ):
-            settings = get_settings()
             settings.enable_mock_mode = True
 
             # テスト用のObsidianディレクトリ作成

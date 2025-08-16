@@ -8,8 +8,8 @@ from typing import Any
 
 from discord.ext import commands, tasks
 
-from ..config import settings
-from ..utils import LoggerMixin
+from ..config import get_settings
+from ..utils.mixins import LoggerMixin
 
 
 class ReviewType(str, Enum):
@@ -53,7 +53,7 @@ class AutoReviewSystem(LoggerMixin):
             self.obsidian_manager = ObsidianFileManager()
 
             # AIプロセッサーの初期化（モックモードかどうかで分岐）
-            if settings.is_mock_mode:
+            if get_settings().is_mock_mode:
                 from ..ai.mock_processor import MockAIProcessor
 
                 self.ai_processor = MockAIProcessor()

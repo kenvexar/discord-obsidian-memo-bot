@@ -27,8 +27,7 @@ os.environ.update(
     }
 )
 
-from src.ai.models import AIProcessingResult, ProcessingCategory
-from src.config import settings
+from src.ai.models import AIProcessingResult
 from src.obsidian.file_manager import ObsidianFileManager
 from src.obsidian.models import (
     FolderMapping,
@@ -103,10 +102,10 @@ class TestObsidianModels:
     def test_folder_mapping(self):
         """Test folder mapping functionality"""
         # Test category mapping
-        work_folder = FolderMapping.get_folder_for_category(ProcessingCategory.WORK)
+        work_folder = FolderMapping.get_folder_for_category("仕事")
         assert work_folder == VaultFolder.WORK
 
-        other_folder = FolderMapping.get_folder_for_category(ProcessingCategory.OTHER)
+        other_folder = FolderMapping.get_folder_for_category("その他")
         assert other_folder == VaultFolder.INBOX
 
         # Test file type mapping
@@ -343,7 +342,7 @@ async def test_obsidian_integration_with_message_handler():
 
     with (
         tempfile.TemporaryDirectory() as temp_dir,
-        patch.object(settings, "obsidian_vault_path", Path(temp_dir)),
+        patch.dict(os.environ, {"OBSIDIAN_VAULT_PATH": str(Path(temp_dir))}),
     ):
         handler = MessageHandler(channel_config)
 
@@ -410,7 +409,7 @@ async def test_obsidian_integration_with_message_handler():
             )
 
             mock_category = CategoryResult(
-                category=ProcessingCategory.WORK,
+                category="仕事",
                 confidence_score=0.8,
                 processing_time_ms=75,
                 model_used="test-model",

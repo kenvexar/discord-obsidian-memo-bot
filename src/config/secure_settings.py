@@ -2,8 +2,10 @@
 Secure settings loader with Google Cloud Secret Manager integration
 """
 
-from ..security import SecureConfigManager
-from ..utils import get_logger
+import structlog
+
+from security.secret_manager import SecureConfigManager
+
 from .settings import Settings, get_settings
 
 
@@ -11,7 +13,7 @@ class SecureSettingsManager:
     """Settings manager with secure credential loading"""
 
     def __init__(self) -> None:
-        self.logger = get_logger("secure_settings")
+        self.logger = structlog.get_logger("secure_settings")
         self.base_settings = get_settings()
         self.secure_config = None
         self._secrets_cache: dict[str, str] = {}
@@ -46,7 +48,7 @@ class SecureSettingsManager:
         if value:
             self._secrets_cache[key] = value
 
-        return value
+        return value  # type: ignore[no-any-return]
 
     async def validate_all_credentials(self) -> dict[str, dict[str, bool]]:
         """Validate all required credentials are accessible"""
@@ -158,7 +160,7 @@ async def initialize_secure_settings() -> SecureSettingsManager:
         raise ValueError(f"Missing required credentials: {', '.join(missing_required)}")
 
     # Log validation results
-    logger = get_logger("secure_settings")
+    logger = structlog.get_logger("secure_settings")
     logger.info("Credential validation completed", results=validation_results)
 
     return manager

@@ -21,8 +21,11 @@ def test_config_import():
     os.environ["CHANNEL_NOTIFICATIONS"] = "888888888"
     os.environ["CHANNEL_COMMANDS"] = "999999999"
 
+    # Import get_settings AFTER setting environment variables
+    from src.config import get_settings
+
     try:
-        from src.config import settings
+        settings = get_settings()
 
         assert settings.discord_bot_token.get_secret_value() == "test_token"
         assert settings.discord_guild_id == 123456789

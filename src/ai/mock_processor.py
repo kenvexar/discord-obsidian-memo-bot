@@ -6,7 +6,8 @@ import asyncio
 import hashlib
 from typing import Any
 
-from ..utils import LoggerMixin
+from src.utils.mixins import LoggerMixin
+
 from .models import (
     CacheInfo,
     CategoryResult,
@@ -176,3 +177,10 @@ class MockAIProcessor(LoggerMixin):
         note_names = [note.get("title", note.get("name", "")) for note in related_notes]
         # Return first few note names as mock links
         return [name for name in note_names if name][:3]
+
+    async def generate_embeddings(self, text: str) -> list[float]:
+        """Mock embedding generation"""
+        await asyncio.sleep(0.01)  # Simulate a small delay
+        # Return a dummy embedding (e.g., a list of zeros or random numbers)
+        # The length of the embedding vector can be arbitrary for a mock
+        return [0.1] * 768  # Example: a 768-dimensional embedding vector of 0.1s

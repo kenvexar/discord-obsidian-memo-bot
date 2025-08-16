@@ -10,17 +10,17 @@ from typing import Any
 
 import aiofiles
 
-from ..utils.logger import LoggerMixin
+from src.utils.mixins import LoggerMixin
 
 try:
-    from ..config import settings
+    from ..config import get_settings
     from ..obsidian import ObsidianFileManager
 except ImportError:
     # Mock for standalone testing
     class MockSettings:
         obsidian_vault_path = "/tmp/vault"
 
-    settings = MockSettings()  # type: ignore
+    settings = MockSettings()
 
     class MockObsidianFileManager:
         async def search_notes(self, **kwargs: Any) -> list[Any]:
@@ -135,6 +135,7 @@ class VectorStore(LoggerMixin):
         self.file_paths_index: list[str] = []
 
         # 設定
+        settings = get_settings()
         self.index_file_path = Path(settings.obsidian_vault_path) / ".vector_index.json"
         self.min_content_length = 10  # 最小コンテンツ長
         self.embedding_dimension = 16  # ダミー埋め込み次元数
@@ -430,6 +431,7 @@ class VectorStore(LoggerMixin):
     async def _get_all_vault_files(self) -> list[str]:
         """Vault内の全マークダウンファイルを取得"""
         try:
+            settings = get_settings()
             vault_path = Path(settings.obsidian_vault_path)
             if not vault_path.exists():
                 return []
@@ -454,6 +456,7 @@ class VectorStore(LoggerMixin):
                 return True
 
             # ファイルの内容ハッシュをチェック
+            settings = get_settings()
             full_path = Path(settings.obsidian_vault_path) / file_path
             if not full_path.exists():
                 return False
@@ -477,6 +480,7 @@ class VectorStore(LoggerMixin):
     async def _process_file_for_embedding(self, file_path: str) -> None:
         """ファイルを処理して埋め込みを生成"""
         try:
+            settings = get_settings()
             full_path = Path(settings.obsidian_vault_path) / file_path
             if not full_path.exists():
                 return
@@ -595,6 +599,7 @@ class VectorStore(LoggerMixin):
             for file_path, _embedding in self.embeddings.items():
                 # ファイルの内容を読み込み（簡易版）
                 try:
+                    settings = get_settings()
                     full_path = Path(settings.obsidian_vault_path) / file_path
                     if full_path.exists():
                         async with aiofiles.open(full_path, encoding="utf-8") as f:
@@ -667,6 +672,7 @@ class VectorStore(LoggerMixin):
     async def _get_content_preview(self, file_path: str, max_length: int = 200) -> str:
         """ファイルのコンテンツプレビューを取得"""
         try:
+            settings = get_settings()
             full_path = Path(settings.obsidian_vault_path) / file_path
             if not full_path.exists():
                 return ""

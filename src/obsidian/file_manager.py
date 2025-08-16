@@ -11,8 +11,9 @@ from typing import Any
 import aiofiles
 import yaml
 
-from ..config.settings import settings
-from ..utils import LoggerMixin
+from src.config.settings import get_settings
+from src.utils.mixins import LoggerMixin
+
 from .models import (
     FileOperation,
     NoteStatus,
@@ -33,6 +34,7 @@ class ObsidianFileManager(LoggerMixin):
         Args:
             vault_path: Path to Obsidian vault (defaults to settings)
         """
+        settings = get_settings()
         self.vault_path = vault_path or settings.obsidian_vault_path
 
         # 操作履歴

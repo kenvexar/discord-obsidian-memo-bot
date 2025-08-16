@@ -8,8 +8,9 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from ..config import settings
-from ..utils import LoggerMixin
+from src.utils.mixins import LoggerMixin
+
+from ..config.settings import get_settings
 from .channel_config import ChannelConfig
 from .commands import setup_commands
 from .handlers import MessageHandler
@@ -22,6 +23,8 @@ class DiscordBot(LoggerMixin):
         # Initialize components first
         self.channel_config = ChannelConfig()
         self.message_handler = MessageHandler(self.channel_config)
+
+        settings = get_settings()
 
         # Track bot state
         self.is_ready = False
@@ -103,6 +106,7 @@ class DiscordBot(LoggerMixin):
         @self.client.event
         async def on_ready() -> None:
             """Handle bot ready event"""
+            settings = get_settings()
             self.logger.info(
                 "Bot connected to Discord",
                 bot_user=str(self.client.user),
@@ -416,6 +420,7 @@ class DiscordBot(LoggerMixin):
     def _initialize_reminder_systems(self) -> None:
         """Initialize reminder systems for finance and tasks"""
         try:
+            settings = get_settings()
             # Initialize finance reminder system
             from ..finance import BudgetManager, ExpenseManager, SubscriptionManager
             from ..finance.reminder_system import FinanceReminderSystem
@@ -559,6 +564,7 @@ class DiscordBot(LoggerMixin):
 
     async def start(self) -> None:
         """Start the Discord bot"""
+        settings = get_settings()
         self.logger.info("Starting Discord bot")
 
         try:
@@ -592,6 +598,7 @@ class DiscordBot(LoggerMixin):
         self, message: str, channel_id: int | None = None
     ) -> None:
         """Send a notification message to a channel"""
+        settings = get_settings()
         if not self.is_ready or not self.guild:
             self.logger.warning("Bot not ready, cannot send notification")
             return

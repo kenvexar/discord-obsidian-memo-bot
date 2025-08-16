@@ -7,8 +7,7 @@ from enum import Enum
 
 import discord
 
-from ..config import settings
-from ..utils import LoggerMixin
+from src.utils.mixins import LoggerMixin
 
 
 class ChannelCategory(Enum):
@@ -47,6 +46,9 @@ class ChannelConfig(LoggerMixin):
 
     def _load_channel_config(self) -> dict[int, ChannelInfo]:
         """Load channel configuration from settings"""
+        from config import get_settings
+
+        settings = get_settings()
         channels = {}
 
         # Capture channels
@@ -179,13 +181,19 @@ class ChannelConfig(LoggerMixin):
         """Get finance money channel if exists."""
         if not self.bot:
             return None
+        from config import get_settings
+
+        settings = get_settings()
         channel = self.bot.get_channel(settings.channel_money)
         return channel if isinstance(channel, discord.TextChannel) else None
 
     def get_finance_expenses_channel(self) -> discord.TextChannel | None:
         """Get finance expenses channel if exists."""
-        if not self.bot or not hasattr(settings, "channel_expenses"):
+        if not self.bot:
             return None
+        from config import get_settings
+
+        settings = get_settings()
         channel_id = getattr(settings, "channel_expenses", None)
         if not isinstance(channel_id, int):
             return None
@@ -194,8 +202,11 @@ class ChannelConfig(LoggerMixin):
 
     def get_finance_income_channel(self) -> discord.TextChannel | None:
         """Get finance income channel if exists."""
-        if not self.bot or not hasattr(settings, "channel_income"):
+        if not self.bot:
             return None
+        from config import get_settings
+
+        settings = get_settings()
         channel_id = getattr(settings, "channel_income", None)
         if not isinstance(channel_id, int):
             return None

@@ -2,11 +2,10 @@
 Data models for Discord message processing
 """
 
-from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class FileCategory(Enum):
@@ -177,8 +176,4 @@ class ProcessedMessage(BaseModel):
     channel_info: dict[str, str]
     processing_timestamp: str
 
-    class Config:
-        json_encoders = {
-            datetime: lambda dt: dt.isoformat(),
-            FileCategory: lambda fc: fc.value,
-        }
+    model_config = ConfigDict(use_enum_values=True)

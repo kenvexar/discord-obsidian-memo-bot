@@ -7,8 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from src.utils.mixins import LoggerMixin
+
 from ..ai.models import AIProcessingResult
-from ..utils import LoggerMixin
 from .models import (
     FolderMapping,
     NoteFilename,
@@ -91,7 +92,7 @@ class MessageNoteTemplate(NoteTemplate):
         if not vault_folder:
             if ai_result and ai_result.category:
                 vault_folder = FolderMapping.get_folder_for_category(
-                    ai_result.category.category
+                    ai_result.category.category.value
                 )
             else:
                 # デフォルトで受信箱に送る

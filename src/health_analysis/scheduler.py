@@ -6,10 +6,11 @@ import asyncio
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from ..config.settings import get_settings
-from ..garmin.client import GarminClient
-from ..obsidian.daily_integration import DailyNoteIntegration
-from ..utils.logger import LoggerMixin
+from src.config.settings import get_settings
+from src.garmin.client import GarminClient
+from src.obsidian.daily_integration import DailyNoteIntegration
+from src.utils.mixins import LoggerMixin
+
 from .analyzer import HealthDataAnalyzer
 from .integrator import HealthActivityIntegrator
 from .models import AnalysisReport, ChangeDetection, ChangeType

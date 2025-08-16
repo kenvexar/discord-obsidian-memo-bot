@@ -6,7 +6,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 
 class AudioFormat(Enum):
@@ -31,12 +31,6 @@ class TranscriptionConfidence(Enum):
 
 class TranscriptionResult(BaseModel):
     """音声文字起こし結果"""
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
 
     transcript: str = Field(description="文字起こしされたテキスト")
     confidence: float = Field(description="信頼度スコア", ge=0.0, le=1.0)
@@ -84,12 +78,6 @@ class TranscriptionResult(BaseModel):
 class AudioProcessingResult(BaseModel):
     """音声処理の全体結果"""
 
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
-
     # 基本情報
     success: bool = Field(description="処理が成功したか")
     transcription: TranscriptionResult | None = Field(
@@ -120,12 +108,6 @@ class AudioProcessingResult(BaseModel):
 
 class SpeechAPIUsage(BaseModel):
     """Speech API使用量追跡"""
-
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: v.isoformat(),
-        }
-    )
 
     # 使用量情報
     monthly_usage_minutes: float = Field(description="月間使用量（分）", default=0.0)

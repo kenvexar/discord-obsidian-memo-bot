@@ -21,8 +21,9 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config.settings import get_settings
-from ..utils.logger import LoggerMixin
+from src.config.settings import get_settings
+from src.utils.mixins import LoggerMixin
+
 from .cache import GarminDataCache
 from .models import (
     ActivityData,

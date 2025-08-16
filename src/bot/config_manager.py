@@ -11,7 +11,7 @@ from typing import Any
 
 from discord.ext import commands
 
-from ..utils import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 
 class ConfigLevel(str, Enum):

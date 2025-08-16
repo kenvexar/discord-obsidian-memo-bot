@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import aiohttp
 from bs4 import BeautifulSoup
 
-from ..utils.logger import LoggerMixin
+from src.utils.mixins import LoggerMixin
 
 
 class URLContentExtractor(LoggerMixin):

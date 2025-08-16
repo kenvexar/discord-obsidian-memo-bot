@@ -16,8 +16,9 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..config import settings
-from ..utils import LoggerMixin
+from src.utils.mixins import LoggerMixin
+
+from ..config import get_settings
 from .models import (
     AudioFormat,
     AudioProcessingResult,
@@ -113,6 +114,7 @@ class SpeechProcessor(LoggerMixin):
     def _check_google_speech_api_availability(self) -> bool:
         """グーグルSpeech API の利用可能性を確認"""
         try:
+            settings = get_settings()
             # APIキーまたは認証情報の確認
             if (
                 hasattr(settings, "google_cloud_speech_api_key")
@@ -317,6 +319,7 @@ class SpeechProcessor(LoggerMixin):
         """Google Cloud Speech-to-Text APIで音声を文字起こし"""
         try:
             # Google Cloud Speech APIを使用（実際の実装）
+            settings = get_settings()
             if (
                 hasattr(settings, "google_cloud_speech_api_key")
                 and settings.google_cloud_speech_api_key
@@ -380,6 +383,7 @@ class SpeechProcessor(LoggerMixin):
             }
 
             # API キーを使用してリクエスト
+            settings = get_settings()
             if settings.google_cloud_speech_api_key is None:
                 raise ValueError("Google Cloud Speech API key is not configured")
             api_key = settings.google_cloud_speech_api_key.get_secret_value()
@@ -594,7 +598,7 @@ class SpeechProcessor(LoggerMixin):
         """手動処理用に音声ファイルを保存"""
         try:
             # Obsidian vault内のaudioフォルダに保存
-            from ..config import settings
+            settings = get_settings()
 
             audio_dir = Path(settings.obsidian_vault_path) / "06_Attachments" / "Audio"
             audio_dir.mkdir(parents=True, exist_ok=True)

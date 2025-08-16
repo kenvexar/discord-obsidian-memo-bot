@@ -6,7 +6,8 @@ import re
 from datetime import date, datetime
 from typing import Any
 
-from ..utils import LoggerMixin
+from src.utils.mixins import LoggerMixin
+
 from .file_manager import ObsidianFileManager
 from .models import ObsidianNote, VaultFolder
 from .templates import DailyNoteTemplate
