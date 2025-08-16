@@ -8,9 +8,8 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from ..utils.mixins import LoggerMixin
-
 from ..config.settings import get_settings
+from ..utils.mixins import LoggerMixin
 from .channel_config import ChannelConfig
 from .commands import setup_commands
 from .handlers import MessageHandler

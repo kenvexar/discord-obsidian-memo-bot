@@ -9,7 +9,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
-
 from .gemini_client import GeminiAPIError, GeminiClient
 from .models import (
     AIModelConfig,

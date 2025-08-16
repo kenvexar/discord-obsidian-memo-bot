@@ -230,9 +230,9 @@ async def test_retry_mechanism() -> None:
 
     # retryデコレータのインポートを安全に試行
     try:
-        from src.audio.speech_processor import retry
+        from tenacity import retry, stop_after_attempt
 
-        @retry(stop=lambda retry_state: retry_state.attempt_number >= 3)
+        @retry(stop=stop_after_attempt(3))
         async def failing_function():
             nonlocal call_count
             call_count += 1

@@ -16,9 +16,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from ..utils.mixins import LoggerMixin
-
 from ..config import get_settings
+from ..utils.mixins import LoggerMixin
 from .models import (
     AudioFormat,
     AudioProcessingResult,

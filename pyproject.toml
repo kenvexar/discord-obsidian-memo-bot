@@ -111,6 +111,8 @@ strict_optional = true
 # 相対インポートサポート
 namespace_packages = true
 explicit_package_bases = true
+# Pydanticプラグインを有効化
+plugins = ["pydantic.mypy"]
 
 # テストファイルでは型チェックを緩和
 [[tool.mypy.overrides]]

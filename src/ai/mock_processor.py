@@ -7,7 +7,6 @@ import hashlib
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
-
 from .models import (
     CacheInfo,
     CategoryResult,

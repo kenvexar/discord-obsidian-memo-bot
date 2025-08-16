@@ -91,6 +91,10 @@ async def test_health_data_models() -> None:
     """HealthDataモデルのテスト"""
     print("\n=== Testing Health Data Models ===")
 
+    from typing import cast
+
+    from src.garmin.models import DataError, DataSource
+
     try:
         # エラー付きHealthDataの作成
         health_data = HealthData(
@@ -118,10 +122,11 @@ async def test_health_data_models() -> None:
         print("✓ HealthData created")
         print(f"  - Has any data: {health_data.has_any_data}")
         print(f"  - Data quality: {health_data.data_quality}")
-        print(
-            f"  - Failed sources: {[s.value for s in health_data.failed_data_sources]}"
-        )
-        print(f"  - Recoverable errors: {len(health_data.recoverable_errors)}")
+
+        failed_sources = cast(list[DataSource], health_data.failed_data_sources)
+        recoverable_errors = cast(list[DataError], health_data.recoverable_errors)
+        print(f"  - Failed sources: {[s.value for s in failed_sources]}")
+        print(f"  - Recoverable errors: {len(recoverable_errors)}")
         print(f"  - User messages: {health_data.user_friendly_error_messages}")
         print(f"  - Is cached: {health_data.is_cached_data}")
         print(f"  - Cache age: {health_data.cache_age_hours} hours")

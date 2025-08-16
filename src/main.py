@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from config import initialize_secure_settings, settings
+    from config import get_secure_settings, settings
     from security.access_logger import (
         SecurityEventType,
         get_access_logger,
@@ -20,7 +20,7 @@ try:
 except ImportError:
     # Fallback for when running as module
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from src.config import initialize_secure_settings, settings
+    from src.config import get_secure_settings, settings
     from src.security.access_logger import (
         SecurityEventType,
         get_access_logger,
@@ -40,7 +40,7 @@ async def main() -> None:
     try:
         # Initialize security systems
         logger.info("Initializing security systems...")
-        secure_settings = await initialize_secure_settings()
+        secure_settings = get_secure_settings()
 
         # Initialize access logger if enabled
         if settings.enable_access_logging:
@@ -54,7 +54,7 @@ async def main() -> None:
             logger.info("Access logging enabled")
 
         # Validate critical settings using secure manager
-        discord_token = await secure_settings.get_discord_token()
+        discord_token = secure_settings.get_discord_token()
         if not discord_token:
             await log_security_event(
                 SecurityEventType.LOGIN_ATTEMPT,
@@ -63,7 +63,7 @@ async def main() -> None:
             )
             raise ValueError("Discord bot token not available")
 
-        gemini_key = await secure_settings.get_gemini_api_key()
+        gemini_key = secure_settings.get_gemini_api_key()
         if not gemini_key:
             await log_security_event(
                 SecurityEventType.LOGIN_ATTEMPT,
