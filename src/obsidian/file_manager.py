@@ -33,8 +33,11 @@ class ObsidianFileManager(LoggerMixin):
         Args:
             vault_path: Path to Obsidian vault (defaults to settings)
         """
-        settings = get_settings()
-        self.vault_path = vault_path or settings.obsidian_vault_path
+        if vault_path:
+            self.vault_path = vault_path
+        else:
+            settings = get_settings()
+            self.vault_path = settings.obsidian_vault_path
 
         # 操作履歴
         self.operation_history: list[FileOperation] = []
