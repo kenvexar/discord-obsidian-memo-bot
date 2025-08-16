@@ -9,10 +9,10 @@ from datetime import date
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from garmin.cache import GarminDataCache
-from garmin.models import DataError, DataSource, HealthData
+from src.garmin.cache import GarminDataCache
+from src.garmin.models import DataError, DataSource, HealthData
 
 
 async def test_cache_functionality() -> None:

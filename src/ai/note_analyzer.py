@@ -6,16 +6,16 @@ import re
 from datetime import datetime
 from typing import Any, Union
 
-from config.settings import get_settings
-from src.obsidian.file_manager import ObsidianFileManager
-from src.utils.mixins import LoggerMixin
+from ..config.settings import get_settings
+from ..obsidian.file_manager import ObsidianFileManager
+from ..utils.mixins import LoggerMixin
 
 from .mock_processor import MockAIProcessor
 from .processor import AIProcessor
 from .url_processor import URLContentExtractor
 from .vector_store import SemanticSearchResult, VectorStore
 
-settings = get_settings()
+# Settings loaded lazily to avoid circular imports
 
 
 class AdvancedNoteAnalyzer(LoggerMixin):

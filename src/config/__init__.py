@@ -3,7 +3,6 @@
 from .secure_settings import (
     SecureSettingsManager,
     get_secure_settings,
-    initialize_secure_settings,
 )
 from .settings import Settings, get_settings
 
@@ -12,5 +11,4 @@ __all__ = [
     "get_settings",
     "SecureSettingsManager",
     "get_secure_settings",
-    "initialize_secure_settings",
 ]

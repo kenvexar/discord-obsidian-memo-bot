@@ -13,8 +13,8 @@ try:
 except ImportError:
     GENAI_AVAILABLE = False
 
-from config.settings import get_settings
-from src.utils.mixins import LoggerMixin
+from ..config.settings import get_settings
+from ..utils.mixins import LoggerMixin
 
 from .models import (
     AIModelConfig,

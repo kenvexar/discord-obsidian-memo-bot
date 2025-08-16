@@ -21,8 +21,8 @@ from tenacity import (
     wait_exponential,
 )
 
-from src.config.settings import get_settings
-from src.utils.mixins import LoggerMixin
+from ..config.settings import get_settings
+from ..utils.mixins import LoggerMixin
 
 from .cache import GarminDataCache
 from .models import (
@@ -41,7 +41,7 @@ from .models import (
     StepsData,
 )
 
-settings = get_settings()
+# Settings loaded lazily to avoid circular imports
 
 
 class GarminClient(LoggerMixin):
@@ -79,6 +79,7 @@ class GarminClient(LoggerMixin):
     def _check_credentials(self) -> None:
         """認証情報の確認"""
         try:
+            settings = get_settings()
             if hasattr(settings, "garmin_email") and settings.garmin_email:
                 if hasattr(settings.garmin_email, "get_secret_value"):
                     self.email = settings.garmin_email.get_secret_value()

@@ -6,16 +6,16 @@ import asyncio
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from src.config.settings import get_settings
-from src.garmin.client import GarminClient
-from src.obsidian.daily_integration import DailyNoteIntegration
-from src.utils.mixins import LoggerMixin
+from ..config.settings import get_settings
+from ..garmin.client import GarminClient
+from ..obsidian.daily_integration import DailyNoteIntegration
+from ..utils.mixins import LoggerMixin
 
 from .analyzer import HealthDataAnalyzer
 from .integrator import HealthActivityIntegrator
 from .models import AnalysisReport, ChangeDetection, ChangeType
 
-settings = get_settings()
+# Settings loaded lazily to avoid circular imports
 
 
 class HealthAnalysisScheduler(LoggerMixin):

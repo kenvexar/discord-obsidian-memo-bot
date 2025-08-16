@@ -8,10 +8,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent / "src"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 # Direct import to avoid dependency issues
-from health_analysis.models import (
+from src.health_analysis.models import (
     ActivityCorrelation,
     AnalysisReport,
     AnalysisType,
