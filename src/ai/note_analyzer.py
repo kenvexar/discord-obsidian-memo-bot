@@ -6,10 +6,8 @@ import re
 from datetime import datetime
 from typing import Any, Union
 
-from ..config.settings import get_settings
 from ..obsidian.file_manager import ObsidianFileManager
 from ..utils.mixins import LoggerMixin
-
 from .mock_processor import MockAIProcessor
 from .processor import AIProcessor
 from .url_processor import URLContentExtractor

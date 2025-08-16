@@ -6,7 +6,7 @@ import asyncio
 import hashlib
 from typing import Any
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 from .models import (
     CacheInfo,

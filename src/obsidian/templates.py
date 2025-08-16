@@ -7,9 +7,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from ..utils.mixins import LoggerMixin
-
 from ..ai.models import AIProcessingResult
+from ..utils.mixins import LoggerMixin
 from .models import (
     FolderMapping,
     NoteFilename,

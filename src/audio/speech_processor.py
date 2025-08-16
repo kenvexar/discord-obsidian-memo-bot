@@ -16,7 +16,7 @@ from tenacity import (
     wait_exponential,
 )
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 from ..config import get_settings
 from .models import (

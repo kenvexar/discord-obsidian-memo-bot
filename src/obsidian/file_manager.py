@@ -13,7 +13,6 @@ import yaml
 
 from ..config.settings import get_settings
 from ..utils.mixins import LoggerMixin
-
 from .models import (
     FileOperation,
     NoteStatus,

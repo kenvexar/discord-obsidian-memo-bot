@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 from .gemini_client import GeminiAPIError, GeminiClient
 from .models import (

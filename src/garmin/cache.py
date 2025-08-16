@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 from .models import HealthData
 

@@ -23,7 +23,6 @@ from tenacity import (
 
 from ..config.settings import get_settings
 from ..utils.mixins import LoggerMixin
-
 from .cache import GarminDataCache
 from .models import (
     ActivityData,

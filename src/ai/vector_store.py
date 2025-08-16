@@ -10,7 +10,7 @@ from typing import Any
 
 import aiofiles
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 try:
     from ..config import get_settings

@@ -5,8 +5,7 @@ Secure settings loader with Google Cloud Secret Manager integration
 import structlog
 
 from ..security.secret_manager import SecureConfigManager
-
-from .settings import Settings, get_settings
+from .settings import get_settings
 
 
 class SecureSettingsManager:

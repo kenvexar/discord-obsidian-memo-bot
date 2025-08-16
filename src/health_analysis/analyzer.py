@@ -7,10 +7,8 @@ from datetime import date, timedelta
 from typing import Any
 
 from ..ai.processor import AIProcessor
-from ..config.settings import get_settings
 from ..garmin.models import HealthData
 from ..utils.mixins import LoggerMixin
-
 from .models import (
     AnalysisReport,
     AnalysisType,

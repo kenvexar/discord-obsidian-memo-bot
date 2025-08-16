@@ -8,7 +8,7 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 from ..config.settings import get_settings
 from .channel_config import ChannelConfig

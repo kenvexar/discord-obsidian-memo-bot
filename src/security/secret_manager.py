@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 from google.auth.exceptions import DefaultCredentialsError
 from google.cloud import secretmanager
 
-from src.utils.mixins import LoggerMixin
+from ..utils.mixins import LoggerMixin
 
 if TYPE_CHECKING:
     from google.cloud.secretmanager import SecretManagerServiceClient
