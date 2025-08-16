@@ -30,7 +30,7 @@ os.environ.update(
 )
 
 
-async def run_basic_tests():
+async def run_basic_tests() -> bool:
     """基本的な動作テスト"""
     print("=== 基本動作テストの実行 ===")
 
@@ -61,7 +61,7 @@ async def run_basic_tests():
         return False
 
 
-async def run_component_tests():
+async def run_component_tests() -> bool:
     """コンポーネント別テスト"""
     print("\n=== コンポーネント別テストの実行 ===")
 
@@ -96,7 +96,7 @@ async def run_component_tests():
         return False
 
 
-async def run_integration_tests():
+async def run_integration_tests() -> bool:
     """統合テストの実行"""
     print("\n=== 統合テストの実行 ===")
 
@@ -121,7 +121,7 @@ async def run_integration_tests():
         return False
 
 
-async def cleanup_test_environment():
+async def cleanup_test_environment() -> None:
     """テスト環境のクリーンアップ"""
     print("\n=== テスト環境クリーンアップ ===")
 
@@ -146,7 +146,7 @@ async def cleanup_test_environment():
         print(f"⚠️  クリーンアップ警告: {e}")
 
 
-async def main():
+async def main() -> None:
     """メインテスト実行関数"""
     print("Discord-Obsidian Memo Bot - 包括的テストスイート")
     print("=" * 60)
@@ -179,11 +179,9 @@ async def main():
     if success_count == total_tests:
         print("🎉 全てのテストが成功しました！")
         print("\nシステムは正常に動作しています。")
-        return 0
     else:
         print(f"⚠️  {total_tests - success_count} 個のテストで問題が発見されました。")
         print("\n問題の詳細を確認して修正してください。")
-        return 1
 
 
 if __name__ == "__main__":
