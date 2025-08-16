@@ -1,5 +1,5 @@
 # Multi-stage build for production optimization
-FROM python:3.13-slim as builder
+FROM python:3.13.7-slim as builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -24,7 +24,7 @@ COPY pyproject.toml ./
 RUN uv sync --frozen --no-dev
 
 # Production stage
-FROM python:3.13-slim
+FROM python:3.13.7-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
