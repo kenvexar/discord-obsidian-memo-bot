@@ -3,6 +3,7 @@ Obsidian vault file management system
 """
 
 import asyncio
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -238,6 +239,360 @@ class ObsidianFileManager(LoggerMixin):
             self.logger.error(
                 "Failed to update note",
                 file_path=str(note.file_path),
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    async def append_to_note(
+        self, file_path: Path, content_to_append: str, separator: str = "\n\n"
+    ) -> bool:
+        """
+        既存ノートファイルに新しいコンテンツを追記（重複除去機能付き）
+
+        Args:
+            file_path: 追記先のファイルパス
+            content_to_append: 追記するコンテンツ
+            separator: 既存コンテンツとの区切り文字
+
+        Returns:
+            追記成功可否
+        """
+        try:
+            # 既存ノートを読み込み
+            existing_note = await self.load_note(file_path)
+            if not existing_note:
+                self.logger.warning(
+                    "Target note not found for append", file_path=str(file_path)
+                )
+                return False
+
+            # 重複するメタデータとURL要約を除去
+            cleaned_content = self._clean_duplicate_sections(
+                content_to_append, existing_note.content
+            )
+
+            # コンテンツを追記
+            existing_note.content += separator + cleaned_content
+
+            # 更新時刻を現在時刻に設定
+            existing_note.modified_at = datetime.now()
+            existing_note.frontmatter.modified = existing_note.modified_at.isoformat()
+
+            # 既存ファイルを上書き保存
+            success = await self.save_note(existing_note, overwrite=True)
+
+            if success:
+                # 操作記録を追記に変更
+                if self.operation_history:
+                    self.operation_history[-1].operation_type = OperationType.UPDATE
+                    self.operation_history[-1].metadata = {
+                        "note_title": existing_note.title,
+                        "operation": "append",
+                        "appended_content_length": len(cleaned_content),
+                    }
+
+                self.logger.info(
+                    "Content appended to note successfully",
+                    file_path=str(file_path),
+                    content_length=len(cleaned_content),
+                )
+
+            return success
+
+        except Exception as e:
+            # エラー記録
+            operation = FileOperation(
+                operation_type=OperationType.UPDATE,
+                file_path=file_path,
+                success=False,
+                error_message=str(e),
+                metadata={"operation": "append"},
+            )
+            self.operation_history.append(operation)
+
+            self.logger.error(
+                "Failed to append content to note",
+                file_path=str(file_path),
+                error=str(e),
+                exc_info=True,
+            )
+
+            return False
+
+    def _clean_duplicate_sections(self, new_content: str, existing_content: str) -> str:
+        """
+        新しいコンテンツから重複するセクションを除去
+
+        Args:
+            new_content: 新しく追加するコンテンツ
+            existing_content: 既存のコンテンツ
+
+        Returns:
+            重複除去後のコンテンツ
+        """
+        try:
+            # 重複するセクションのパターン
+            duplicate_patterns = [
+                r"## 📅 メタデータ.*?(?=##|\Z)",  # メタデータセクション
+                r"## 🔗 関連リンク.*?(?=##|\Z)",  # 関連リンクセクション
+                r"---\n\*このノートはDiscord-Obsidian Memo Botによって自動生成されました\*",  # フッター
+                r"# 📝\s*\n*",  # 重複するタイトル
+            ]
+
+            cleaned_content = new_content
+
+            # 各パターンで重複を除去
+            for pattern in duplicate_patterns:
+                # 既存コンテンツに同じセクションがある場合、新しいコンテンツから除去
+                if re.search(pattern, existing_content, re.DOTALL):
+                    cleaned_content = re.sub(
+                        pattern, "", cleaned_content, flags=re.DOTALL
+                    )
+
+            # URL要約の重複を除去（同じURLの場合）
+            existing_urls = re.findall(r"🔗 (https?://[^\s]+)", existing_content)
+            for url in existing_urls:
+                # 同じURLの要約セクションを除去
+                url_section_pattern = (
+                    rf"## 📎 URL要約.*?### .*?\n🔗 {re.escape(url)}.*?(?=##|\Z)"
+                )
+                cleaned_content = re.sub(
+                    url_section_pattern, "", cleaned_content, flags=re.DOTALL
+                )
+
+            # 空行の整理
+            cleaned_content = re.sub(r"\n{3,}", "\n\n", cleaned_content)
+            cleaned_content = cleaned_content.strip()
+
+            # 完全に空になった場合は元のタイトル部分のみ保持
+            if not cleaned_content or cleaned_content.isspace():
+                # 最小限のコンテンツ（時刻のみ）を抽出
+                timestamp_match = re.search(r"## \d{2}:\d{2}", new_content)
+                if timestamp_match:
+                    cleaned_content = timestamp_match.group(0)
+                else:
+                    # タイムスタンプを生成
+                    current_time = datetime.now().strftime("%H:%M")
+                    cleaned_content = f"## {current_time}"
+
+            return cleaned_content
+
+        except Exception as e:
+            self.logger.warning("Failed to clean duplicate sections", error=str(e))
+            return new_content  # 失敗した場合は元のコンテンツを返す
+
+    async def save_or_append_daily_note(self, note: ObsidianNote) -> bool:
+        """
+        日別ノートの保存または既存ファイルへの追記（改良された構造）
+
+        Args:
+            note: 保存/追記するノート
+
+        Returns:
+            保存/追記成功可否
+        """
+        try:
+            # 既存ファイルが存在するかチェック
+            if note.file_path.exists():
+                # 既存ファイルの作成日をチェック
+                existing_note = await self.load_note(note.file_path)
+                if existing_note:
+                    # 同日であれば追記
+                    today = datetime.now().date()
+                    existing_date = existing_note.created_at.date()
+
+                    if existing_date == today:
+                        self.logger.info(
+                            "Appending to existing daily note",
+                            file_path=str(note.file_path),
+                            existing_date=str(existing_date),
+                        )
+
+                        # 既存ノートの構造を改善（初回時のみ）
+                        if "## 💭 内容" in existing_note.content:
+                            existing_note.content = self._restructure_daily_note(
+                                existing_note.content
+                            )
+                            await self.save_note(existing_note, overwrite=True)
+
+                        # 新しいメッセージ内容のみを抽出
+                        content_text = note.content
+                        content_match = re.search(
+                            r"## 💭 内容\s*\n(.*?)(?=\n##|\n\*|$)",
+                            content_text,
+                            re.DOTALL,
+                        )
+                        if content_match:
+                            main_content = content_match.group(1).strip()
+                            # カテゴリ情報を除去
+                            main_content = re.sub(
+                                r"\*\*カテゴリ\*\*:.*?(?=\n|$)", "", main_content
+                            ).strip()
+                        else:
+                            main_content = "内容なし"
+
+                        # 時系列エントリとして追記
+                        timestamp = datetime.now().strftime("%H:%M")
+                        append_content = f"## {timestamp}\n\n{main_content}"
+
+                        # メタデータセクションの直前に挿入
+                        return await self._insert_before_metadata(
+                            note.file_path, append_content
+                        )
+                    else:
+                        self.logger.warning(
+                            "Daily note exists but for different date",
+                            file_path=str(note.file_path),
+                            existing_date=str(existing_date),
+                            today=str(today),
+                        )
+                        return False
+                else:
+                    self.logger.warning(
+                        "Could not load existing daily note",
+                        file_path=str(note.file_path),
+                    )
+                    return False
+            else:
+                # 新規ファイル作成時に構造を改善
+                note.content = self._restructure_daily_note(note.content)
+                return await self.save_note(note, overwrite=False)
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to save or append daily note",
+                file_path=str(note.file_path),
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    def _restructure_daily_note(self, content: str) -> str:
+        """
+        日別ノートの構造を改善（メタデータを末尾に移動）
+
+        Args:
+            content: 元のコンテンツ
+
+        Returns:
+            改善されたコンテンツ
+        """
+        try:
+            # メタデータとフッターを抽出
+            metadata_match = re.search(
+                r"(## 📅 メタデータ.*?)(?=##|---|\Z)", content, re.DOTALL
+            )
+            links_match = re.search(
+                r"(## 🔗 関連リンク.*?)(?=##|---|\Z)", content, re.DOTALL
+            )
+            footer_match = re.search(
+                r"(---\n\*このノートはDiscord-Obsidian Memo Bot.*?(?=##|\Z))",
+                content,
+                re.DOTALL,
+            )
+
+            metadata_section = metadata_match.group(1) if metadata_match else ""
+            links_section = links_match.group(1) if links_match else ""
+            footer_section = footer_match.group(1) if footer_match else ""
+
+            # メイン内容部分を抽出（メタデータ・リンク・フッターを除去）
+            main_content = content
+            if metadata_section:
+                main_content = main_content.replace(metadata_section, "")
+            if links_section:
+                main_content = main_content.replace(links_section, "")
+            if footer_section:
+                main_content = main_content.replace(footer_section, "")
+
+            # 最初のメッセージから時系列エントリを作成
+            content_match = re.search(
+                r"## 💭 内容\s*\n(.*?)(?=\n##|\Z)", main_content, re.DOTALL
+            )
+            if content_match:
+                first_content = content_match.group(1).strip()
+                # カテゴリ情報を除去
+                first_content = re.sub(
+                    r"\*\*カテゴリ\*\*:.*?(?=\n|$)", "", first_content
+                ).strip()
+
+                # 現在時刻を取得
+                current_time = datetime.now().strftime("%H:%M")
+
+                # 新しい構造で再構築
+                restructured = f"""# 📝 日次ノート
+
+## {current_time}
+
+{first_content}
+
+{metadata_section}
+
+{links_section}
+
+{footer_section}"""
+            else:
+                # フォールバック
+                restructured = main_content
+
+            # 不要な空行を整理
+            restructured = re.sub(r"\n{3,}", "\n\n", restructured)
+            restructured = restructured.strip()
+
+            return restructured
+
+        except Exception as e:
+            self.logger.warning("Failed to restructure daily note", error=str(e))
+            return content
+
+    async def _insert_before_metadata(
+        self, file_path: Path, content_to_insert: str
+    ) -> bool:
+        """
+        メタデータセクションの直前にコンテンツを挿入
+
+        Args:
+            file_path: 対象ファイルパス
+            content_to_insert: 挿入するコンテンツ
+
+        Returns:
+            挿入成功可否
+        """
+        try:
+            # 既存ファイルを読み込み
+            existing_note = await self.load_note(file_path)
+            if not existing_note:
+                return False
+
+            # メタデータセクションを探す
+            metadata_pattern = r"(## 📅 メタデータ.*)"
+            metadata_match = re.search(
+                metadata_pattern, existing_note.content, re.DOTALL
+            )
+
+            if metadata_match:
+                # メタデータの前に挿入
+                metadata_start = metadata_match.start()
+                new_content = (
+                    existing_note.content[:metadata_start]
+                    + content_to_insert
+                    + "\n\n"
+                    + existing_note.content[metadata_start:]
+                )
+            else:
+                # メタデータが見つからない場合は末尾に追加
+                new_content = existing_note.content + "\n\n" + content_to_insert
+
+            existing_note.content = new_content
+            existing_note.modified_at = datetime.now()
+            existing_note.frontmatter.modified = existing_note.modified_at.isoformat()
+
+            return await self.save_note(existing_note, overwrite=True)
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to insert content before metadata",
+                file_path=str(file_path),
                 error=str(e),
                 exc_info=True,
             )
@@ -572,19 +927,17 @@ class ObsidianFileManager(LoggerMixin):
         """Vault構造を確保"""
         folders_to_create = [
             VaultFolder.INBOX,
+            VaultFolder.PROJECTS,
             VaultFolder.DAILY_NOTES,
-            VaultFolder.AREAS,
-            VaultFolder.RESOURCES,
+            VaultFolder.IDEAS,
             VaultFolder.ARCHIVE,
+            VaultFolder.RESOURCES,
+            VaultFolder.FINANCE,
+            VaultFolder.TASKS,
+            VaultFolder.HEALTH,
+            VaultFolder.META,
             VaultFolder.TEMPLATES,
             VaultFolder.ATTACHMENTS,
-            VaultFolder.WORK,
-            VaultFolder.LEARNING,
-            VaultFolder.PROJECTS,
-            VaultFolder.LIFE,
-            VaultFolder.IDEAS,
-            VaultFolder.FINANCE,
-            VaultFolder.PRODUCTIVITY,
             VaultFolder.IMAGES,
             VaultFolder.AUDIO,
             VaultFolder.DOCUMENTS,

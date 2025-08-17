@@ -267,15 +267,26 @@ async def test_ai_processing_integration() -> None:
 
     import discord
 
-    from src.bot.channel_config import ChannelConfig
     from src.bot.handlers import MessageHandler
 
-    # Setup
-    channel_config = ChannelConfig()
+    # Setup mock channel config with predefined channel
+    mock_channel_config = Mock()
+    mock_channel_config.is_monitored_channel.return_value = True
+
+    # Mock channel info
+    from src.bot.channel_config import ChannelCategory, ChannelInfo
+
+    mock_channel_info = ChannelInfo(
+        id=123456789,
+        name="inbox",
+        category=ChannelCategory.CAPTURE,
+        description="Test inbox channel",
+    )
+    mock_channel_config.get_channel_info.return_value = mock_channel_info
 
     # Create message handler with AI processing
     with patch("src.ai.processor.GeminiClient"):
-        handler = MessageHandler(channel_config)
+        handler = MessageHandler(mock_channel_config)
 
     # Verify AI processor is initialized
     assert hasattr(handler, "ai_processor")
@@ -293,10 +304,9 @@ async def test_ai_processing_integration() -> None:
     mock_message.author.avatar = None
     mock_message.author.mention = "<@987654321>"
 
-    # Get valid channel ID
-    valid_channel_id = list(channel_config.channels.keys())[0]
-    mock_message.channel.id = valid_channel_id
-    mock_message.channel.name = "test-channel"
+    # Set channel properties
+    mock_message.channel.id = 123456789
+    mock_message.channel.name = "inbox"
     mock_message.channel.type = discord.ChannelType.text
     mock_message.channel.category = None
     mock_message.created_at = datetime(2024, 1, 1, 12, 0, 0)

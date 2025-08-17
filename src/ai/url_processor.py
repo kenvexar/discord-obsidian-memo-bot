@@ -36,21 +36,34 @@ class URLContentExtractor(LoggerMixin):
 
     def extract_urls_from_text(self, text: str) -> list[str]:
         """
-        テキストからURLを抽出
+        テキストから有効なURLを抽出
 
         Args:
             text: 対象テキスト
 
         Returns:
-            URLのリスト
+            有効なURLのリスト
         """
         # URLパターン（http/httpsのみ）
-        url_pattern = r'https?://[^\s<>"\'{}\|\\^`\[\]]+[^\s<>"\'{}\|\\^`\[\].,;!?)]'
+        url_pattern = r'https?://[^\s<>"\'{}|\\^`\[\]]+[^\s<>"\'{}|\\^`\[\].,;!?)]'
 
         urls = re.findall(url_pattern, text, re.IGNORECASE)
 
+        # 無効なURLパターンをフィルタリング
+        valid_urls = []
+        for url in urls:
+            # Discord不完全リンクや無効リンクを除外
+            if (
+                not url.endswith("/channels/")  # Discord無効リンク
+                and not url
+                == "https://discord.com/channels/"  # 完全なDiscord無効リンク
+                and len(url) > 10  # 最小限の有効性チェック
+                and self.is_valid_url(url)  # 詳細な有効性チェック
+            ):
+                valid_urls.append(url)
+
         # 重複を削除して返す
-        return list(set(urls))
+        return list(set(valid_urls))
 
     async def fetch_url_content(
         self, url: str, max_content_length: int = 50000

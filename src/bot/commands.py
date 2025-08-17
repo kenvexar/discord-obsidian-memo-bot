@@ -104,15 +104,24 @@ class BasicCommands(commands.Cog, LoggerMixin):
             inline=False,
         )
 
+        # 監視チャンネル情報を構築
+        channel_info = []
+        channel_names = ["inbox", "voice", "files", "money", "tasks"]
+        channel_emojis = ["📥", "🎤", "📎", "💰", "📋"]
+        channel_labels = ["受信箱", "音声", "ファイル", "家計", "タスク"]
+
+        for name, emoji, label in zip(
+            channel_names, channel_emojis, channel_labels, strict=False
+        ):
+            channel = self.channel_config.get_channel(name)
+            if channel:
+                channel_info.append(f"{emoji} {label}: <#{channel.id}>")
+            else:
+                channel_info.append(f"{emoji} {label}: 未設定")
+
         embed.add_field(
             name="📋 監視チャンネル",
-            value=(
-                f"📥 受信箱: <#{get_settings().channel_inbox}>\n"
-                f"🎤 音声: <#{get_settings().channel_voice}>\n"
-                f"📎 ファイル: <#{get_settings().channel_files}>\n"
-                f"💰 家計: <#{get_settings().channel_money}>\n"
-                f"📋 タスク: <#{get_settings().channel_tasks}>"
-            ),
+            value="\n".join(channel_info),
             inline=False,
         )
 
@@ -576,7 +585,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 exc_info=True,
             )
 
-    @commands.command(name="config")
+    @commands.command(name="basic_config")
     @commands.has_permissions(administrator=True)
     async def config_command(
         self,
@@ -626,11 +635,11 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 embed.add_field(
                     name="💡 使用方法",
                     value=(
-                        "`/config show` - すべての設定を表示\n"
-                        "`/config set category.key value` - 設定を変更\n"
-                        "`/config get category.key` - 特定の設定を取得\n"
-                        "`/config history` - 変更履歴を表示\n"
-                        "`/config validate_api api_name api_key` - APIキー検証"
+                        "`/basic_config show` - すべての設定を表示\n"
+                        "`/basic_config set category.key value` - 設定を変更\n"
+                        "`/basic_config get category.key` - 特定の設定を取得\n"
+                        "`/basic_config history` - 変更履歴を表示\n"
+                        "`/basic_config validate_api api_name api_key` - APIキー検証"
                     ),
                     inline=False,
                 )

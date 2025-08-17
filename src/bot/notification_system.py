@@ -9,7 +9,6 @@ from typing import Any
 import discord
 from discord.ext import commands
 
-from ..config import get_settings
 from ..utils.mixins import LoggerMixin
 
 
@@ -86,12 +85,14 @@ class NotificationSystem(LoggerMixin):
         """
         try:
             # 通知先チャンネル決定
-            target_channel_id = channel_id or get_settings().channel_notifications
-            channel = self.bot.get_channel(target_channel_id)
+            if channel_id:
+                channel = self.bot.get_channel(channel_id)
+            else:
+                channel = self.channel_config.get_channel("notifications")
 
             if not channel:
                 self.logger.warning(
-                    "Notification channel not found", channel_id=target_channel_id
+                    "Notification channel not found", channel_id=channel_id
                 )
                 return False
 
@@ -151,7 +152,7 @@ class NotificationSystem(LoggerMixin):
                 level=level.value,
                 category=category.value,
                 title=title,
-                channel_id=target_channel_id,
+                channel_id=channel.id if channel else None,
             )
 
             return True

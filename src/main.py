@@ -10,7 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 try:
-    from config import get_secure_settings, settings
+    from config import get_secure_settings, get_settings
     from security.access_logger import (
         SecurityEventType,
         get_access_logger,
@@ -20,7 +20,7 @@ try:
 except ImportError:
     # Fallback for when running as module
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    from src.config import get_secure_settings, settings
+    from src.config import get_secure_settings, get_settings
     from src.security.access_logger import (
         SecurityEventType,
         get_access_logger,
@@ -41,15 +41,16 @@ async def main() -> None:
         # Initialize security systems
         logger.info("Initializing security systems...")
         secure_settings = get_secure_settings()
+        settings_instance = get_settings()  # Get settings instance
 
         # Initialize access logger if enabled
-        if settings.enable_access_logging:
+        if settings_instance.enable_access_logging:
             get_access_logger()
             await log_security_event(
                 SecurityEventType.LOGIN_ATTEMPT,
                 action="Bot startup",
                 success=True,
-                details={"version": "0.1.0", "mode": settings.environment},
+                details={"version": "0.1.0", "mode": settings_instance.environment},
             )
             logger.info("Access logging enabled")
 
@@ -72,16 +73,18 @@ async def main() -> None:
             )
             raise ValueError("Gemini API key not available")
 
-        if not settings.obsidian_vault_path.exists():
+        if not settings_instance.obsidian_vault_path.exists():
             logger.warning(
                 "Obsidian vault path does not exist, creating directory",
-                path=str(settings.obsidian_vault_path),
+                path=str(settings_instance.obsidian_vault_path),
             )
-            settings.obsidian_vault_path.mkdir(parents=True, exist_ok=True)
+            settings_instance.obsidian_vault_path.mkdir(parents=True, exist_ok=True)
 
         logger.info("Configuration validated successfully")
-        logger.info("Environment", env=settings.environment)
-        logger.info("Obsidian vault path", path=str(settings.obsidian_vault_path))
+        logger.info("Environment", env=settings_instance.environment)
+        logger.info(
+            "Obsidian vault path", path=str(settings_instance.obsidian_vault_path)
+        )
 
         # Initialize and start Discord bot
         try:

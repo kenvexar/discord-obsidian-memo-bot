@@ -11,15 +11,7 @@ def test_config_import() -> None:
     os.environ["DISCORD_GUILD_ID"] = "123456789"
     os.environ["GEMINI_API_KEY"] = "test_api_key"
     os.environ["OBSIDIAN_VAULT_PATH"] = "/tmp/test_vault"
-    os.environ["CHANNEL_INBOX"] = "111111111"
-    os.environ["CHANNEL_VOICE"] = "222222222"
-    os.environ["CHANNEL_FILES"] = "333333333"
-    os.environ["CHANNEL_MONEY"] = "444444444"
-    os.environ["CHANNEL_FINANCE_REPORTS"] = "555555555"
-    os.environ["CHANNEL_TASKS"] = "666666666"
-    os.environ["CHANNEL_PRODUCTIVITY_REVIEWS"] = "777777777"
-    os.environ["CHANNEL_NOTIFICATIONS"] = "888888888"
-    os.environ["CHANNEL_COMMANDS"] = "999999999"
+    os.environ["ENVIRONMENT"] = "testing"
 
     # Import get_settings AFTER setting environment variables
     from src.config import get_settings
@@ -31,6 +23,7 @@ def test_config_import() -> None:
         assert settings.discord_guild_id == 123456789
         assert settings.gemini_api_key.get_secret_value() == "test_api_key"
         assert settings.obsidian_vault_path == Path("/tmp/test_vault")
+        assert settings.environment == "testing"
 
     finally:
         # Clean up environment variables
@@ -39,15 +32,7 @@ def test_config_import() -> None:
             "DISCORD_GUILD_ID",
             "GEMINI_API_KEY",
             "OBSIDIAN_VAULT_PATH",
-            "CHANNEL_INBOX",
-            "CHANNEL_VOICE",
-            "CHANNEL_FILES",
-            "CHANNEL_MONEY",
-            "CHANNEL_FINANCE_REPORTS",
-            "CHANNEL_TASKS",
-            "CHANNEL_PRODUCTIVITY_REVIEWS",
-            "CHANNEL_NOTIFICATIONS",
-            "CHANNEL_COMMANDS",
+            "ENVIRONMENT",
         ]:
             if key in os.environ:
                 del os.environ[key]

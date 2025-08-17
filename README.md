@@ -1,164 +1,175 @@
 # Discord-Obsidian Memo Bot
 
-DiscordのメッセージをAIで整理し、Obsidianに自動保存する個人用ボット
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+
+AI駆動の個人ナレッジマネジメントシステム - Discordを介してメモを収集し、自動的にObsidianで整理
 
 ## 概要
 
-このボットは、Discordに投稿したメッセージや音声ファイルを自動的にAIで分析・整理し、Obsidianのノートとして保存する個人用ナレッジマネジメントツールです。日常のメモ取りからデイリーノート作成まで、効率的な知識管理をサポートします。
+Discord-Obsidian Memo Botは、Discordを統合インターフェースとして使用し、AI分析による自動メモ処理とObsidianナレッジベースへの保存を提供する包括的な個人ナレッジマネジメントシステムです。
 
-## 主な機能
+### 主要機能
 
-- **テキストメモの自動保存**: 指定したDiscordチャンネルの投稿をObsidianに保存
-- **AIによる自動整理**: Google Gemini APIを使った自動要約・タグ付け・分類
-- **音声メモの文字起こし**: 音声ファイルを自動でテキスト化して保存（オプション）
-- **家計管理**: 支出記録、定期購読管理、家計レポート自動生成
-- **タスク管理**: タスクの作成・追跡、生産性レビュー、スケジュール統合
-- **健康データ統合**: Garmin Connect連携による健康データ追跡（オプション）
-- **デイリーノート連携**: 特定のチャンネルへの投稿を、Obsidianのデイリーノートに追記
-- **柔軟なテンプレート**: 保存するメモのフォーマットを自由にカスタマイズ
-- **Vault統計**: ノート検索やVault全体の統計情報を表示
+🤖 **AI駆動の自動処理**
+- Google Gemini AIによるメッセージの自動分析・分類・要約
+- URLコンテンツの自動取得と要約
+- インテリジェントなタグ付けとカテゴリ分類
 
-## 必要なもの
+🎤 **音声メモ対応**
+- Google Cloud Speech-to-Textによる高精度音声認識
+- 複数音声フォーマット対応（MP3, WAV, FLAC, OGG, M4A, WEBM）
 
+📝 **Obsidian完全統合**
+- 構造化Markdownノートの自動生成
+- 内容に基づく自動フォルダ分類
+- デイリーノートとの統合
+- 柔軟なテンプレートシステム
+
+💰 **金融管理機能**
+- 支出・収入の自動記録と分類
+- 定期購入（サブスクリプション）管理
+- 自動家計レポート生成
+
+✅ **タスク・プロジェクト管理**
+- メッセージからのタスク自動抽出
+- プロジェクト進捗追跡
+- 生産性レビューの自動生成
+
+🏃‍♂️ **健康データ統合**（オプション）
+- Garmin Connect統合による活動データ同期
+- 睡眠・運動パターンの分析
+
+## クイックスタート
+
+### 1. 前提条件
 - Python 3.13以上
-- [uv](https://github.com/astral-sh/uv) (高速なPythonパッケージ管理ツール)
-- Discord Botトークン ([Discord Developer Portal](https://discord.com/developers/applications)で取得)
-- Google Gemini APIキー ([Google AI Studio](https://aistudio.google.com/)で取得)
-- Obsidian Vault（保管先のフォルダ）
-- （オプション）Google Cloud Speech-to-Text APIの認証情報
+- [uv](https://github.com/astral-sh/uv)（高速Pythonパッケージマネージャー）
+- Discord Botトークン
+- Google Gemini APIキー
+- Obsidianボルト
 
-## セットアップ手順
-
-### 1. リポジトリのダウンロード
+### 2. インストール
 ```bash
+# リポジトリのクローン
 git clone https://github.com/kenvexar/discord-obsidian-memo-bot.git
 cd discord-obsidian-memo-bot
-```
-
-### 2. 必要なライブラリのインストール
-```bash
-# uvがインストールされていない場合
-pip install uv
 
 # 依存関係のインストール
 uv sync
-```
 
-### 3. 設定ファイルの準備
-```bash
+# 環境設定
 cp .env.example .env
+# .envファイルを編集してAPIキーを設定
 ```
 
-### 4. 設定ファイルの編集
-`.env`ファイルを開き、以下の項目を設定してください：
+### 3. 基本設定
 
 ```env
-# 必須設定
+# 必須設定項目のみ
 DISCORD_BOT_TOKEN=your_discord_bot_token
 DISCORD_GUILD_ID=your_guild_id
 GEMINI_API_KEY=your_gemini_api_key
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
-
-# チャンネルID（使用する機能に応じて設定）
-CHANNEL_INBOX=123456789              # メイン用途（テキストメモ）
-CHANNEL_VOICE=123456789              # 音声メモ用
-CHANNEL_FILES=123456789              # ファイル添付メモ用
-CHANNEL_MONEY=123456789              # 家計管理用
-CHANNEL_FINANCE_REPORTS=123456789    # 家計レポート用
-CHANNEL_TASKS=123456789              # タスク管理用
-CHANNEL_PRODUCTIVITY_REVIEWS=123456789 # 生産性レビュー用
-CHANNEL_NOTIFICATIONS=123456789      # システム通知用
-CHANNEL_COMMANDS=123456789           # ボットコマンド用
-CHANNEL_ACTIVITY_LOG=123456789       # アクティビティログ用
-CHANNEL_DAILY_TASKS=123456789        # デイリータスク用
-
-# オプション設定（音声認識を使う場合）
-GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
 ```
 
-### 5. ボットの起動
+**それだけです！** チャンネルIDの設定は不要です。
+
+### 4. 起動
 ```bash
 uv run python -m src.main
 ```
 
-コンソールに「Bot is ready!」と表示されれば成功です。
+### 5. Discordチャンネル作成
 
-## 使い方
-
-### 基本的な使い方
-設定したチャンネルにメッセージを投稿するだけで、自動的に処理されObsidianに保存されます。
-
-- **テキストメモ**: `#inbox` チャンネルにテキストを投稿
-- **音声メモ**: `#voice` チャンネルに音声ファイルをアップロード
-- **アクティビティログ**: `#activity-log` チャンネルへの投稿が今日のデイリーノートに追記
-- **デイリータスク**: `#daily-tasks` チャンネルへの投稿がタスクとして記録
-
-### Discordコマンド一覧
-
-#### 基本コマンド
-- `/help` - ヘルプ情報の表示
-- `/status` - ボットの動作状況を確認
-- `/ping` - 接続テスト
-
-#### Obsidian管理
-- `/vault_search [キーワード]` - Obsidian内のノートを検索
-- `/vault_stats` - Vault統計情報の表示
-- `/daily_note [日付]` - 指定日のデイリーノートを作成・表示
-
-#### テンプレート機能
-- `/list_templates` - 利用可能なテンプレート一覧
-- `/create_from_template [template] [content]` - テンプレートからノート作成
-
-## Obsidian Vaultの構造
-
-ボットによって以下のような構造でファイルが保存されます：
-
+以下のチャンネルを作成するだけ：
 ```
-Obsidian Vault/
-├── 00_Capture/              # 新しいメモの受信箱
-├── 01_Process/              # 処理中のメモ
-├── 02_Knowledge/            # 整理済みの知識
-├── 03_Projects/             # プロジェクト関連
-├── 04_Life/                 # 日常・ライフ関連
-│   ├── Daily/               # デイリーノート
-│   ├── Finance/             # 家計関連
-│   ├── Health/              # 健康関連
-│   ├── Schedule/            # スケジュール
-│   └── Tasks/               # タスク管理
-├── 05_Resources/            # リソース・参考資料
-└── 99_Meta/                 # メタデータ・設定
-    └── Templates/           # カスタムテンプレート
+📝 inbox          ← メインメモ（必須）
+🔔 notifications  ← システム通知（必須）
+🤖 commands       ← ボットコマンド（必須）
 ```
 
-## よくある質問 (FAQ)
+追加機能が必要なら：
+```
+🎤 voice     ← 音声メモ
+📎 files     ← ファイル
+💰 money     ← 家計簿
+✅ tasks     ← タスク管理
+```
 
-### Q: ボットが反応しません
-**A:** 以下を確認してください：
-- `.env`ファイルのDiscordボットトークンが正しいか
-- ボットがDiscordサーバーに参加しているか
-- チャンネルIDが正しく設定されているか
-- ボットに該当チャンネルの読み取り権限があるか
+### 6. 使用開始
+設定したDiscordチャンネルにメッセージを投稿するだけ！AIが自動的に処理してObsidianに保存します。
 
-### Q: 音声認識が機能しません
-**A:** 音声認識はオプション機能です：
-- Google Cloud Speech-to-Text APIの設定が必要
-- `GOOGLE_APPLICATION_CREDENTIALS`の設定が正しいか確認
-- 認証JSONファイルのパスが正しいか確認
+> **✨ 特徴：チャンネルID設定不要**
+> 標準的なチャンネル名（`inbox`, `voice`, `money`等）で自動検出します。
+> 面倒なチャンネルIDのコピペは不要です！
 
-### Q: Obsidianにファイルが保存されません
-**A:** 以下を確認してください：
-- `OBSIDIAN_VAULT_PATH`が正しい絶対パスで設定されているか
-- 指定したパスにObsidian Vaultが存在するか
-- ディレクトリに書き込み権限があるか
+## ドキュメント
 
-### Q: Gemini APIの制限に達しました
-**A:** 無料枠の制限に達した可能性があります：
-- 1日1500リクエスト、1分間15リクエストの制限があります
-- しばらく時間を置いてから再度お試しください
-- 必要に応じて有料プランへのアップグレードを検討してください
+詳細な情報については、以下のドキュメントをご参照ください：
 
-## 注意事項
+### 📚 ユーザー向け
+- **[簡単セットアップガイド](docs/EASY_SETUP.md)** - 🆕 チャンネルID設定不要の5分セットアップ
+- **[チャンネル管理ガイド](docs/CHANNEL_MANAGEMENT.md)** - 詳細なチャンネル設定方法
+- **[ローカルテスト手順](docs/LOCAL_TESTING.md)** - 開発・テスト環境での動作確認
 
-- このボットは個人利用を想定して設計されています
-- APIの無料枠を効率的に活用するため、使用量制限が設定されています
-- 音声認識機能は月60分の制限があります（Google Cloud Speech-to-Text無料枠）
+### 🛠️ 開発者向け
+- **[開発ガイド](docs/developer/development-guide.md)** - 開発環境構築
+- **[アーキテクチャ](docs/developer/architecture.md)** - システム設計
+- **[API仕様](docs/developer/api-reference.md)** - API詳細
+- **[コントリビューション](docs/developer/contributing.md)** - 貢献方法
+
+### 🚀 運用者向け
+- **[デプロイメント](docs/operations/deployment.md)** - 本番環境へのデプロイ
+- **[トラブルシューティング](docs/operations/troubleshooting.md)** - 問題解決
+- **[監視](docs/operations/monitoring.md)** - 監視とログ管理
+
+### 📖 完全ガイド
+すべての情報を網羅した **[ドキュメントインデックス](docs-index.md)** も利用可能です。
+
+## 主な特徴
+
+### 🎯 ゼロ設定の自動化
+メッセージを投稿するだけで、AIが内容を分析し適切なフォルダに構造化して保存
+
+### 🔄 シームレスな統合
+Discord ↔ AI処理 ↔ Obsidian の完全自動化されたワークフロー
+
+### 🧠 インテリジェントな分類
+機械学習による内容の自動分類とタグ付け
+
+### 📊 包括的な管理
+メモ、タスク、金融、健康データを一元管理
+
+### 🔒 セキュリティ重視
+Google Cloud Secret Managerによる安全な認証情報管理
+
+## サポートされる環境
+
+- **開発**: ローカル開発環境（モックモード対応）
+- **本番**: Google Cloud Run（24時間365日稼働）
+- **コンテナ**: Docker対応
+- **OS**: macOS, Linux, Windows（WSL2）
+
+## コミュニティとサポート
+
+- **Issues**: [GitHub Issues](https://github.com/kenvexar/discord-obsidian-memo-bot/issues)でバグ報告・機能要求
+- **Discussions**: プロジェクトについて議論
+- **Documentation**: 包括的なドキュメントでサポート
+
+## ライセンス
+
+MIT License - 詳細は[LICENSE](LICENSE)ファイルをご覧ください。
+
+## 貢献
+
+プロジェクトへの貢献を歓迎します！詳細は[コントリビューションガイド](docs/developer/contributing.md)をご確認ください。
+
+---
+
+**プロジェクト情報**
+- バージョン: 0.1.0
+- Python要求バージョン: 3.13以上
+- メンテナー: Kent
+- 最終更新: 2025年8月17日

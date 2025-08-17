@@ -12,6 +12,7 @@ from discord.ext import commands, tasks
 
 from ..config.settings import get_settings
 from ..utils.mixins import LoggerMixin
+from .notification_system import NotificationCategory, NotificationLevel
 
 
 class BackupType(str, Enum):
@@ -128,8 +129,8 @@ class DataBackupSystem(LoggerMixin):
             # 通知送信（開始）
             if self.notification_system and not auto_triggered:
                 await self.notification_system.send_notification(
-                    level=self.notification_system.NotificationLevel.INFO,
-                    category=self.notification_system.NotificationCategory.SYSTEM_EVENTS,
+                    level=NotificationLevel.INFO,
+                    category=NotificationCategory.SYSTEM_EVENTS,
                     title="💾 バックアップ開始",
                     message=f"データバックアップを開始します ({backup_type.value})",
                     details={"backup_id": backup_id, "type": backup_type.value},
@@ -510,15 +511,15 @@ class DataBackupSystem(LoggerMixin):
         if backup_result["status"] == BackupStatus.SUCCESS.value:
             title = "✅ バックアップ完了"
             message = "データバックアップが正常に完了しました。"
-            level = self.notification_system.NotificationLevel.SUCCESS
+            level = NotificationLevel.SUCCESS
         elif backup_result["status"] == BackupStatus.PARTIAL.value:
             title = "⚠️ バックアップ部分完了"
             message = "データバックアップが部分的に完了しました（一部エラーあり）。"
-            level = self.notification_system.NotificationLevel.WARNING
+            level = NotificationLevel.WARNING
         else:
             title = "❌ バックアップ失敗"
             message = "データバックアップに失敗しました。"
-            level = self.notification_system.NotificationLevel.ERROR
+            level = NotificationLevel.ERROR
 
         embed_fields = [
             {
@@ -543,7 +544,7 @@ class DataBackupSystem(LoggerMixin):
 
         await self.notification_system.send_notification(
             level=level,
-            category=self.notification_system.NotificationCategory.SYSTEM_EVENTS,
+            category=NotificationCategory.SYSTEM_EVENTS,
             title=title,
             message=message,
             details=backup_result,

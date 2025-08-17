@@ -9,7 +9,9 @@ from typing import Any
 from ..utils.mixins import LoggerMixin
 from .file_manager import ObsidianFileManager
 from .models import ObsidianNote, VaultFolder
-from .templates import DailyNoteTemplate
+
+# 旧テンプレートシステムは削除済み
+# from .templates import DailyNoteTemplate
 
 
 class DailyNoteIntegration(LoggerMixin):
@@ -17,14 +19,17 @@ class DailyNoteIntegration(LoggerMixin):
 
     def __init__(self, file_manager: ObsidianFileManager):
         """
-        Initialize daily note integration
+        Initialize DailyIntegration
 
         Args:
-            file_manager: File manager instance
+            file_manager: ObsidianFileManager instance
         """
         self.file_manager = file_manager
-        self.daily_template = DailyNoteTemplate(file_manager.vault_path)
-        self.logger.info("Daily note integration initialized")
+        # TemplateEngineを使用するように変更
+        from .template_system import TemplateEngine
+
+        self.template_engine = TemplateEngine(file_manager.vault_path)
+        self.logger.info("Daily integration initialized")
 
     async def add_activity_log_entry(
         self, message_data: dict[str, Any], date: datetime | None = None
@@ -189,7 +194,11 @@ class DailyNoteIntegration(LoggerMixin):
 
             # 新しいデイリーノートを作成
             daily_stats = await self._collect_daily_stats(date)
-            new_note = self.daily_template.generate_note(date, daily_stats)
+            new_note = await self.template_engine.generate_daily_note(date, daily_stats)
+
+            if not new_note:
+                self.logger.error("Failed to generate daily note from template")
+                return None
 
             # ベースセクションを追加
             new_note.content = self._ensure_base_sections(new_note.content)
@@ -229,45 +238,108 @@ class DailyNoteIntegration(LoggerMixin):
 
     def _add_to_section(self, content: str, section_header: str, entry: str) -> str:
         """指定されたセクションにエントリを追加"""
+        return self._update_section(
+            content, section_header, entry, replace_content=False
+        )
+
+    def _update_section(
+        self,
+        content: str,
+        section_identifier: str,
+        new_content: str,
+        replace_content: bool = False,
+    ) -> str:
+        """
+        統一されたセクション更新メソッド
+
+        Args:
+            content: 既存のノート内容
+            section_identifier: セクション識別子（ヘッダー文字列またはセクション名）
+            new_content: 追加/置換するコンテンツ
+            replace_content: True=セクション内容を置換、False=セクションに追加
+
+        Returns:
+            更新されたコンテンツ
+        """
         lines = content.split("\n")
-        section_found = False
-        insert_index = len(lines)
+        section_start = None
+        section_end = len(lines)
 
-        for i, line in enumerate(lines):
-            if line.strip() == section_header:
-                section_found = True
-                # セクションの終わりを見つける（次のセクションまたはファイル末尾）
-                j = i + 1
-                while j < len(lines):
-                    if lines[j].strip().startswith("## ") and j > i:
-                        insert_index = j
-                        break
-                    j += 1
-                else:
-                    insert_index = len(lines)
-                break
-
-        if not section_found:
-            # セクションが存在しない場合は末尾に追加
-            lines.extend(["", section_header, "", entry])
+        # セクションヘッダーの形式を統一
+        if not section_identifier.startswith("## "):
+            # セクション名のみの場合、## プレフィックスを追加して検索
+            search_patterns = [
+                f"## {section_identifier}",
+                f"## 📊 {section_identifier}",
+                f"## 🔍 {section_identifier}",
+            ]
         else:
-            # セクション内の適切な位置に挿入
-            # 空行をスキップして最初の内容行を見つける
-            content_start = None
-            for k in range(i + 1, insert_index):
-                if lines[k].strip():
-                    content_start = k
+            # 完全なヘッダーの場合
+            search_patterns = [section_identifier]
+
+        # セクションを検索
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped.startswith("## "):
+                for pattern in search_patterns:
+                    if pattern in line or line_stripped == pattern:
+                        section_start = i
+                        # 次のセクションを探す
+                        for j in range(i + 1, len(lines)):
+                            if lines[j].strip().startswith("## "):
+                                section_end = j
+                                break
+                        break
+                if section_start is not None:
                     break
 
-            if content_start is None:
-                # セクションが空の場合
-                lines.insert(i + 1, "")
-                lines.insert(i + 2, entry)
+        if section_start is not None:
+            if replace_content:
+                # セクション内容を完全に置換
+                new_lines = (
+                    lines[:section_start]
+                    + new_content.split("\n")
+                    + [""]  # 空行を追加
+                    + lines[section_end:]
+                )
             else:
-                # 既存の内容の後に追加
-                lines.insert(insert_index, entry)
+                # セクション内の適切な位置に追加
+                # 空行をスキップして最初の内容行を見つける
+                content_start = None
+                for k in range(section_start + 1, section_end):
+                    if lines[k].strip():
+                        content_start = k
+                        break
 
-        return "\n".join(lines)
+                if content_start is None:
+                    # セクションが空の場合
+                    lines.insert(section_start + 1, "")
+                    lines.insert(section_start + 2, new_content)
+                else:
+                    # 既存の内容の後に追加
+                    lines.insert(section_end, new_content)
+
+                new_lines = lines
+        else:
+            # セクションが存在しない場合は末尾に追加
+            if replace_content:
+                # セクションヘッダーと内容を新規作成
+                section_header = (
+                    search_patterns[0]
+                    if search_patterns
+                    else f"## {section_identifier}"
+                )
+                new_lines = lines + ["", section_header] + new_content.split("\n")
+            else:
+                # 従来の動作（セクションヘッダーと内容を追加）
+                section_header = (
+                    section_identifier
+                    if section_identifier.startswith("## ")
+                    else f"## {section_identifier}"
+                )
+                new_lines = lines + ["", section_header, "", new_content]
+
+        return "\n".join(new_lines)
 
     def _parse_tasks(self, content: str) -> list[str]:
         """メッセージ内容からタスクを解析"""
@@ -379,34 +451,9 @@ class DailyNoteIntegration(LoggerMixin):
         self, content: str, health_data_markdown: str
     ) -> str:
         """Health Dataセクションを更新"""
-        lines = content.split("\n")
-        health_section_start = None
-        health_section_end = len(lines)
-
-        # Health Dataセクションを検索
-        for i, line in enumerate(lines):
-            if line.strip().startswith("## ") and "Health Data" in line:
-                health_section_start = i
-                # 次のセクションを探す
-                for j in range(i + 1, len(lines)):
-                    if lines[j].strip().startswith("## "):
-                        health_section_end = j
-                        break
-                break
-
-        if health_section_start is not None:
-            # 既存のHealth Dataセクションを置換
-            new_lines = (
-                lines[:health_section_start]
-                + health_data_markdown.split("\n")
-                + [""]  # 空行を追加
-                + lines[health_section_end:]
-            )
-        else:
-            # Health Dataセクションが存在しない場合は末尾に追加
-            new_lines = lines + [""] + health_data_markdown.split("\n")
-
-        return "\n".join(new_lines)
+        return self._update_section(
+            content, "Health Data", health_data_markdown, replace_content=True
+        )
 
     async def update_health_analysis_in_daily_note(
         self, target_date: date, analysis_markdown: str
@@ -477,34 +524,9 @@ class DailyNoteIntegration(LoggerMixin):
         self, content: str, analysis_markdown: str
     ) -> str:
         """Health Analysisセクションを更新"""
-        lines = content.split("\n")
-        analysis_section_start = None
-        analysis_section_end = len(lines)
-
-        # Health Analysisセクションを検索
-        for i, line in enumerate(lines):
-            if line.strip().startswith("## ") and "Health Analysis" in line:
-                analysis_section_start = i
-                # 次のセクションを探す
-                for j in range(i + 1, len(lines)):
-                    if lines[j].strip().startswith("## "):
-                        analysis_section_end = j
-                        break
-                break
-
-        if analysis_section_start is not None:
-            # 既存のHealth Analysisセクションを置換
-            new_lines = (
-                lines[:analysis_section_start]
-                + analysis_markdown.split("\n")
-                + [""]  # 空行を追加
-                + lines[analysis_section_end:]
-            )
-        else:
-            # Health Analysisセクションが存在しない場合は末尾に追加
-            new_lines = lines + [""] + analysis_markdown.split("\n")
-
-        return "\n".join(new_lines)
+        return self._update_section(
+            content, "Health Analysis", analysis_markdown, replace_content=True
+        )
 
     async def get_health_data_for_date(self, target_date: date) -> str | None:
         """

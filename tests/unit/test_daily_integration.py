@@ -38,6 +38,23 @@ class TestDailyNoteIntegration:
     def setup_method(self) -> None:
         """Setup test fixtures"""
         self.temp_dir = Path(tempfile.mkdtemp())
+
+        # Create template directory and daily note template
+        template_dir = self.temp_dir / "99_Meta" / "Templates"
+        template_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create a basic daily note template
+        daily_template = template_dir / "daily_note.md"
+        daily_template.write_text(
+            "---\n"
+            "type: daily\n"
+            "date: {{date_ymd}}\n"
+            "---\n\n"
+            "# {{date_full}}\n\n"
+            "## 📋 Activity Log\n\n"
+            "## ✅ Daily Tasks\n\n"
+        )
+
         self.file_manager = ObsidianFileManager(self.temp_dir)
         self.daily_integration = DailyNoteIntegration(self.file_manager)
 
@@ -65,7 +82,7 @@ class TestDailyNoteIntegration:
         month = date.strftime("%m-%B")
         filename = f"{date.strftime('%Y-%m-%d')}.md"
 
-        daily_note_path = self.temp_dir / "01_DailyNotes" / year / month / filename
+        daily_note_path = self.temp_dir / "02_DailyNotes" / year / month / filename
 
         assert daily_note_path.exists()
 
@@ -100,7 +117,7 @@ class TestDailyNoteIntegration:
         month = date.strftime("%m-%B")
         filename = f"{date.strftime('%Y-%m-%d')}.md"
 
-        daily_note_path = self.temp_dir / "01_DailyNotes" / year / month / filename
+        daily_note_path = self.temp_dir / "02_DailyNotes" / year / month / filename
 
         assert daily_note_path.exists()
 
@@ -199,7 +216,7 @@ class TestDailyNoteIntegration:
         month = date.strftime("%m-%B")
         filename = f"{date.strftime('%Y-%m-%d')}.md"
 
-        daily_note_path = self.temp_dir / "01_DailyNotes" / year / month / filename
+        daily_note_path = self.temp_dir / "02_DailyNotes" / year / month / filename
 
         daily_note = await self.file_manager.load_note(daily_note_path)
         assert daily_note is not None
@@ -234,7 +251,10 @@ class TestDailyNoteIntegration:
 
 def test_task_parsing_edge_cases() -> None:
     """Test edge cases in task parsing"""
-    daily_integration = DailyNoteIntegration(Mock())
+    # Create a mock file manager with proper Path handling
+    mock_file_manager = Mock()
+    mock_file_manager.vault_path = Path("/tmp/test_vault")
+    daily_integration = DailyNoteIntegration(mock_file_manager)
 
     # Test empty content
     assert daily_integration._parse_tasks("") == []
@@ -259,7 +279,10 @@ def test_task_parsing_edge_cases() -> None:
 
 def test_section_management_edge_cases() -> None:
     """Test edge cases in section management"""
-    daily_integration = DailyNoteIntegration(Mock())
+    # Create a mock file manager with proper Path handling
+    mock_file_manager = Mock()
+    mock_file_manager.vault_path = Path("/tmp/test_vault")
+    daily_integration = DailyNoteIntegration(mock_file_manager)
 
     # Test adding to non-existent section
     content = "# Daily Note\n\nSome content"

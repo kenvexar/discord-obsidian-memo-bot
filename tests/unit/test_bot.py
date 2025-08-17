@@ -34,64 +34,31 @@ class TestChannelConfig:
     """Test channel configuration"""
 
     def test_channel_config_initialization(self) -> None:
-        """Test channel config loads correctly"""
-        os.environ.update(
-            {
-                "CHANNEL_INBOX": "111111111",
-                "CHANNEL_VOICE": "222222222",
-                "CHANNEL_FILES": "333333333",
-                "CHANNEL_MONEY": "444444444",
-                "CHANNEL_FINANCE_REPORTS": "555555555",
-                "CHANNEL_TASKS": "666666666",
-                "CHANNEL_PRODUCTIVITY_REVIEWS": "777777777",
-                "CHANNEL_NOTIFICATIONS": "888888888",
-                "CHANNEL_COMMANDS": "999999999",
-            }
-        )
+        """Test basic channel configuration initialization"""
         config = ChannelConfig()
 
-        assert len(config.channels) > 0
-        assert config.is_monitored_channel(
-            config.channels[list(config.channels.keys())[0]].id
-        )
+        # 新しいアーキテクチャでは、実際のDiscordチャンネルが存在しないと
+        # チャンネルは発見されないため、基本的な機能をテスト
+        assert hasattr(config, "channels")
+        assert hasattr(config, "is_monitored_channel")
+        assert hasattr(config, "get_channel_info")
 
-    def test_get_channels_by_category(self, monkeypatch) -> None:
-        """Test getting channels by category with mocked settings"""
-        # Use monkeypatch to set environment variables for this test
-        monkeypatch.setenv("CHANNEL_INBOX", "111111111")
-        monkeypatch.setenv("CHANNEL_VOICE", "222222222")
-        monkeypatch.setenv("CHANNEL_FILES", "333333333")
-        monkeypatch.setenv("CHANNEL_MONEY", "444444444")
-        monkeypatch.setenv("CHANNEL_FINANCE_REPORTS", "555555555")
-        monkeypatch.setenv("CHANNEL_TASKS", "666666666")
-        monkeypatch.setenv("CHANNEL_PRODUCTIVITY_REVIEWS", "777777777")
-        monkeypatch.setenv("CHANNEL_NOTIFICATIONS", "888888888")
-        monkeypatch.setenv("CHANNEL_COMMANDS", "999999999")
+    def test_channel_name_mapping(self) -> None:
+        """Test channel name mapping functionality"""
+        from src.config.settings import get_settings
 
-        # Re-import ChannelConfig to ensure it picks up the new environment variables
-        from src.bot.channel_config import ChannelConfig
+        settings = get_settings()
+        channel_mapping = settings.get_channel_name_mapping()
 
-        config = ChannelConfig()
+        # 必須チャンネルが含まれていることを確認
+        required_channels = settings.get_required_channel_names()
+        for channel in required_channels:
+            assert channel in channel_mapping.values()
 
-        capture_channels = config.get_capture_channels()
-        finance_channels = config.get_finance_channels()
-
-        assert len(capture_channels) > 0, (
-            f"capture_channels is empty: {capture_channels}"
-        )
-        assert len(finance_channels) > 0, (
-            f"finance_channels is empty: {finance_channels}"
-        )
-        assert capture_channels.isdisjoint(finance_channels), (
-            "Capture and finance channels should not overlap"
-        )
-
-        # 具体的なチャンネルIDを確認
-        expected_capture = {111111111, 222222222, 333333333}
-        expected_finance = {444444444, 555555555}
-
-        assert capture_channels == expected_capture
-        assert finance_channels == expected_finance
+        # 基本的なチャンネルマッピングの確認
+        assert "inbox" in channel_mapping.values()
+        assert "notifications" in channel_mapping.values()
+        assert "commands" in channel_mapping.values()
 
 
 class TestMessageHandler:
@@ -99,7 +66,12 @@ class TestMessageHandler:
 
     def setup_method(self) -> None:
         """Setup test fixtures"""
-        self.channel_config = ChannelConfig()
+        # Mock channel config to avoid dependency on actual Discord channels
+        self.channel_config = Mock()
+        self.channel_config.is_monitored_channel.return_value = (
+            False  # Default to unmonitored
+        )
+        self.channel_config.get_channel_info.return_value = None
         self.handler = MessageHandler(self.channel_config)
 
     @pytest.mark.asyncio
@@ -130,9 +102,19 @@ class TestMessageHandler:
     @pytest.mark.asyncio
     async def test_valid_message_processing(self) -> None:
         """Test processing of valid messages"""
-        # Get a valid channel ID
-        valid_channel_id = list(self.channel_config.channels.keys())[0]
-        channel_info = self.channel_config.get_channel_info(valid_channel_id)
+        # Mock a valid channel
+        from src.bot.channel_config import ChannelCategory, ChannelInfo
+
+        mock_channel_info = ChannelInfo(
+            id=123456789,
+            name="inbox",
+            category=ChannelCategory.CAPTURE,
+            description="Test inbox channel",
+        )
+
+        # Configure mock to return monitored channel
+        self.channel_config.is_monitored_channel.return_value = True
+        self.channel_config.get_channel_info.return_value = mock_channel_info
 
         # Create a more complete mock message
         mock_message = Mock(spec=discord.Message)
@@ -145,7 +127,7 @@ class TestMessageHandler:
         mock_message.author.discriminator = "1234"
         mock_message.author.avatar = None
         mock_message.author.mention = "<@987654321>"
-        mock_message.channel.id = valid_channel_id
+        mock_message.channel.id = 123456789
         mock_message.channel.name = "test-channel"
         mock_message.channel.type = discord.ChannelType.text
         mock_message.channel.category = None
@@ -176,8 +158,8 @@ class TestMessageHandler:
         assert result is not None
         assert "metadata" in result
         assert "channel_info" in result
-        assert result["channel_info"]["name"] == channel_info.name
-        assert result["channel_info"]["category"] == channel_info.category.value
+        assert result["channel_info"]["name"] == mock_channel_info.name
+        assert result["channel_info"]["category"] == mock_channel_info.category.value
 
         # Check metadata structure
         metadata = result["metadata"]

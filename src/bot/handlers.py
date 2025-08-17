@@ -12,7 +12,7 @@ from ..ai.mock_processor import MockAIProcessor
 from ..ai.models import AIProcessingResult
 from ..ai.note_analyzer import AdvancedNoteAnalyzer
 from ..audio import SpeechProcessor
-from ..obsidian import MessageNoteTemplate, ObsidianFileManager, TemplateEngine
+from ..obsidian import ObsidianFileManager, TemplateEngine
 from ..obsidian.daily_integration import DailyNoteIntegration
 from ..utils.mixins import LoggerMixin
 from .channel_config import ChannelCategory, ChannelConfig
@@ -24,7 +24,7 @@ class MessageHandler(LoggerMixin):
 
     ai_processor: AIProcessor | MockAIProcessor
     obsidian_manager: ObsidianFileManager | None
-    note_template: MessageNoteTemplate | None
+    note_template: None  # 古いテンプレートシステムは無効化
     daily_integration: DailyNoteIntegration | None
     template_engine: TemplateEngine | None
     note_analyzer: AdvancedNoteAnalyzer | None
@@ -65,7 +65,7 @@ class MessageHandler(LoggerMixin):
         # Obsidianファイル管理システムの初期化
         try:
             self.obsidian_manager = ObsidianFileManager()
-            self.note_template = MessageNoteTemplate(self.obsidian_manager.vault_path)
+            self.note_template = None  # 古いテンプレートシステムは無効化
             self.daily_integration = DailyNoteIntegration(self.obsidian_manager)
             self.template_engine = TemplateEngine(self.obsidian_manager.vault_path)
 
@@ -305,92 +305,152 @@ class MessageHandler(LoggerMixin):
                     "Generated category", category=category, confidence=confidence
                 )
 
-        # Obsidianノートの生成と保存（高度なAI分析付き）
-        if self.obsidian_manager and self.note_template:
+        # Obsidianノートの生成と保存（新しいTemplateEngineを使用）
+        if self.obsidian_manager and self.template_engine:
             try:
                 # AI処理結果をAIProcessingResultオブジェクトに変換
                 ai_result: AIProcessingResult | None = None
                 if ai_processing:
                     ai_result = AIProcessingResult.model_validate(ai_processing)
 
-                # Obsidianノートを生成
-                note = self.note_template.generate_note(
-                    message_data=message_data, ai_result=ai_result
+                # 新しいTemplateEngineでObsidianノートを生成
+                note = await self.template_engine.generate_note_from_template(
+                    template_name="daily_note",
+                    message_data=message_data,
+                    ai_result=ai_result,
                 )
 
-                # Vaultの初期化（初回のみ）
-                await self.obsidian_manager.initialize_vault()
+                if note:
+                    # Vaultの初期化（初回のみ）
+                    await self.obsidian_manager.initialize_vault()
 
-                # 高度なAI分析を実行（ノート分析器が利用可能な場合）
-                enhanced_content = note.content
-                if self.note_analyzer and note.content:
-                    try:
+                    # 高度なAI分析を実行（ノート分析器が利用可能な場合）
+                    enhanced_content = note.content
+                    if self.note_analyzer and note.content:
+                        try:
+                            self.logger.info(
+                                "Running advanced AI analysis on note content",
+                                note_title=note.title,
+                            )
+
+                            # 包括的なノート分析を実行
+                            analysis_result = (
+                                await self.note_analyzer.analyze_note_content(
+                                    content=note.content,
+                                    title=note.title,
+                                    file_path=str(
+                                        note.file_path.relative_to(
+                                            self.obsidian_manager.vault_path
+                                        )
+                                    ),
+                                    include_url_processing=True,
+                                    include_related_notes=True,
+                                )
+                            )
+
+                            # 分析結果からコンテンツを強化
+                            if (
+                                analysis_result
+                                and "enhanced_content" in analysis_result
+                            ):
+                                enhanced_content_raw = analysis_result[
+                                    "enhanced_content"
+                                ]
+
+                                # enhanced_contentが辞書形式の場合、適切なcontentを抽出
+                                if isinstance(enhanced_content_raw, dict):
+                                    if "content" in enhanced_content_raw:
+                                        enhanced_content = enhanced_content_raw[
+                                            "content"
+                                        ]
+                                    else:
+                                        self.logger.warning(
+                                            "Enhanced content is dict but missing 'content' key",
+                                            keys=list(enhanced_content_raw.keys()),
+                                        )
+                                        enhanced_content = (
+                                            note.content
+                                        )  # 元のコンテンツを維持
+                                else:
+                                    enhanced_content = str(enhanced_content_raw)
+
+                                # dict文字列形式の場合はクリーンアップ
+                                if isinstance(
+                                    enhanced_content, str
+                                ) and enhanced_content.startswith("{'content':"):
+                                    try:
+                                        import ast
+
+                                        dict_obj = ast.literal_eval(enhanced_content)
+                                        if (
+                                            isinstance(dict_obj, dict)
+                                            and "content" in dict_obj
+                                        ):
+                                            enhanced_content = str(dict_obj["content"])
+                                        else:
+                                            self.logger.warning(
+                                                "Could not extract content from dict string"
+                                            )
+                                            enhanced_content = note.content
+                                    except (ValueError, SyntaxError) as e:
+                                        self.logger.warning(
+                                            "Failed to parse enhanced content dict string",
+                                            error=str(e),
+                                        )
+                                        enhanced_content = note.content
+
+                                note.content = enhanced_content
+
+                                self.logger.info(
+                                    "Note content enhanced with AI analysis",
+                                    note_title=note.title,
+                                    related_notes_count=len(
+                                        analysis_result.get("related_notes", [])
+                                    ),
+                                    internal_links_count=len(
+                                        analysis_result.get("internal_links", [])
+                                    ),
+                                    urls_processed=len(
+                                        analysis_result.get("url_processing", {}).get(
+                                            "processed_urls", []
+                                        )
+                                    ),
+                                )
+
+                        except Exception as analysis_error:
+                            self.logger.warning(
+                                "Advanced AI analysis failed, proceeding with basic note",
+                                note_title=note.title,
+                                error=str(analysis_error),
+                            )
+
+                    # 日別ノートとして保存または追記
+                    success = await self.obsidian_manager.save_or_append_daily_note(
+                        note
+                    )
+
+                    if success:
                         self.logger.info(
-                            "Running advanced AI analysis on note content",
-                            note_title=note.title,
-                        )
-
-                        # 包括的なノート分析を実行
-                        analysis_result = await self.note_analyzer.analyze_note_content(
-                            content=note.content,
-                            title=note.title,
-                            file_path=str(
+                            "Enhanced Obsidian note saved or appended successfully",
+                            note_path=str(
                                 note.file_path.relative_to(
                                     self.obsidian_manager.vault_path
                                 )
                             ),
-                            include_url_processing=True,
-                            include_related_notes=True,
-                        )
-
-                        # 分析結果からコンテンツを強化
-                        if analysis_result and "enhanced_content" in analysis_result:
-                            enhanced_content = analysis_result["enhanced_content"]
-                            note.content = enhanced_content
-
-                            self.logger.info(
-                                "Note content enhanced with AI analysis",
-                                note_title=note.title,
-                                related_notes_count=len(
-                                    analysis_result.get("related_notes", [])
-                                ),
-                                internal_links_count=len(
-                                    analysis_result.get("internal_links", [])
-                                ),
-                                urls_processed=len(
-                                    analysis_result.get("url_processing", {}).get(
-                                        "processed_urls", []
-                                    )
-                                ),
-                            )
-
-                    except Exception as analysis_error:
-                        self.logger.warning(
-                            "Advanced AI analysis failed, proceeding with basic note",
                             note_title=note.title,
-                            error=str(analysis_error),
+                            enhanced=(
+                                enhanced_content != note.content
+                                if "enhanced_content" in locals()
+                                else False
+                            ),
                         )
-
-                # ノートを保存
-                success = await self.obsidian_manager.save_note(note)
-
-                if success:
-                    self.logger.info(
-                        "Enhanced Obsidian note saved successfully",
-                        note_path=str(
-                            note.file_path.relative_to(self.obsidian_manager.vault_path)
-                        ),
-                        note_title=note.title,
-                        enhanced=(
-                            enhanced_content != note.content
-                            if "enhanced_content" in locals()
-                            else False
-                        ),
-                    )
+                    else:
+                        self.logger.warning(
+                            "Failed to save or append Obsidian note",
+                            note_title=note.title,
+                        )
                 else:
-                    self.logger.warning(
-                        "Failed to save Obsidian note", note_title=note.title
-                    )
+                    self.logger.warning("Failed to generate note from template")
 
             except Exception as e:
                 self.logger.error(
@@ -727,7 +787,7 @@ class MessageHandler(LoggerMixin):
     ) -> None:
         """音声文字起こし結果をObsidianノートに統合"""
         try:
-            if not self.obsidian_manager or not self.note_template:
+            if not self.obsidian_manager or not self.template_engine:
                 return
 
             # 音声処理結果をメッセージデータに追加

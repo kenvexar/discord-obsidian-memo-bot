@@ -34,9 +34,8 @@ class DiscordBot(LoggerMixin):
         self.system_metrics = SystemMetrics()
         self.api_usage_monitor = APIUsageMonitor()
 
-        # Initialize reminder systems
+        # Initialize reminder systems list (actual initialization after client setup)
         self.reminder_systems: list[Any] = []
-        self._initialize_reminder_systems()
 
         # Initialize notification system
         self.notification_system = None  # Will be initialized after client setup
@@ -76,6 +75,9 @@ class DiscordBot(LoggerMixin):
 
             # Register event handlers
             self._register_events()
+
+        # Initialize reminder systems after client is ready
+        self._initialize_reminder_systems()
 
         # Initialize notification system after client is ready
         from .notification_system import NotificationSystem
@@ -139,6 +141,9 @@ class DiscordBot(LoggerMixin):
             self.message_handler.set_monitoring_systems(
                 self.system_metrics, self.api_usage_monitor
             )
+
+            # Initialize MessageHandler async components (including default templates)
+            await self.message_handler.initialize()
 
             # Start reminder systems
             await self._start_reminder_systems()
@@ -321,6 +326,9 @@ class DiscordBot(LoggerMixin):
             self.system_metrics, self.api_usage_monitor
         )
 
+        # Initialize MessageHandler async components (including default templates)
+        await self.message_handler.initialize()
+
         # Start reminder systems
         await self._start_reminder_systems()
 
@@ -438,7 +446,7 @@ class DiscordBot(LoggerMixin):
             budget_manager = BudgetManager(file_manager, expense_manager)
 
             self.finance_reminder_system = FinanceReminderSystem(
-                bot=self.client,
+                bot=self.client,  # Use self.client instead of self
                 channel_config=self.channel_config,
                 subscription_manager=subscription_manager,
                 budget_manager=budget_manager,
@@ -450,7 +458,7 @@ class DiscordBot(LoggerMixin):
             schedule_manager = ScheduleManager(file_manager)
 
             self.task_reminder_system = TaskReminderSystem(
-                bot=self.client,
+                bot=self.client,  # Use self.client instead of self
                 channel_config=self.channel_config,
                 task_manager=task_manager,
                 schedule_manager=schedule_manager,
@@ -635,18 +643,17 @@ class DiscordBot(LoggerMixin):
         self, message: str, channel_id: int | None = None
     ) -> None:
         """Send a notification message to a channel"""
-        settings = get_settings()
         if not self.is_ready or not self.guild:
             self.logger.warning("Bot not ready, cannot send notification")
             return
 
-        target_channel_id = channel_id or settings.channel_notifications
-        channel = self.guild.get_channel(target_channel_id)
+        if channel_id:
+            channel = self.guild.get_channel(channel_id)
+        else:
+            channel = self.channel_config.get_channel("notifications")
 
         if not channel:
-            self.logger.error(
-                "Notification channel not found", channel_id=target_channel_id
-            )
+            self.logger.error("Notification channel not found", channel_id=channel_id)
             return
 
         try:
@@ -660,13 +667,13 @@ class DiscordBot(LoggerMixin):
                 return
             self.logger.info(
                 "Notification sent",
-                channel_id=target_channel_id,
+                channel_id=channel.id if channel else None,
                 message_length=len(message),
             )
         except Exception as e:
             self.logger.error(
                 "Failed to send notification",
-                channel_id=target_channel_id,
+                channel_id=channel.id if channel else channel_id,
                 error=str(e),
                 exc_info=True,
             )

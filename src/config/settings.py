@@ -12,7 +12,10 @@ class Settings(BaseSettings):
     """Application settings with environment variable support"""
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+        env_file=[".env.test", ".env"],
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",  # 追加フィールドを無視
     )
 
     # Discord Configuration
@@ -30,19 +33,6 @@ class Settings(BaseSettings):
 
     # Obsidian Configuration
     obsidian_vault_path: Path
-
-    # Discord Channel Configuration
-    channel_inbox: int
-    channel_voice: int
-    channel_files: int
-    channel_money: int
-    channel_finance_reports: int
-    channel_tasks: int
-    channel_productivity_reviews: int
-    channel_notifications: int
-    channel_commands: int
-    channel_activity_log: int | None = None
-    channel_daily_tasks: int | None = None
 
     # Garmin Connect Integration (Optional)
     garmin_email: SecretStr | None = None
@@ -85,6 +75,11 @@ class Settings(BaseSettings):
         return self.environment.lower() == "production"
 
     @property
+    def is_testing(self) -> bool:
+        """Check if running in testing/staging/integration mode"""
+        return self.environment.lower() in ["testing", "staging", "integration"]
+
+    @property
     def is_mock_mode(self) -> bool:
         """Check if mock mode is enabled"""
         return self.enable_mock_mode or self.is_development
@@ -93,6 +88,81 @@ class Settings(BaseSettings):
     def should_use_secret_manager(self) -> bool:
         """Check if Secret Manager should be used"""
         return self.use_secret_manager and self.google_cloud_project is not None
+
+    def get_channel_name_mapping(self) -> dict[str, str]:
+        """Get mapping of configuration names to Discord channel names"""
+        return {
+            "inbox": "inbox",
+            "voice": "voice",
+            "files": "files",
+            "money": "money",
+            "finance_reports": "finance-reports",
+            "tasks": "tasks",
+            "productivity_reviews": "productivity-reviews",
+            "notifications": "notifications",
+            "commands": "commands",
+            "activity_log": "activity-log",
+            "daily_tasks": "daily-tasks",
+            "quick_notes": "quick-notes",
+            "income": "income",
+            "subscriptions": "subscriptions",
+            "projects": "projects",
+            "weekly_reviews": "weekly-reviews",
+            "goal_tracking": "goal-tracking",
+            "health_activities": "health-activities",
+            "health_sleep": "health-sleep",
+            "health_wellness": "health-wellness",
+            "health_analytics": "health-analytics",
+            "logs": "logs",
+        }
+
+    def get_default_channel_names(self) -> list[str]:
+        """Get list of default channel names to look for"""
+        return [
+            "inbox",  # Main memo channel (highest priority)
+            "voice",  # Voice memos
+            "files",  # File uploads
+            "money",  # Finance tracking
+            "tasks",  # Task management
+            "notifications",  # System notifications
+            "commands",  # Bot commands
+        ]
+
+    def get_required_channel_names(self) -> list[str]:
+        """Get list of required channel names for basic functionality"""
+        return [
+            "inbox",  # Essential for memo functionality
+            "notifications",  # Essential for system feedback
+            "commands",  # Essential for bot interaction
+        ]
+
+    def get_optional_channel_names(self) -> list[str]:
+        """Get list of optional channel names for enhanced functionality"""
+        return [
+            "voice",  # Voice memo processing
+            "files",  # File uploads
+            "money",  # Financial tracking
+            "finance-reports",  # Financial analytics
+            "tasks",  # Task management
+            "productivity-reviews",  # Daily productivity reviews
+            "quick-notes",  # Quick notes without AI processing
+            "income",  # Income tracking
+            "subscriptions",  # Subscription management
+            "projects",  # Project management
+            "weekly-reviews",  # Weekly productivity reviews
+            "goal-tracking",  # Goal tracking and management
+            "health-activities",  # Activity and exercise tracking
+            "health-sleep",  # Sleep tracking and analysis
+            "health-wellness",  # General wellness and health tracking
+            "health-analytics",  # Health data analysis and reports
+            "activity-log",  # Daily activity log entries (legacy)
+            "daily-tasks",  # Daily task management (legacy)
+            "logs",  # System logs and debugging
+        ]
+
+    def get_all_supported_channel_names(self) -> list[str]:
+        """Get all supported channel names"""
+        return self.get_required_channel_names() + self.get_optional_channel_names()
 
 
 def get_settings() -> Settings:
