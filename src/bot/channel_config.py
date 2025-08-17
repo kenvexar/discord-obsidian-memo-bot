@@ -4,12 +4,11 @@ Channel configuration and categorization for Discord bot
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import discord
-else:
-    import discord
+    from discord.ext.commands import Bot as DiscordBot
 
 from ..utils.mixins import LoggerMixin
 
@@ -42,8 +41,8 @@ class ChannelConfig(LoggerMixin):
         """Initialize with empty channel config - will be populated when bot is set"""
         super().__init__()
         self.channels: dict[int, ChannelInfo] = {}
-        self.bot: "discord.Bot" | None = None
-        self.guild: "discord.Guild" | None = None
+        self.bot: DiscordBot | None = None
+        self.guild: discord.Guild | None = None
 
         # Standard channel names for auto-discovery
         self.standard_channel_names = {
@@ -66,7 +65,7 @@ class ChannelConfig(LoggerMixin):
             "logs": ChannelCategory.SYSTEM,
         }
 
-    async def set_bot(self, bot: "discord.Bot") -> None:
+    async def set_bot(self, bot: "DiscordBot") -> None:
         """Set the bot instance and discover channels"""
         self.bot = bot
         self.guild = bot.get_guild(bot.guilds[0].id) if bot.guilds else None
