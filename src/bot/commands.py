@@ -576,7 +576,7 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 exc_info=True,
             )
 
-    @commands.command(name="config")
+    @commands.command(name="basic_config")
     @commands.has_permissions(administrator=True)
     async def config_command(
         self,
@@ -626,11 +626,11 @@ class BasicCommands(commands.Cog, LoggerMixin):
                 embed.add_field(
                     name="💡 使用方法",
                     value=(
-                        "`/config show` - すべての設定を表示\n"
-                        "`/config set category.key value` - 設定を変更\n"
-                        "`/config get category.key` - 特定の設定を取得\n"
-                        "`/config history` - 変更履歴を表示\n"
-                        "`/config validate_api api_name api_key` - APIキー検証"
+                        "`/basic_config show` - すべての設定を表示\n"
+                        "`/basic_config set category.key value` - 設定を変更\n"
+                        "`/basic_config get category.key` - 特定の設定を取得\n"
+                        "`/basic_config history` - 変更履歴を表示\n"
+                        "`/basic_config validate_api api_name api_key` - APIキー検証"
                     ),
                     inline=False,
                 )

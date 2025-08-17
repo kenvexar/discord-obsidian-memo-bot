@@ -9,7 +9,9 @@ from typing import Any
 from ..utils.mixins import LoggerMixin
 from .file_manager import ObsidianFileManager
 from .models import ObsidianNote, VaultFolder
-from .templates import DailyNoteTemplate
+
+# 旧テンプレートシステムは削除済み
+# from .templates import DailyNoteTemplate
 
 
 class DailyNoteIntegration(LoggerMixin):
@@ -17,14 +19,17 @@ class DailyNoteIntegration(LoggerMixin):
 
     def __init__(self, file_manager: ObsidianFileManager):
         """
-        Initialize daily note integration
+        Initialize DailyIntegration
 
         Args:
-            file_manager: File manager instance
+            file_manager: ObsidianFileManager instance
         """
         self.file_manager = file_manager
-        self.daily_template = DailyNoteTemplate(file_manager.vault_path)
-        self.logger.info("Daily note integration initialized")
+        # TemplateEngineを使用するように変更
+        from .template_system import TemplateEngine
+
+        self.template_engine = TemplateEngine(file_manager.vault_path)
+        self.logger.info("Daily integration initialized")
 
     async def add_activity_log_entry(
         self, message_data: dict[str, Any], date: datetime | None = None
@@ -189,7 +194,11 @@ class DailyNoteIntegration(LoggerMixin):
 
             # 新しいデイリーノートを作成
             daily_stats = await self._collect_daily_stats(date)
-            new_note = self.daily_template.generate_note(date, daily_stats)
+            new_note = await self.template_engine.generate_daily_note(date, daily_stats)
+
+            if not new_note:
+                self.logger.error("Failed to generate daily note from template")
+                return None
 
             # ベースセクションを追加
             new_note.content = self._ensure_base_sections(new_note.content)

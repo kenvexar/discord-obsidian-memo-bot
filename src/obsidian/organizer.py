@@ -14,7 +14,9 @@ from .models import (
     ObsidianNote,
     VaultFolder,
 )
-from .templates import DailyNoteTemplate
+
+# 旧テンプレートシステムは削除済み
+# from .templates import DailyNoteTemplate
 
 
 class VaultOrganizer(LoggerMixin):
@@ -22,19 +24,23 @@ class VaultOrganizer(LoggerMixin):
 
     def __init__(self, file_manager: ObsidianFileManager):
         """
-        Initialize vault organizer
+        Initialize OrganizeManager
 
         Args:
-            file_manager: File manager instance
+            file_manager: ObsidianFileManager instance
         """
         self.file_manager = file_manager
-        self.daily_template = DailyNoteTemplate(file_manager.vault_path)
+        # TemplateEngineを使用するように変更
+        from .daily_integration import DailyNoteIntegration
+        from .template_system import TemplateEngine
 
-        self.logger.info("Vault organizer initialized")
+        self.template_engine = TemplateEngine(file_manager.vault_path)
+        self.daily_integration = DailyNoteIntegration(file_manager)
+        self.logger.info("Organize manager initialized")
 
     async def organize_notes_by_category(self, dry_run: bool = False) -> dict[str, Any]:
         """
-        カテゴリに基づいてノートを整理
+        カテゴリに基づいてノートを整理（改善版：階層構造対応）
 
         Args:
             dry_run: 実際の移動を行わずに計画のみ表示
@@ -43,88 +49,140 @@ class VaultOrganizer(LoggerMixin):
             整理結果の統計
         """
         try:
-            self.logger.info("Starting note organization by category", dry_run=dry_run)
+            self.logger.info(
+                "Starting enhanced note organization by category", dry_run=dry_run
+            )
 
             results: dict[str, Any] = {
                 "processed": 0,
                 "moved": 0,
                 "errors": 0,
                 "movements": [],
+                "hierarchical_moves": 0,
             }
 
-            # 受信箱のノートを取得
-            inbox_notes = await self.file_manager.search_notes(
-                folder=VaultFolder.INBOX, limit=1000
-            )
+            # 受信箱及び未処理フォルダのノートを取得
+            folders_to_process = [
+                VaultFolder.INBOX,
+                VaultFolder.INBOX_UNPROCESSED,
+                VaultFolder.INBOX_PENDING,
+                VaultFolder.INBOX_STAGED,
+            ]
 
-            for note in inbox_notes:
-                results["processed"] += 1
-
+            for folder in folders_to_process:
                 try:
-                    # AI分類結果に基づいて移動先を決定
-                    target_folder = None
+                    folder_notes = await self.file_manager.search_notes(
+                        folder=folder, limit=1000
+                    )
+                except Exception:
+                    # フォルダが存在しない場合はスキップ
+                    continue
 
-                    if note.frontmatter.ai_category:
-                        # AI分類結果からフォルダを決定
-                        from ..ai.models import ProcessingCategory
+                for note in folder_notes:
+                    results["processed"] += 1
 
-                        try:
-                            category = ProcessingCategory(note.frontmatter.ai_category)
-                            target_folder = FolderMapping.get_folder_for_category(
-                                category.value
+                    try:
+                        # AI分類結果に基づいて移動先を決定（改善版）
+                        target_folder = None
+                        subcategory = None
+
+                        if note.frontmatter.ai_category:
+                            # AI分類結果からフォルダを決定
+                            from ..ai.models import ProcessingCategory
+
+                            try:
+                                category = ProcessingCategory(
+                                    note.frontmatter.ai_category
+                                )
+
+                                # サブカテゴリがある場合は優先
+                                if (
+                                    hasattr(note.frontmatter, "ai_subcategory")
+                                    and note.frontmatter.ai_subcategory
+                                ):
+                                    subcategory = note.frontmatter.ai_subcategory
+
+                                # 階層構造対応の分類
+                                target_folder = FolderMapping.get_folder_for_category(
+                                    category.value, subcategory
+                                )
+
+                                if subcategory:
+                                    results["hierarchical_moves"] += 1
+
+                            except ValueError:
+                                self.logger.warning(
+                                    "Unknown AI category",
+                                    category=note.frontmatter.ai_category,
+                                    note_path=str(note.file_path),
+                                )
+
+                        # タグベースの分類も考慮
+                        if (
+                            not target_folder
+                            and hasattr(note.frontmatter, "ai_tags")
+                            and note.frontmatter.ai_tags
+                        ):
+                            tags = note.frontmatter.ai_tags
+                            if isinstance(tags, list) and tags:
+                                # 最初のタグを使用してフォルダを決定
+                                first_tag = tags[0].lstrip("#")
+                                target_folder = FolderMapping.get_folder_for_category(
+                                    first_tag
+                                )
+
+                        # 移動先が決定された場合
+                        if target_folder and target_folder != VaultFolder.INBOX:
+                            new_path = (
+                                self.file_manager.vault_path
+                                / target_folder.value
+                                / note.filename
                             )
-                        except ValueError:
-                            self.logger.warning(
-                                "Unknown AI category",
-                                category=note.frontmatter.ai_category,
-                                note_path=str(note.file_path),
-                            )
 
-                    # 移動先が決定された場合
-                    if target_folder and target_folder != VaultFolder.INBOX:
-                        new_path = (
-                            self.file_manager.vault_path
-                            / target_folder.value
-                            / note.filename
+                            movement_info = {
+                                "note_title": note.title,
+                                "from_path": str(
+                                    note.file_path.relative_to(
+                                        self.file_manager.vault_path
+                                    )
+                                ),
+                                "to_path": str(
+                                    new_path.relative_to(self.file_manager.vault_path)
+                                ),
+                                "category": note.frontmatter.ai_category,
+                                "subcategory": subcategory,
+                                "confidence": note.frontmatter.ai_confidence,
+                                "tags": getattr(note.frontmatter, "ai_tags", []),
+                            }
+
+                            results["movements"].append(movement_info)
+
+                            if not dry_run:
+                                # 実際の移動実行
+                                success = await self._move_note_enhanced(
+                                    note, new_path, target_folder
+                                )
+                                if success:
+                                    results["moved"] += 1
+                                else:
+                                    results["errors"] += 1
+                            else:
+                                results["moved"] += 1
+
+                    except Exception as e:
+                        results["errors"] += 1
+                        self.logger.error(
+                            "Error processing note for organization",
+                            note_path=str(note.file_path),
+                            error=str(e),
+                            exc_info=True,
                         )
 
-                        movement_info = {
-                            "note_title": note.title,
-                            "from_path": str(
-                                note.file_path.relative_to(self.file_manager.vault_path)
-                            ),
-                            "to_path": str(
-                                new_path.relative_to(self.file_manager.vault_path)
-                            ),
-                            "category": note.frontmatter.ai_category,
-                            "confidence": note.frontmatter.ai_confidence,
-                        }
-
-                        results["movements"].append(movement_info)
-
-                        if not dry_run:
-                            # 実際の移動実行
-                            success = await self._move_note(note, new_path)
-                            if success:
-                                results["moved"] += 1
-                            else:
-                                results["errors"] += 1
-                        else:
-                            results["moved"] += 1
-
-                except Exception as e:
-                    results["errors"] += 1
-                    self.logger.error(
-                        "Error processing note for organization",
-                        note_path=str(note.file_path),
-                        error=str(e),
-                        exc_info=True,
-                    )
-
             self.logger.info(
-                "Note organization completed",
+                "Enhanced note organization completed",
                 processed=results["processed"],
                 moved=results["moved"],
+                hierarchical_moves=results["hierarchical_moves"],
                 errors=results["errors"],
                 dry_run=dry_run,
             )
@@ -135,7 +193,13 @@ class VaultOrganizer(LoggerMixin):
             self.logger.error(
                 "Failed to organize notes by category", error=str(e), exc_info=True
             )
-            return {"processed": 0, "moved": 0, "errors": 1, "movements": []}
+            return {
+                "processed": 0,
+                "moved": 0,
+                "errors": 1,
+                "movements": [],
+                "hierarchical_moves": 0,
+            }
 
     async def create_daily_note(
         self, date: datetime | None = None
@@ -157,9 +221,15 @@ class VaultOrganizer(LoggerMixin):
             daily_stats = await self._collect_daily_stats(date)
 
             # 日次ノートを生成
-            daily_note = self.daily_template.generate_note(
+            daily_note = await self.template_engine.generate_daily_note(
                 date=date, daily_stats=daily_stats
             )
+
+            if daily_note is None:
+                self.logger.error(
+                    "Failed to generate daily note", date=date.strftime("%Y-%m-%d")
+                )
+                return None
 
             # 既存の日次ノートをチェック
             existing_note = None
@@ -167,7 +237,7 @@ class VaultOrganizer(LoggerMixin):
                 existing_note = await self.file_manager.load_note(daily_note.file_path)
 
             # ノートの保存/更新
-            if existing_note:
+            if existing_note is not None:
                 # 既存ノートの更新
                 existing_note.content = daily_note.content
                 existing_note.frontmatter.modified = datetime.now().isoformat()
@@ -242,11 +312,12 @@ class VaultOrganizer(LoggerMixin):
             # 全ノートを検索（アーカイブフォルダ以外）
             for folder in [
                 VaultFolder.INBOX,
-                VaultFolder.WORK,
-                VaultFolder.LEARNING,
                 VaultFolder.PROJECTS,
-                VaultFolder.LIFE,
+                VaultFolder.DAILY_NOTES,
                 VaultFolder.IDEAS,
+                VaultFolder.FINANCE,
+                VaultFolder.TASKS,
+                VaultFolder.HEALTH,
             ]:
                 notes = await self.file_manager.search_notes(
                     folder=folder, date_to=cutoff_date, limit=1000
@@ -449,6 +520,108 @@ class VaultOrganizer(LoggerMixin):
                 "daily_notes_created": 0,
             }
 
+    async def create_folder_structure(self, dry_run: bool = False) -> dict[str, Any]:
+        """
+        新しいフォルダ構造を作成
+
+        Args:
+            dry_run: 実際の作成を行わずに計画のみ表示
+
+        Returns:
+            作成結果の統計
+        """
+        try:
+            self.logger.info("Creating enhanced folder structure", dry_run=dry_run)
+
+            results: dict[str, Any] = {
+                "created_folders": [],
+                "existing_folders": [],
+                "errors": 0,
+            }
+
+            # 作成するフォルダリスト
+            folders_to_create = [
+                # Enhanced Inbox structure
+                VaultFolder.INBOX_UNPROCESSED,
+                VaultFolder.INBOX_PENDING,
+                VaultFolder.INBOX_STAGED,
+                # Enhanced Projects structure
+                VaultFolder.PROJECTS_ACTIVE,
+                VaultFolder.PROJECTS_PLANNING,
+                VaultFolder.PROJECTS_ON_HOLD,
+                VaultFolder.PROJECTS_COMPLETED,
+                # Enhanced Finance structure
+                VaultFolder.FINANCE_EXPENSES,
+                VaultFolder.FINANCE_INCOME,
+                VaultFolder.FINANCE_SUBSCRIPTIONS,
+                VaultFolder.FINANCE_BUDGETS,
+                VaultFolder.FINANCE_REPORTS,
+                # Enhanced Tasks structure
+                VaultFolder.TASKS_BACKLOG,
+                VaultFolder.TASKS_ACTIVE,
+                VaultFolder.TASKS_WAITING,
+                VaultFolder.TASKS_COMPLETED,
+                VaultFolder.TASKS_TEMPLATES,
+                # Enhanced Health structure
+                VaultFolder.HEALTH_ACTIVITIES,
+                VaultFolder.HEALTH_SLEEP,
+                VaultFolder.HEALTH_WELLNESS,
+                VaultFolder.HEALTH_MEDICAL,
+                VaultFolder.HEALTH_ANALYTICS,
+                # New Learning structure
+                VaultFolder.LEARNING,
+                VaultFolder.LEARNING_COURSES,
+                VaultFolder.LEARNING_BOOKS,
+                VaultFolder.LEARNING_SKILLS,
+                VaultFolder.LEARNING_NOTES,
+            ]
+
+            for folder in folders_to_create:
+                try:
+                    folder_path = self.file_manager.vault_path / folder.value
+
+                    if folder_path.exists():
+                        results["existing_folders"].append(folder.value)
+                        self.logger.debug("Folder already exists", path=folder.value)
+                    else:
+                        if not dry_run:
+                            folder_path.mkdir(parents=True, exist_ok=True)
+                            # .gitkeep ファイルを作成して空フォルダを保持
+                            gitkeep_path = folder_path / ".gitkeep"
+                            gitkeep_path.touch()
+
+                        results["created_folders"].append(folder.value)
+                        self.logger.info("Created folder", path=folder.value)
+
+                except Exception as e:
+                    results["errors"] += 1
+                    self.logger.error(
+                        "Failed to create folder",
+                        folder=folder.value,
+                        error=str(e),
+                        exc_info=True,
+                    )
+
+            self.logger.info(
+                "Folder structure creation completed",
+                created=len(results["created_folders"]),
+                existing=len(results["existing_folders"]),
+                errors=results["errors"],
+                dry_run=dry_run,
+            )
+
+            return results
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to create folder structure", error=str(e), exc_info=True
+            )
+            return {
+                "created_folders": [],
+                "existing_folders": [],
+                "errors": 1,
+            }
+
     async def _move_note(self, note: ObsidianNote, new_path: Path) -> bool:
         """ノートを移動"""
         try:
@@ -478,6 +651,55 @@ class VaultOrganizer(LoggerMixin):
         except Exception as e:
             self.logger.error(
                 "Failed to move note",
+                note_path=str(note.file_path),
+                new_path=str(new_path),
+                error=str(e),
+                exc_info=True,
+            )
+            return False
+
+    async def _move_note_enhanced(
+        self, note: ObsidianNote, new_path: Path, target_folder: VaultFolder
+    ) -> bool:
+        """ノートを移動（階層構造対応版）"""
+        try:
+            # 移動先ディレクトリの作成（階層構造も含む）
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # ファイル移動
+            note.file_path.rename(new_path)
+
+            # ノートオブジェクトのパス更新
+            note.file_path = new_path
+            note.frontmatter.obsidian_folder = str(
+                new_path.parent.relative_to(self.file_manager.vault_path)
+            )
+            note.frontmatter.modified = datetime.now().isoformat()
+
+            # 階層構造メタデータの追加
+            note.frontmatter.vault_hierarchy = target_folder.value
+            if (
+                hasattr(note.frontmatter, "ai_subcategory")
+                and note.frontmatter.ai_subcategory
+            ):
+                note.frontmatter.organization_level = "subcategory"
+            else:
+                note.frontmatter.organization_level = "category"
+
+            # フロントマターの更新
+            await self.file_manager.update_note(note)
+
+            self.logger.debug(
+                "Note moved successfully with enhanced structure",
+                old_path=str(note.file_path),
+                new_path=str(new_path),
+                hierarchy=target_folder.value,
+            )
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to move note with enhanced structure",
                 note_path=str(note.file_path),
                 new_path=str(new_path),
                 error=str(e),
@@ -571,10 +793,15 @@ class VaultOrganizer(LoggerMixin):
         """保護されたフォルダかチェック"""
         protected_folders = {
             VaultFolder.INBOX.value,
+            VaultFolder.PROJECTS.value,
             VaultFolder.DAILY_NOTES.value,
-            VaultFolder.AREAS.value,
-            VaultFolder.RESOURCES.value,
+            VaultFolder.IDEAS.value,
             VaultFolder.ARCHIVE.value,
+            VaultFolder.RESOURCES.value,
+            VaultFolder.FINANCE.value,
+            VaultFolder.TASKS.value,
+            VaultFolder.HEALTH.value,
+            VaultFolder.META.value,
             VaultFolder.TEMPLATES.value,
             VaultFolder.ATTACHMENTS.value,
         }
@@ -584,9 +811,6 @@ class VaultOrganizer(LoggerMixin):
         # 保護されたフォルダまたはその直下のフォルダ
         for protected in protected_folders:
             if relative_path == protected or relative_path.startswith(f"{protected}/"):
-                # Areas配下のサブフォルダは除外しない
-                if protected == VaultFolder.AREAS.value and "/" in relative_path:
-                    continue
                 return True
 
         return False

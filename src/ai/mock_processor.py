@@ -4,10 +4,12 @@ Mock AI processor for development and testing
 
 import asyncio
 import hashlib
+from datetime import datetime
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
 from .models import (
+    AIProcessingResult,
     CacheInfo,
     CategoryResult,
     ProcessingCategory,
@@ -55,7 +57,7 @@ class MockAIProcessor(LoggerMixin):
 
     async def process_text(
         self, text: str, message_id: int | None = None, force_reprocess: bool = False
-    ) -> tuple[SummaryResult, TagResult, CategoryResult]:
+    ) -> AIProcessingResult:
         """Process text using mock responses"""
 
         # Simulate processing delay
@@ -90,8 +92,21 @@ class MockAIProcessor(LoggerMixin):
             category=self.mock_categories[category_idx],
             confidence_score=0.90,
             reasoning="Mock categorization based on content analysis",
-            processing_time_ms=70,  # 追加
-            model_used="mock-gemini-pro",  # 追加
+            processing_time_ms=70,
+            model_used="mock-gemini-pro",
+        )
+
+        # Create AIProcessingResult
+        result = AIProcessingResult(
+            message_id=message_id or 0,
+            processed_at=datetime.now(),
+            summary=summary,
+            tags=tags,
+            category=category,
+            total_processing_time_ms=220,  # 100 + 50 + 70
+            cache_hit=False,
+            errors=[],
+            warnings=[],
         )
 
         # Update stats
@@ -107,7 +122,7 @@ class MockAIProcessor(LoggerMixin):
             category=category.category,
         )
 
-        return summary, tags, category
+        return result
 
     def generate_content_hash(self, text: str) -> str:
         """Generate content hash for caching"""

@@ -115,17 +115,15 @@ uv run python -m src.main
 
 ```
 Obsidian Vault/
-├── 00_Capture/              # 新しいメモの受信箱
-├── 01_Process/              # 処理中のメモ
-├── 02_Knowledge/            # 整理済みの知識
-├── 03_Projects/             # プロジェクト関連
-├── 04_Life/                 # 日常・ライフ関連
-│   ├── Daily/               # デイリーノート
-│   ├── Finance/             # 家計関連
-│   ├── Health/              # 健康関連
-│   ├── Schedule/            # スケジュール
-│   └── Tasks/               # タスク管理
+├── 00_Inbox/                # 新しいメモの受信箱
+├── 01_Projects/             # プロジェクト関連
+├── 02_DailyNotes/           # デイリーノート
+├── 03_Ideas/                # アイデア・発想
+├── 04_Archive/              # アーカイブ済み
 ├── 05_Resources/            # リソース・参考資料
+├── 06_Finance/              # 家計・金融関連
+├── 07_Tasks/                # タスク管理
+├── 08_Health/               # 健康関連
 └── 99_Meta/                 # メタデータ・設定
     └── Templates/           # カスタムテンプレート
 ```

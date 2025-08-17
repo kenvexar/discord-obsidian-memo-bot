@@ -57,6 +57,17 @@ class MockMessage:
         """Mock flags property"""
 
         class MockFlags:
+            # Discord MessageFlags の全ての属性を模擬
+            crossposted: bool = False
+            suppress_embeds: bool = False
+            source_message_deleted: bool = False
+            urgent: bool = False
+            has_thread: bool = False
+            ephemeral: bool = False
+            loading: bool = False
+            failed_to_mention_some_roles_in_thread: bool = False
+            suppress_notifications: bool = False
+
             def __iter__(self) -> Iterator[Any]:
                 return iter([])
 
@@ -66,6 +77,76 @@ class MockMessage:
     def pinned(self) -> bool:
         """Mock pinned property"""
         return False
+
+    @property
+    def tts(self) -> bool:
+        """Mock text-to-speech property"""
+        return False
+
+    @property
+    def reference(self) -> Any:
+        """Mock message reference property"""
+        return None
+
+    @property
+    def mentions(self) -> list[Any]:
+        """Mock mentions property"""
+        return []
+
+    @property
+    def embeds(self) -> list[Any]:
+        """Mock embeds property"""
+        return []
+
+    @property
+    def reactions(self) -> list[Any]:
+        """Mock reactions property"""
+        return []
+
+    @property
+    def role_mentions(self) -> list[Any]:
+        """Mock role mentions property"""
+        return []
+
+    @property
+    def channel_mentions(self) -> list[Any]:
+        """Mock channel mentions property"""
+        return []
+
+    @property
+    def mention_everyone(self) -> bool:
+        """Mock mention everyone property"""
+        return False
+
+    @property
+    def stickers(self) -> list[Any]:
+        """Mock stickers property"""
+        return []
+
+    @property
+    def edited_at(self) -> Any:
+        """Mock edited_at property"""
+        return None
+
+    @property
+    def thread(self) -> Any:
+        """Mock thread property"""
+        return None
+
+    @property
+    def components(self) -> list[Any]:
+        """Mock components property"""
+        return []
+
+    @property
+    def activity(self) -> Any:
+        """Mock activity property"""
+        return None
+
+    @property
+    def application(self) -> Any:
+        """Mock application property"""
+        return None
 
 
 @dataclass
@@ -80,6 +161,21 @@ class MockUser:
     def bot(self) -> bool:
         return self.name.endswith("_bot")
 
+    @property
+    def display_name(self) -> str:
+        """Mock display name property"""
+        return self.name
+
+    @property
+    def avatar(self) -> Any:
+        """Mock avatar property"""
+        return None
+
+    @property
+    def mention(self) -> str:
+        """Mock mention property"""
+        return f"<@{self.id}>"
+
 
 @dataclass
 class MockChannel:
@@ -88,6 +184,16 @@ class MockChannel:
     id: int
     name: str
     guild_id: int
+
+    @property
+    def type(self) -> str:
+        """Mock channel type property"""
+        return "text"
+
+    @property
+    def category(self) -> Any:
+        """Mock category property"""
+        return None
 
 
 @dataclass

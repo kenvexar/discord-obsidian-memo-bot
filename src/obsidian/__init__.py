@@ -14,15 +14,19 @@ from .models import (
 )
 from .organizer import VaultOrganizer
 from .template_system import TemplateEngine
-from .templates import DailyNoteTemplate, MessageNoteTemplate, NoteTemplate
+
+# 古いテンプレートシステムは非推奨、TemplateEngineを使用
+# from .templates import DailyNoteTemplate, MessageNoteTemplate, NoteTemplate
 
 __all__ = [
     # File management
     "ObsidianFileManager",
-    # Templates
-    "NoteTemplate",
-    "MessageNoteTemplate",
-    "DailyNoteTemplate",
+    # Templates (new system)
+    "TemplateEngine",
+    # Templates (legacy - deprecated)
+    # "NoteTemplate",
+    # "MessageNoteTemplate",
+    # "DailyNoteTemplate",
     # Models
     "ObsidianNote",
     "NoteFrontmatter",
@@ -33,5 +37,4 @@ __all__ = [
     "VaultOrganizer",
     "MetadataManager",
     "DailyNoteIntegration",
-    "TemplateEngine",
 ]

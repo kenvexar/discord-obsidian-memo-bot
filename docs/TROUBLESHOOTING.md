@@ -43,7 +43,7 @@ touch "$OBSIDIAN_VAULT_PATH/test_file.md"
 rm "$OBSIDIAN_VAULT_PATH/test_file.md"
 
 # 3. 必要なフォルダを作成
-mkdir -p "$OBSIDIAN_VAULT_PATH"/{00_Capture,01_Process,02_Knowledge,03_Projects,04_Life,05_Resources,99_Meta}
+mkdir -p "$OBSIDIAN_VAULT_PATH"/{00_Inbox,01_Projects,02_DailyNotes,03_Ideas,04_Archive,05_Resources,06_Finance,07_Tasks,08_Health,99_Meta}
 ```
 
 ## 🤖 AI処理関連の問題

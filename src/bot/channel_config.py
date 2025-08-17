@@ -16,6 +16,7 @@ class ChannelCategory(Enum):
     CAPTURE = "capture"
     FINANCE = "finance"
     PRODUCTIVITY = "productivity"
+    HEALTH = "health"  # 新規追加：健康管理カテゴリ
     SYSTEM = "system"
     UNKNOWN = "unknown"
 
@@ -51,57 +52,161 @@ class ChannelConfig(LoggerMixin):
         settings = get_settings()
         channels = {}
 
-        # Capture channels
+        # Capture channels (improved categorization)
         channels[settings.channel_inbox] = ChannelInfo(
             id=settings.channel_inbox,
-            name="inbox",
+            name="memo-inbox",
             category=ChannelCategory.CAPTURE,
             description="General memo and idea capture",
         )
 
         channels[settings.channel_voice] = ChannelInfo(
             id=settings.channel_voice,
-            name="voice",
+            name="voice-memo",
             category=ChannelCategory.CAPTURE,
             description="Voice memo processing",
         )
 
         channels[settings.channel_files] = ChannelInfo(
             id=settings.channel_files,
-            name="files",
+            name="file-uploads",
             category=ChannelCategory.CAPTURE,
             description="File attachment processing",
         )
 
-        # Finance channels
+        # Add quick notes channel if configured
+        if hasattr(settings, "channel_quick_notes") and settings.channel_quick_notes:
+            channels[settings.channel_quick_notes] = ChannelInfo(
+                id=settings.channel_quick_notes,
+                name="quick-notes",
+                category=ChannelCategory.CAPTURE,
+                description="Quick notes without AI processing",
+            )
+
+        # Finance channels (enhanced structure)
         channels[settings.channel_money] = ChannelInfo(
             id=settings.channel_money,
-            name="money",
+            name="expenses",
             category=ChannelCategory.FINANCE,
-            description="Income and expense tracking",
+            description="Expense tracking",
         )
+
+        # Add enhanced finance channels if configured
+        if hasattr(settings, "channel_income") and settings.channel_income:
+            channels[settings.channel_income] = ChannelInfo(
+                id=settings.channel_income,
+                name="income",
+                category=ChannelCategory.FINANCE,
+                description="Income tracking",
+            )
+
+        if (
+            hasattr(settings, "channel_subscriptions")
+            and settings.channel_subscriptions
+        ):
+            channels[settings.channel_subscriptions] = ChannelInfo(
+                id=settings.channel_subscriptions,
+                name="subscriptions",
+                category=ChannelCategory.FINANCE,
+                description="Subscription management",
+            )
 
         channels[settings.channel_finance_reports] = ChannelInfo(
             id=settings.channel_finance_reports,
-            name="finance-reports",
+            name="finance-analytics",
             category=ChannelCategory.FINANCE,
             description="Financial reports and statistics",
         )
 
-        # Productivity channels
+        # Productivity channels (enhanced structure)
         channels[settings.channel_tasks] = ChannelInfo(
             id=settings.channel_tasks,
             name="tasks",
             category=ChannelCategory.PRODUCTIVITY,
-            description="Task and schedule management",
+            description="Task management",
         )
+
+        # Add projects channel if configured
+        if hasattr(settings, "channel_projects") and settings.channel_projects:
+            channels[settings.channel_projects] = ChannelInfo(
+                id=settings.channel_projects,
+                name="projects",
+                category=ChannelCategory.PRODUCTIVITY,
+                description="Project management",
+            )
 
         channels[settings.channel_productivity_reviews] = ChannelInfo(
             id=settings.channel_productivity_reviews,
-            name="reviews",
+            name="daily-review",
             category=ChannelCategory.PRODUCTIVITY,
-            description="Productivity reviews and analysis",
+            description="Daily productivity reviews",
         )
+
+        # Add weekly review channel if configured
+        if (
+            hasattr(settings, "channel_weekly_reviews")
+            and settings.channel_weekly_reviews
+        ):
+            channels[settings.channel_weekly_reviews] = ChannelInfo(
+                id=settings.channel_weekly_reviews,
+                name="weekly-review",
+                category=ChannelCategory.PRODUCTIVITY,
+                description="Weekly productivity reviews",
+            )
+
+        # Add goal tracking channel if configured
+        if (
+            hasattr(settings, "channel_goal_tracking")
+            and settings.channel_goal_tracking
+        ):
+            channels[settings.channel_goal_tracking] = ChannelInfo(
+                id=settings.channel_goal_tracking,
+                name="goal-tracking",
+                category=ChannelCategory.PRODUCTIVITY,
+                description="Goal tracking and management",
+            )
+
+        # Health channels (new category)
+        if (
+            hasattr(settings, "channel_health_activities")
+            and settings.channel_health_activities
+        ):
+            channels[settings.channel_health_activities] = ChannelInfo(
+                id=settings.channel_health_activities,
+                name="activities",
+                category=ChannelCategory.HEALTH,
+                description="Activity and exercise tracking",
+            )
+
+        if hasattr(settings, "channel_health_sleep") and settings.channel_health_sleep:
+            channels[settings.channel_health_sleep] = ChannelInfo(
+                id=settings.channel_health_sleep,
+                name="sleep",
+                category=ChannelCategory.HEALTH,
+                description="Sleep tracking and analysis",
+            )
+
+        if (
+            hasattr(settings, "channel_health_wellness")
+            and settings.channel_health_wellness
+        ):
+            channels[settings.channel_health_wellness] = ChannelInfo(
+                id=settings.channel_health_wellness,
+                name="wellness",
+                category=ChannelCategory.HEALTH,
+                description="General wellness and health tracking",
+            )
+
+        if (
+            hasattr(settings, "channel_health_analytics")
+            and settings.channel_health_analytics
+        ):
+            channels[settings.channel_health_analytics] = ChannelInfo(
+                id=settings.channel_health_analytics,
+                name="health-analytics",
+                category=ChannelCategory.HEALTH,
+                description="Health data analysis and reports",
+            )
 
         # System channels
         channels[settings.channel_notifications] = ChannelInfo(
@@ -118,7 +223,16 @@ class ChannelConfig(LoggerMixin):
             description="Bot command execution",
         )
 
-        # Activity log and daily tasks channels (optional)
+        # Add system logs channel if configured
+        if hasattr(settings, "channel_logs") and settings.channel_logs:
+            channels[settings.channel_logs] = ChannelInfo(
+                id=settings.channel_logs,
+                name="logs",
+                category=ChannelCategory.SYSTEM,
+                description="System logs and debugging",
+            )
+
+        # Legacy channels (maintain backward compatibility)
         if settings.channel_activity_log:
             channels[settings.channel_activity_log] = ChannelInfo(
                 id=settings.channel_activity_log,
@@ -176,6 +290,10 @@ class ChannelConfig(LoggerMixin):
     def get_system_channels(self) -> set[int]:
         """Get all system channel IDs"""
         return self.get_channels_by_category(ChannelCategory.SYSTEM)
+
+    def get_health_channels(self) -> set[int]:
+        """Get all health channel IDs"""
+        return self.get_channels_by_category(ChannelCategory.HEALTH)
 
     def get_finance_money_channel(self) -> discord.TextChannel | None:
         """Get finance money channel if exists."""

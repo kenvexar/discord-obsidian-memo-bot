@@ -10,6 +10,7 @@ from discord.ext import commands, tasks
 
 from ..config import get_settings
 from ..utils.mixins import LoggerMixin
+from .notification_system import NotificationCategory, NotificationLevel
 
 
 class ReviewType(str, Enum):
@@ -517,8 +518,8 @@ class AutoReviewSystem(LoggerMixin):
         """レビュー通知送信"""
         if self.notification_system:
             await self.notification_system.send_notification(
-                level=self.notification_system.NotificationLevel.INFO,
-                category=self.notification_system.NotificationCategory.SYSTEM_EVENTS,
+                level=NotificationLevel.INFO,
+                category=NotificationCategory.SYSTEM_EVENTS,
                 title=title,
                 message=message,
                 details=details,
@@ -555,8 +556,8 @@ class AutoReviewSystem(LoggerMixin):
             )
 
         await self.notification_system.send_notification(
-            level=self.notification_system.NotificationLevel.WARNING,
-            category=self.notification_system.NotificationCategory.REMINDERS,
+            level=NotificationLevel.WARNING,
+            category=NotificationCategory.REMINDERS,
             title="📝 週次レビュー: 未整理メモの確認",
             message=f"{len(unorganized_notes)}件の未整理メモが見つかりました。整理をお勧めします。",
             details={
@@ -574,8 +575,8 @@ class AutoReviewSystem(LoggerMixin):
             return
 
         await self.notification_system.send_notification(
-            level=self.notification_system.NotificationLevel.SUCCESS,
-            category=self.notification_system.NotificationCategory.REMINDERS,
+            level=NotificationLevel.SUCCESS,
+            category=NotificationCategory.REMINDERS,
             title=f"📊 {month.strftime('%Y年%m月')} 活動サマリー",
             message=summary_data
             or f"{month.strftime('%Y年%m月')}の活動サマリーが生成されました。",
@@ -606,8 +607,8 @@ class AutoReviewSystem(LoggerMixin):
             )
 
         await self.notification_system.send_notification(
-            level=self.notification_system.NotificationLevel.WARNING,
-            category=self.notification_system.NotificationCategory.REMINDERS,
+            level=NotificationLevel.WARNING,
+            category=NotificationCategory.REMINDERS,
             title="⏰ 長期滞在メモのリマインダー",
             message=f"{len(long_term_notes)}件のメモが30日以上Inboxに残っています。",
             details={

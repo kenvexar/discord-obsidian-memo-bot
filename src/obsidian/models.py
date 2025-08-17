@@ -33,28 +33,67 @@ class NoteStatus(Enum):
 class VaultFolder(Enum):
     """Vault内のフォルダ構造"""
 
+    # 基本フォルダ（setup-guide.mdに基づく）
     INBOX = "00_Inbox"
-    DAILY_NOTES = "01_DailyNotes"
-    AREAS = "02_Areas"
-    RESOURCES = "03_Resources"
+    PROJECTS = "01_Projects"
+    DAILY_NOTES = "02_DailyNotes"
+    IDEAS = "03_Ideas"
     ARCHIVE = "04_Archive"
-    TEMPLATES = "05_Templates"
-    ATTACHMENTS = "06_Attachments"
+    RESOURCES = "05_Resources"
+    FINANCE = "06_Finance"
+    TASKS = "07_Tasks"
+    HEALTH = "08_Health"
+    LEARNING = "09_Learning"  # 新規追加：学習管理
 
-    # Areas subfolders
-    WORK = "02_Areas/Work"
-    LEARNING = "02_Areas/Learning"
-    PROJECTS = "02_Areas/Projects"
-    LIFE = "02_Areas/Life"
-    IDEAS = "02_Areas/Ideas"
-    FINANCE = "02_Areas/Finance"
-    PRODUCTIVITY = "02_Areas/Productivity"
+    # アタッチメント用フォルダ
+    ATTACHMENTS = "10_Attachments"
+    IMAGES = "10_Attachments/Images"
+    AUDIO = "10_Attachments/Audio"
+    DOCUMENTS = "10_Attachments/Documents"
+    OTHER_FILES = "10_Attachments/Other"
 
-    # Attachments subfolders
-    IMAGES = "06_Attachments/Images"
-    AUDIO = "06_Attachments/Audio"
-    DOCUMENTS = "06_Attachments/Documents"
-    OTHER_FILES = "06_Attachments/Other"
+    # メタデータフォルダ
+    META = "99_Meta"
+    TEMPLATES = "99_Meta/Templates"
+
+    # サブフォルダ定義（階層構造の改善）
+    # Inbox subfolders
+    INBOX_UNPROCESSED = "00_Inbox/unprocessed"
+    INBOX_PENDING = "00_Inbox/pending"
+    INBOX_STAGED = "00_Inbox/staged"
+
+    # Projects subfolders
+    PROJECTS_ACTIVE = "01_Projects/active"
+    PROJECTS_PLANNING = "01_Projects/planning"
+    PROJECTS_ON_HOLD = "01_Projects/on-hold"
+    PROJECTS_COMPLETED = "01_Projects/completed"
+
+    # Finance subfolders
+    FINANCE_EXPENSES = "06_Finance/expenses"
+    FINANCE_INCOME = "06_Finance/income"
+    FINANCE_SUBSCRIPTIONS = "06_Finance/subscriptions"
+    FINANCE_BUDGETS = "06_Finance/budgets"
+    FINANCE_REPORTS = "06_Finance/reports"
+
+    # Tasks subfolders
+    TASKS_BACKLOG = "07_Tasks/backlog"
+    TASKS_ACTIVE = "07_Tasks/active"
+    TASKS_WAITING = "07_Tasks/waiting"
+    TASKS_COMPLETED = "07_Tasks/completed"
+    TASKS_TEMPLATES = "07_Tasks/templates"
+
+    # Health subfolders
+    HEALTH_ACTIVITIES = "08_Health/activities"
+    HEALTH_SLEEP = "08_Health/sleep"
+    HEALTH_WELLNESS = "08_Health/wellness"
+    HEALTH_MEDICAL = "08_Health/medical"
+    HEALTH_ANALYTICS = "08_Health/analytics"
+
+    # Learning subfolders
+    LEARNING_COURSES = "09_Learning/courses"
+    LEARNING_BOOKS = "09_Learning/books"
+    LEARNING_SKILLS = "09_Learning/skills"
+    LEARNING_NOTES = "09_Learning/notes"
 
 
 class NoteFrontmatter(BaseModel):
@@ -75,6 +114,7 @@ class NoteFrontmatter(BaseModel):
     ai_summary: str | None = None
     ai_tags: list[str] = Field(default_factory=list)
     ai_category: str | None = None
+    ai_subcategory: str | None = None
     ai_confidence: float | None = None
 
     # Obsidian管理情報
@@ -83,6 +123,10 @@ class NoteFrontmatter(BaseModel):
     status: NoteStatus = NoteStatus.ACTIVE
     obsidian_folder: str
     source_type: str = "discord_message"
+
+    # 階層構造メタデータ
+    vault_hierarchy: str | None = None
+    organization_level: str | None = None
 
     # メタデータ
     tags: list[str] = Field(default_factory=list)
@@ -261,14 +305,62 @@ class AttachmentInfo(BaseModel):
 class FolderMapping:
     """フォルダマッピングの管理"""
 
-    # カテゴリベースのマッピング
+    # カテゴリベースのマッピング（改善版）
     CATEGORY_FOLDER_MAPPING = {
-        "仕事": VaultFolder.WORK,
-        "学習": VaultFolder.LEARNING,
+        "仕事": VaultFolder.PROJECTS,
+        "学習": VaultFolder.LEARNING,  # 改善：学習専用フォルダ
         "プロジェクト": VaultFolder.PROJECTS,
-        "生活": VaultFolder.LIFE,
+        "生活": VaultFolder.DAILY_NOTES,
         "アイデア": VaultFolder.IDEAS,
+        "金融": VaultFolder.FINANCE,
+        "タスク": VaultFolder.TASKS,
+        "健康": VaultFolder.HEALTH,
         "その他": VaultFolder.INBOX,
+        # 英語カテゴリも追加
+        "work": VaultFolder.PROJECTS,
+        "learning": VaultFolder.LEARNING,
+        "project": VaultFolder.PROJECTS,
+        "life": VaultFolder.DAILY_NOTES,
+        "idea": VaultFolder.IDEAS,
+        "finance": VaultFolder.FINANCE,
+        "task": VaultFolder.TASKS,
+        "health": VaultFolder.HEALTH,
+        "other": VaultFolder.INBOX,
+    }
+
+    # サブカテゴリベースのマッピング（階層構造対応）
+    SUBCATEGORY_FOLDER_MAPPING = {
+        # Finance subcategories
+        "expenses": VaultFolder.FINANCE_EXPENSES,
+        "income": VaultFolder.FINANCE_INCOME,
+        "subscriptions": VaultFolder.FINANCE_SUBSCRIPTIONS,
+        "budget": VaultFolder.FINANCE_BUDGETS,
+        "financial_report": VaultFolder.FINANCE_REPORTS,
+        # Task subcategories
+        "backlog": VaultFolder.TASKS_BACKLOG,
+        "active_task": VaultFolder.TASKS_ACTIVE,
+        "waiting": VaultFolder.TASKS_WAITING,
+        "completed_task": VaultFolder.TASKS_COMPLETED,
+        # Project subcategories
+        "active_project": VaultFolder.PROJECTS_ACTIVE,
+        "planning": VaultFolder.PROJECTS_PLANNING,
+        "on_hold": VaultFolder.PROJECTS_ON_HOLD,
+        "completed_project": VaultFolder.PROJECTS_COMPLETED,
+        # Health subcategories
+        "activity": VaultFolder.HEALTH_ACTIVITIES,
+        "sleep": VaultFolder.HEALTH_SLEEP,
+        "wellness": VaultFolder.HEALTH_WELLNESS,
+        "medical": VaultFolder.HEALTH_MEDICAL,
+        "health_analytics": VaultFolder.HEALTH_ANALYTICS,
+        # Learning subcategories
+        "course": VaultFolder.LEARNING_COURSES,
+        "book": VaultFolder.LEARNING_BOOKS,
+        "skill": VaultFolder.LEARNING_SKILLS,
+        "study_note": VaultFolder.LEARNING_NOTES,
+        # Inbox subcategories
+        "unprocessed": VaultFolder.INBOX_UNPROCESSED,
+        "pending": VaultFolder.INBOX_PENDING,
+        "staged": VaultFolder.INBOX_STAGED,
     }
 
     # ファイル種別のマッピング
@@ -283,14 +375,68 @@ class FolderMapping:
     }
 
     @classmethod
-    def get_folder_for_category(cls, category: str) -> VaultFolder:
-        """カテゴリに基づいてフォルダを取得"""
+    def get_folder_for_category(
+        cls, category: str, subcategory: str | None = None
+    ) -> VaultFolder:
+        """カテゴリに基づいてフォルダを取得（階層構造対応）"""
+        # サブカテゴリが指定されている場合は優先
+        if subcategory and subcategory in cls.SUBCATEGORY_FOLDER_MAPPING:
+            return cls.SUBCATEGORY_FOLDER_MAPPING[subcategory]
+
+        # メインカテゴリで検索
         return cls.CATEGORY_FOLDER_MAPPING.get(category, VaultFolder.INBOX)
 
     @classmethod
     def get_folder_for_file_type(cls, file_type: str) -> VaultFolder:
         """ファイル種別に基づいてフォルダを取得"""
         return cls.FILE_TYPE_FOLDER_MAPPING.get(file_type, VaultFolder.OTHER_FILES)
+
+    @classmethod
+    def get_all_finance_folders(cls) -> list[VaultFolder]:
+        """すべての金融関連フォルダを取得"""
+        return [
+            VaultFolder.FINANCE,
+            VaultFolder.FINANCE_EXPENSES,
+            VaultFolder.FINANCE_INCOME,
+            VaultFolder.FINANCE_SUBSCRIPTIONS,
+            VaultFolder.FINANCE_BUDGETS,
+            VaultFolder.FINANCE_REPORTS,
+        ]
+
+    @classmethod
+    def get_all_task_folders(cls) -> list[VaultFolder]:
+        """すべてのタスク関連フォルダを取得"""
+        return [
+            VaultFolder.TASKS,
+            VaultFolder.TASKS_BACKLOG,
+            VaultFolder.TASKS_ACTIVE,
+            VaultFolder.TASKS_WAITING,
+            VaultFolder.TASKS_COMPLETED,
+            VaultFolder.TASKS_TEMPLATES,
+        ]
+
+    @classmethod
+    def get_all_health_folders(cls) -> list[VaultFolder]:
+        """すべての健康関連フォルダを取得"""
+        return [
+            VaultFolder.HEALTH,
+            VaultFolder.HEALTH_ACTIVITIES,
+            VaultFolder.HEALTH_SLEEP,
+            VaultFolder.HEALTH_WELLNESS,
+            VaultFolder.HEALTH_MEDICAL,
+            VaultFolder.HEALTH_ANALYTICS,
+        ]
+
+    @classmethod
+    def get_all_learning_folders(cls) -> list[VaultFolder]:
+        """すべての学習関連フォルダを取得"""
+        return [
+            VaultFolder.LEARNING,
+            VaultFolder.LEARNING_COURSES,
+            VaultFolder.LEARNING_BOOKS,
+            VaultFolder.LEARNING_SKILLS,
+            VaultFolder.LEARNING_NOTES,
+        ]
 
 
 class NoteFilename:

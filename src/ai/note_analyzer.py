@@ -291,10 +291,35 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             if not summaries:
                 return content
 
+            # 既存のURL要約セクションをチェックして重複を避ける
+            if "## 📎 URL要約" in content:
+                self.logger.debug("URL要約セクションが既に存在するため、スキップします")
+                return content
+
+            # 有効な要約のみをフィルタリング
+            valid_summaries = []
+            for summary_data in summaries:
+                summary_text = summary_data.get("summary", "").strip()
+                # 失敗メッセージや無効な要約をスキップ
+                if (
+                    summary_text
+                    and not summary_text.startswith(
+                        "Discordの会話の要約が提供されていません"
+                    )
+                    and "URLへのアクセス権限がない" not in summary_text
+                    and "箇条書き3点による要約を作成できません" not in summary_text
+                ):
+                    valid_summaries.append(summary_data)
+
+            # 有効な要約がない場合はセクションを追加しない
+            if not valid_summaries:
+                self.logger.debug("有効なURL要約がないため、セクションを追加しません")
+                return content
+
             # コンテンツの末尾にURL要約セクションを追加
             url_section_parts = ["\n\n## 📎 URL要約\n"]
 
-            for summary_data in summaries:
+            for summary_data in valid_summaries:
                 url_section_parts.append(
                     f"### {summary_data['title']}\n"
                     f"🔗 {summary_data['url']}\n\n"
