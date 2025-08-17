@@ -163,7 +163,6 @@ class TemplateEngine(LoggerMixin):
                 is_true = False
             else:
                 is_true = bool(condition_value)
-
             # ログでデバッグ情報を出力
             self.logger.debug(
                 "Processing conditional",

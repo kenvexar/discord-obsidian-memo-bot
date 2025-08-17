@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     # Obsidian Configuration
     obsidian_vault_path: Path
 
+    # NOTE: Channel IDs are no longer required - channels are discovered by name
+    # The bot automatically finds channels with standard names: inbox, voice, money, etc.
     # Garmin Connect Integration (Optional)
     garmin_email: SecretStr | None = None
     garmin_cache_dir: Path | None = None

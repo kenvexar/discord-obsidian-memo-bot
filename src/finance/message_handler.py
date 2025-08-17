@@ -46,8 +46,8 @@ class FinanceMessageHandler:
         expenses_channel = self.channel_config.get_finance_expenses_channel()
         money_channel = self.channel_config.get_finance_money_channel()
 
-        return (channel_id == money_channel.id if money_channel else False) or (
-            channel_id == expenses_channel.id if expenses_channel else False
+        return (channel_id == money_channel if money_channel else False) or (
+            channel_id == expenses_channel if expenses_channel else False
         )
 
     def _is_income_channel(self, channel_id: int) -> bool:
@@ -55,8 +55,8 @@ class FinanceMessageHandler:
         income_channel = self.channel_config.get_finance_income_channel()
         money_channel = self.channel_config.get_finance_money_channel()
 
-        return (channel_id == income_channel.id if income_channel else False) or (
-            channel_id == money_channel.id if money_channel else False
+        return (channel_id == income_channel if income_channel else False) or (
+            channel_id == money_channel if money_channel else False
         )
 
     async def _handle_expense_message(self, message: discord.Message) -> bool:

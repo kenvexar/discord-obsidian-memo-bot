@@ -1,117 +1,68 @@
 # ローカルテスト手順
 
-このドキュメントでは、Discord-Obsidian Memo Botをローカル環境でテストする方法について説明します。
+Discord-Obsidian Memo Botをローカル環境でテストする方法を説明します。
 
-## 📋 目次
+## 🏗️ モックモードでのテスト（推奨）
 
-1. [開発環境セットアップ](#開発環境セットアップ)
-2. [モックモードでのテスト](#モックモードでのテスト)
-3. [個別機能テスト](#個別機能テスト)
-4. [実APIを使用したテスト](#実apiを使用したテスト)
-5. [Dockerでの動作確認](#dockerでの動作確認)
-6. [トラブルシューティング](#トラブルシューティング)
+**実際のAPIキーを必要とせず、安全にテストできます。**
 
-## 🚀 開発環境セットアップ
-
-### 1. 依存関係のインストール
+### 1. モック環境の設定
 
 ```bash
-# 開発用依存関係をインストール
-uv sync --dev
-
-# 本番用依存関係のみの場合
-uv sync
-```
-
-### 2. 環境変数の設定
-
-開発環境では2つの選択肢があります：
-
-**Option A: モックモード（推奨）**
-```bash
-# 開発用設定をコピー（APIキー不要）
+# モック用設定ファイルをコピー
 cp .env.development .env
 ```
 
-**Option B: 実API使用**
-```bash
-# サンプル設定をコピーして編集
-cp .env.example .env
-# 実際のAPIキーとトークンを設定
+`.env.development`は既にモック設定になっています：
+
+```env
+# モック環境設定（API不要）
+ENVIRONMENT=development
+ENABLE_MOCK_MODE=true
+MOCK_DISCORD_ENABLED=true
+MOCK_GEMINI_ENABLED=true
+MOCK_GARMIN_ENABLED=true
+MOCK_SPEECH_ENABLED=true
+
+# ローカルボルト（自動作成）
+OBSIDIAN_VAULT_PATH=./test_vault
 ```
 
-## 🧪 モックモードでのテスト
-
-### モックモードとは
-- 実際のDiscord API、Gemini API、Garmin APIを使用せずにテスト
-- `.env.development`で`ENABLE_MOCK_MODE=true`に設定済み
-- APIキーがなくてもアプリケーションの動作を確認可能
-
-### 起動方法
+### 2. テスト実行
 
 ```bash
-# モックモードで起動
-ENVIRONMENT=development uv run python -m src.main
+# 依存関係インストール
+uv sync
 
-# または直接.env.developmentを使用
+# モックボット起動
 uv run python -m src.main
 ```
 
-### モックモードの特徴
+### 3. モックテストの動作確認
 
-- **Obsidian Vault**: `./test_vault`に自動作成
-- **Discord**: モックレスポンスを返す
-- **AI処理**: 固定レスポンスまたはランダム生成
-- **音声処理**: サンプル音声ファイルを使用
-- **Garmin**: 固定の健康データを返す
+モックモードでは以下の機能をシミュレートします：
 
-## 🔧 個別機能テスト
+- **Discord**: モックメッセージ処理
+- **Gemini AI**: 固定レスポンス返却
+- **Obsidian**: `test_vault/`フォルダに実際にファイル作成
+- **音声認識**: 音声ファイルの模擬変換
 
-### 基本テスト実行
-
-```bash
-# 全テスト実行
-uv run pytest
-
-# 詳細出力
-uv run pytest -v
-
-# カバレッジ付き
-uv run pytest --cov=src
-```
-
-### 特定モジュールのテスト
+### 4. 個別機能テスト
 
 ```bash
-# Obsidian統合テスト
-uv run pytest tests/unit/test_obsidian.py -v
-
-# AI処理テスト
-uv run pytest tests/unit/test_ai_processing.py -v
-
-# メッセージ処理テスト
-uv run pytest tests/unit/test_message_processor.py -v
-
-# 統合テスト
-uv run pytest tests/integration/ -v
-```
-
-### スタンドアロン機能テスト
-
-```bash
-# AI機能のテスト
+# AI処理のテスト
 uv run python test_advanced_ai.py
 
-# Garmin統合テスト
+# 音声処理のテスト
+uv run python test_speech_processor.py
+
+# Garmin統合のテスト
 uv run python test_garmin_integration.py
 
-# 健康データ分析テスト
+# 健康データ分析のテスト
 uv run python test_health_analysis.py
 
-# 健康モデルのみテスト
-uv run python test_health_models_only.py
-
-# URL処理のみテスト
+# URL処理のテスト
 uv run python test_url_processor_only.py
 ```
 
@@ -150,13 +101,13 @@ asyncio.run(test_channels())
 実際のAPIを使用してテストする場合は `ENVIRONMENT=testing` を設定します。
 (`staging`、`integration` も同等に機能します)
 
-### 必要な設定
+### 前提条件
 
-1. **Discord Bot Token**
-   - Discord Developer Portalでボットを作成
-   - トークンを取得して`DISCORD_BOT_TOKEN`に設定
+1. **Discord Bot設定**
+   - [Discord Developer Portal](https://discord.com/developers/applications)でBotを作成
+   - 適切な権限を付与（Send Messages、Read Message History、Attach Files、Use Slash Commands）
 
-2. **Gemini API Key**
+2. **Gemini APIキー**
    - Google AI Studioでキーを取得
    - `GEMINI_API_KEY`に設定
 
@@ -168,21 +119,18 @@ asyncio.run(test_channels())
 ### 実行方法
 
 ```bash
-# .envファイルを編集
-vim .env
-
-# テスト環境で実APIを使用して起動
-ENVIRONMENT=testing ENABLE_MOCK_MODE=false uv run python -m src.main
-
-# またはデバッグモードで起動
-uv run python -m src.main --debug
+# テスト用設定ファイル作成
+cp .env.example .env.testing
 ```
 
-### 設定例
+`.env.testing`を編集：
 
 ```env
-# 必須設定
-DISCORD_BOT_TOKEN=your_actual_discord_bot_token
+# テスト環境設定
+ENVIRONMENT=testing
+
+# 実際のAPI設定
+DISCORD_BOT_TOKEN=your_actual_discord_token
 DISCORD_GUILD_ID=your_discord_server_id
 GEMINI_API_KEY=your_actual_gemini_api_key
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
@@ -204,124 +152,108 @@ OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 # 環境設定とモックモード
 ENVIRONMENT=testing
 ENABLE_MOCK_MODE=false
+
+# オプション機能
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
+GARMIN_EMAIL=your_garmin_email
+GARMIN_PASSWORD=your_garmin_password
 ```
 
-## 🐳 Dockerでの動作確認
-
-### ビルドと実行
+### テスト実行
 
 ```bash
-# Dockerイメージをビルド
-docker build -t discord-obsidian-memo-bot .
-
-# 開発環境で実行
-docker run --env-file .env.development discord-obsidian-memo-bot
-
-# 本番設定で実行
-docker run --env-file .env discord-obsidian-memo-bot
-
-# ボリュームマウント付きで実行（開発用）
-docker run -v $(pwd):/app --env-file .env.development discord-obsidian-memo-bot
+# 設定ファイルを使用してテスト
+DOTENV_PATH=.env.testing uv run python -m src.main
 ```
 
-## 🔍 コード品質チェック
-
-### フォーマット・リント
+## 🧪 単体テスト実行
 
 ```bash
-# Ruffでフォーマットとリント
+# 全テスト実行
+uv run pytest
+
+# 特定テストファイル
+uv run pytest tests/unit/test_obsidian.py
+
+# カバレッジ付きテスト
+uv run pytest --cov=src
+
+# 統合テスト
+uv run pytest tests/integration/
+
+# 非同期テスト（詳細ログ付き）
+uv run pytest tests/unit/test_ai_processing.py -v
+```
+
+### テストカテゴリ
+
+- **Unit Tests** (`tests/unit/`): 個別コンポーネントのテスト
+- **Integration Tests** (`tests/integration/`): コンポーネント間統合テスト
+- **Feature Tests**: 特定機能の動作確認
+
+## 🔧 品質チェック
+
+```bash
+# コード品質チェック
 uv run ruff check src/ --fix && uv run ruff format src/
 
 # 型チェック
 uv run mypy src/
 
-# 全品質チェック
+# すべての品質チェック実行
 uv run ruff check src/ --fix && uv run ruff format src/ && uv run mypy src/
 ```
 
-### Pre-commit フック（オプション）
+## 🚨 よくある問題
 
+### モックモードが動作しない
+
+**確認項目:**
+- `.env`ファイルに`ENVIRONMENT=development`が設定されているか
+- `ENABLE_MOCK_MODE=true`になっているか
+- `test_vault/`ディレクトリに書き込み権限があるか
+
+### テストが失敗する
+
+**確認項目:**
 ```bash
-# セットアップ
-uv run pre-commit install
+# 依存関係を再インストール
+uv sync
 
-# 手動実行
-uv run pre-commit run --all-files
+# テスト用一時ファイルをクリーンアップ
+rm -rf test_vault/ .pytest_cache/
+
+# 最新の設定でテスト実行
+uv run pytest tests/unit/ -v
 ```
 
-## 🛠 トラブルシューティング
+### 実APIテストで認証エラー
 
-### よくある問題と解決方法
+**確認項目:**
+- Discord Botトークンの有効性
+- Gemini APIキーの有効性
+- ボットがDiscordサーバーに参加済みか
+- 必要なチャンネル（#inbox、#notifications、#commands）が作成済みか
 
-#### 1. 依存関係エラー
-```bash
-# キャッシュクリア
-uv cache clean
-
-# 依存関係再インストール
-rm uv.lock
-uv sync --dev
-```
-
-#### 2. 権限エラー（Obsidian Vault）
-```bash
-# テスト用vaultディレクトリの権限確認
-ls -la ./test_vault
-
-# 権限修正
-chmod 755 ./test_vault
-```
-
-#### 3. ポートエラー
-```bash
-# 使用中のポート確認
-lsof -i :8080
-
-# プロセス終了
-pkill -f "python -m src.main"
-```
-
-#### 4. 環境変数が読み込まれない
-```bash
-# 環境変数を明示的に指定
-export $(cat .env.development | xargs) && uv run python -m src.main
-
-# または
-python-dotenv run -- uv run python -m src.main
-```
-
-### デバッグモード
+## 📊 テスト結果の確認
 
 ```bash
-# 詳細ログ出力
-LOG_LEVEL=DEBUG uv run python -m src.main
+# 生成されたファイルを確認
+ls -la test_vault/
 
-# 特定のモジュールのデバッグ
-PYTHONPATH=src python -c "from src.config.settings import get_settings; print(get_settings())"
+# ログ出力の確認
+tail -f bot.log
+
+# テストレポートの確認
+uv run pytest --html=report.html
+open report.html
 ```
 
-## 📊 テストカバレッジの確認
+## 💡 ヒント
 
-```bash
-# HTMLレポート生成
-uv run pytest --cov=src --cov-report=html
+1. **段階的テスト**: モック→単体テスト→統合テスト→実API の順で進める
+2. **ログ活用**: `LOG_LEVEL=DEBUG`でより詳細な情報を確認
+3. **安全テスト**: 本番環境のAPIキーは絶対に使用しない
+4. **継続的テスト**: 変更後は必ずテストを実行して動作確認
 
-# レポート確認
-open htmlcov/index.html
-```
-
-## 🚀 デプロイ前チェックリスト
-
-- [ ] 全テストが通過 (`uv run pytest`)
-- [ ] コード品質チェック通過 (`ruff check` + `mypy`)
-- [ ] モックモードでの動作確認完了
-- [ ] 実APIでの動作確認完了（可能であれば）
-- [ ] Dockerビルドが成功
-- [ ] 環境変数設定の確認
-- [ ] ログレベルの調整（本番では`INFO`）
-
-## 📚 関連ドキュメント
-
-- [CLAUDE.md](../CLAUDE.md) - プロジェクト概要と開発ガイド
-- [README.md](../README.md) - プロジェクト説明
-- [pyproject.toml](../pyproject.toml) - 依存関係とプロジェクト設定
+このガイドに従って、安全かつ効率的にローカルテストを実行してください。

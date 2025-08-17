@@ -166,9 +166,16 @@ class FinanceReminderSystem:
             return
 
         try:
-            money_channel = self.channel_config.get_finance_money_channel()
-            if not money_channel:
+            money_channel_id = self.channel_config.get_finance_money_channel()
+            if not money_channel_id:
                 logger.warning("Finance money channel not configured")
+                return
+
+            money_channel = self.bot.get_channel(money_channel_id)
+            if not money_channel or not hasattr(money_channel, "send"):
+                logger.warning(
+                    f"Finance money channel not found or not a text channel: {money_channel_id}"
+                )
                 return
 
             embed = discord.Embed(
@@ -218,9 +225,16 @@ class FinanceReminderSystem:
     ) -> None:
         """Send overdue payment notifications."""
         try:
-            money_channel = self.channel_config.get_finance_money_channel()
-            if not money_channel:
+            money_channel_id = self.channel_config.get_finance_money_channel()
+            if not money_channel_id:
                 logger.warning("Finance money channel not configured")
+                return
+
+            money_channel = self.bot.get_channel(money_channel_id)
+            if not money_channel or not hasattr(money_channel, "send"):
+                logger.warning(
+                    f"Finance money channel not found or not a text channel: {money_channel_id}"
+                )
                 return
 
             embed = discord.Embed(
@@ -268,9 +282,16 @@ class FinanceReminderSystem:
     ) -> None:
         """Send budget alert notifications."""
         try:
-            money_channel = self.channel_config.get_finance_money_channel()
-            if not money_channel:
+            money_channel_id = self.channel_config.get_finance_money_channel()
+            if not money_channel_id:
                 logger.warning("Finance money channel not configured")
+                return
+
+            money_channel = self.bot.get_channel(money_channel_id)
+            if not money_channel or not hasattr(money_channel, "send"):
+                logger.warning(
+                    f"Finance money channel not found or not a text channel: {money_channel_id}"
+                )
                 return
 
             embed = discord.Embed(

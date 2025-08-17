@@ -113,9 +113,9 @@ class BasicCommands(commands.Cog, LoggerMixin):
         for name, emoji, label in zip(
             channel_names, channel_emojis, channel_labels, strict=False
         ):
-            channel = self.channel_config.get_channel(name)
-            if channel:
-                channel_info.append(f"{emoji} {label}: <#{channel.id}>")
+            channel_id = self.channel_config.get_channel_by_name(name)
+            if channel_id:
+                channel_info.append(f"{emoji} {label}: <#{channel_id}>")
             else:
                 channel_info.append(f"{emoji} {label}: 未設定")
 

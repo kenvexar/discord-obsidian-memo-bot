@@ -650,7 +650,14 @@ class DiscordBot(LoggerMixin):
         if channel_id:
             channel = self.guild.get_channel(channel_id)
         else:
-            channel = self.channel_config.get_channel("notifications")
+            notifications_channel_id = self.channel_config.get_channel_by_name(
+                "notifications"
+            )
+            channel = (
+                self.guild.get_channel(notifications_channel_id)
+                if notifications_channel_id
+                else None
+            )
 
         if not channel:
             self.logger.error("Notification channel not found", channel_id=channel_id)
