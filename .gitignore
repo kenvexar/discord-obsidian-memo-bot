@@ -83,6 +83,8 @@ Pipfile.lock
 
 # uv (package manager)
 # Note: uv.lock is typically committed, but .venv is excluded
+.venv/
+uv.lock
 
 # PEP 582
 __pypackages__/
@@ -128,14 +130,25 @@ dmypy.json
 config.json
 *.token
 secrets/
+.env.local
+.env.production
 
-# Google Cloud
+# Google Cloud & AI Services
 service-account-key.json
 .gcloud/
+google-credentials.json
+credentials.json
+*-credentials.json
 
 # Obsidian Vault (if stored locally)
 obsidian-vault/
 *.obsidian/
+vault/
+test-vault/
+
+# MCP (Model Context Protocol)
+.mcp_cache/
+mcp_debug.log
 
 # IDE
 .vscode/
@@ -176,12 +189,35 @@ tmp/
 local_config.py
 test_data/
 *.local.*
-google-credentials.json
 
 # Test and runtime directories
 .test_cache/
 backups/
 .config/discord-obsidian-bot/
+vault_backups/
+audio_cache/
 
-# Serena MCP cache
+# MCP Servers cache
 .serena/
+.context7/
+.deepwiki/
+
+# Development and debugging
+debug.log
+*.debug
+memory_*.md
+performance.log
+trace_*.json
+
+# Pre-commit hooks
+.pre-commit-cache/
+
+# Claude Code specific
+.claude/
+claude_*.log
+
+# Health data cache (Garmin Connect)
+garmin_cache/
+health_data/
+*.gpx
+*.fit
