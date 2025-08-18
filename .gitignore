@@ -145,6 +145,7 @@ obsidian-vault/
 *.obsidian/
 vault/
 test-vault/
+test_vault/
 
 # MCP (Model Context Protocol)
 .mcp_cache/
