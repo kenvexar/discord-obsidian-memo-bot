@@ -88,6 +88,34 @@ uv run python test_garmin_integration.py
 uv run python test_health_analysis.py
 ```
 
+### Discord MCP Integration Testing
+```bash
+# Test Discord functionality using MCP (Model Context Protocol)
+# This allows real-time validation of Discord bot features during development
+
+# Prerequisites: Install and configure Discord MCP server
+# Check Discord server info and channels
+claude --mcp-server discord get-server-info <guild_id>
+
+# Test message sending to specific channels
+claude --mcp-server discord send-message <channel_id> "Test message"
+
+# Monitor channel activity
+claude --mcp-server discord read-messages <channel_id> --limit 10
+
+# Test forum post creation (for structured content)
+claude --mcp-server discord create-forum-post <forum_channel_id> "Test Title" "Test content"
+
+# Validate bot reactions and interactions
+claude --mcp-server discord add-reaction <channel_id> <message_id> "✅"
+
+# Integration with development workflow:
+# 1. Start the bot: uv run python -m src.main
+# 2. Use MCP Discord commands to test bot responses
+# 3. Verify Obsidian vault integration through Discord interactions
+# 4. Check log output for debugging
+```
+
 ## Architecture
 
 ### Core System Design
