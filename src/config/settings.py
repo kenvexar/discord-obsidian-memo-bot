@@ -59,6 +59,13 @@ class Settings(BaseSettings):
     enable_access_logging: bool = True
     security_log_path: Path | None = None
 
+    # GitHub Integration Configuration
+    github_token: SecretStr | None = None
+    obsidian_backup_repo: str | None = None
+    obsidian_backup_branch: str = "main"
+    git_user_name: str = "ObsidianBot"
+    git_user_email: str = "bot@example.com"
+
     # Mock Mode Configuration (for development/testing)
     enable_mock_mode: bool = False
     mock_discord_enabled: bool = False

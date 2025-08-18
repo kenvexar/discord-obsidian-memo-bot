@@ -28,24 +28,34 @@ class TemplateEngine(LoggerMixin):
 
         self.vault_path = vault_path
         self.template_path = vault_path / VaultFolder.TEMPLATES.value
-        self.cached_templates: dict[str, str] = {}
+        self.cached_templates: dict[str, dict[str, Any]] = {}  # キャッシュ構造を拡張
+        self.template_inheritance_cache: dict[str, str] = {}  # 継承キャッシュ
         self.logger.info("Template engine initialized")
 
     async def load_template(self, template_name: str) -> str | None:
         """
-        テンプレートを読み込み
+        テンプレートを読み込み（改良版キャッシュ機能付き）
 
         Args:
             template_name: テンプレート名（拡張子なし）
 
         Returns:
-            テンプレート内容、見つからない場合はNone
+            テンプレート内容、見つからない場合は None
         """
         try:
             # キャッシュから取得を試行
             if template_name in self.cached_templates:
-                self.logger.debug("Template loaded from cache", template=template_name)
-                return self.cached_templates[template_name]
+                cached_data = self.cached_templates[template_name]
+                template_file = self.template_path / f"{template_name}.md"
+
+                # ファイルの更新時間をチェック
+                if template_file.exists():
+                    file_mtime = template_file.stat().st_mtime
+                    if cached_data.get("mtime") == file_mtime:
+                        self.logger.debug(
+                            "Template loaded from cache", template=template_name
+                        )
+                        return cached_data["content"]
 
             # ファイルからテンプレートを読み込み
             template_file = self.template_path / f"{template_name}.md"
@@ -61,8 +71,16 @@ class TemplateEngine(LoggerMixin):
             async with aiofiles.open(template_file, encoding="utf-8") as f:
                 content = await f.read()
 
-            # キャッシュに保存
-            self.cached_templates[template_name] = content
+            # テンプレート継承の処理
+            content = await self._process_template_inheritance(content, template_name)
+
+            # キャッシュに保存（改良版）
+            file_mtime = template_file.stat().st_mtime
+            self.cached_templates[template_name] = {
+                "content": content,
+                "mtime": file_mtime,
+                "compiled": await self._compile_template(content),
+            }
 
             self.logger.info("Template loaded successfully", template=template_name)
             return content
@@ -75,6 +93,123 @@ class TemplateEngine(LoggerMixin):
                 exc_info=True,
             )
             return None
+
+    async def _process_template_inheritance(
+        self, content: str, template_name: str
+    ) -> str:
+        """テンプレート継承を処理"""
+        try:
+            # extends 構文の検出: {{extends "parent_template"}}
+            extends_pattern = r'\{\{extends\s+["\']([^"\']+)["\']\s*\}\}'
+            extends_match = re.search(extends_pattern, content)
+
+            if not extends_match:
+                return content
+
+            parent_template_name = extends_match.group(1)
+
+            # 循環参照チェック
+            inheritance_chain = [template_name]
+            current_template = parent_template_name
+            while current_template in self.template_inheritance_cache:
+                if current_template in inheritance_chain:
+                    raise ValueError(
+                        f"Circular template inheritance detected: {' -> '.join(inheritance_chain + [current_template])}"
+                    )
+                inheritance_chain.append(current_template)
+                current_template = self.template_inheritance_cache.get(current_template)
+
+            # 親テンプレートを読み込み
+            parent_content = await self.load_template(parent_template_name)
+            if not parent_content:
+                raise ValueError(f"Parent template not found: {parent_template_name}")
+
+            # 継承関係をキャッシュ
+            self.template_inheritance_cache[template_name] = parent_template_name
+
+            # extends ディレクティブを削除
+            content = re.sub(extends_pattern, "", content, flags=re.MULTILINE)
+
+            # ブロック置換の処理
+            content = self._process_template_blocks(parent_content, content)
+
+            return content
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to process template inheritance",
+                template=template_name,
+                error=str(e),
+                exc_info=True,
+            )
+            return content  # エラー時は元のテンプレートを返す
+
+    def _process_template_blocks(self, parent_content: str, child_content: str) -> str:
+        """親テンプレートのブロックを子テンプレートの内容で置換"""
+        # 子テンプレートからブロックを抽出: {{block "block_name"}}content{{/block}}
+        child_blocks = {}
+        block_pattern = r'\{\{block\s+["\']([^"\']+)["\']\s*\}\}(.*?)\{\{/block\s*\}\}'
+
+        for match in re.finditer(block_pattern, child_content, re.DOTALL):
+            block_name = match.group(1)
+            block_content = match.group(2).strip()
+            child_blocks[block_name] = block_content
+
+        # 親テンプレートのブロックを子テンプレートの内容で置換
+        def replace_block(match):
+            block_name = match.group(1)
+            default_content = match.group(2).strip()
+            return child_blocks.get(block_name, default_content)
+
+        result = re.sub(block_pattern, replace_block, parent_content, flags=re.DOTALL)
+        return result
+
+    async def _compile_template(self, content: str) -> dict[str, Any]:
+        """テンプレートをコンパイル（事前処理）"""
+        try:
+            compiled: dict[str, Any] = {
+                "placeholders": [],
+                "conditionals": [],
+                "loops": [],
+                "functions": [],
+                "includes": [],
+            }
+
+            # プレースホルダーを抽出
+            placeholder_pattern = r"\{\{([^#\/\{\}]+)\}\}"
+            compiled["placeholders"] = list(
+                set(re.findall(placeholder_pattern, content))
+            )
+
+            # 条件文を抽出
+            conditional_pattern = r"\{\{\s*#if\s+(\w+)\s*\}\}"
+            compiled["conditionals"] = list(
+                set(re.findall(conditional_pattern, content))
+            )
+
+            # ループを抽出
+            loop_pattern = r"\{\{\s*#each\s+(\w+)\s*\}\}"
+            compiled["loops"] = list(set(re.findall(loop_pattern, content)))
+
+            # 関数呼び出しを抽出
+            function_pattern = r"\{\{(\w+)\([^)]*\)\}\}"
+            compiled["functions"] = list(set(re.findall(function_pattern, content)))
+
+            # インクルードを抽出
+            include_pattern = r'\{\{include\s+["\']([^"\']+)["\']\s*\}\}'
+            compiled["includes"] = list(set(re.findall(include_pattern, content)))
+
+            return compiled
+
+        except Exception as e:
+            self.logger.warning("Failed to compile template", error=str(e))
+            return {
+                "placeholders": [],
+                "conditionals": [],
+                "loops": [],
+                "functions": [],
+                "includes": [],
+            }
 
     async def render_template(
         self, template_content: str, context: dict[str, Any]
@@ -136,58 +271,515 @@ class TemplateEngine(LoggerMixin):
     async def _process_conditional_sections(
         self, content: str, context: dict[str, Any]
     ) -> str:
-        """条件付きセクションを処理"""
-        # より柔軟な正規表現パターンを使用し、ネストした条件にも対応
-        pattern = r"\{\{\s*#if\s+(\w+)\s*\}\}(.*?)\{\{\s*/if\s*\}\}"
+        """条件付きセクションを処理（ elif 対応版）"""
+        # if-elif-else 構文に対応: {{#if condition}}...{{#elif condition}}...{{#else}}...{{/if}}
 
         def replace_conditional(match: re.Match[str]) -> str:
-            condition = match.group(1)
-            section_content = match.group(2)
+            full_match = match.group(0)
 
-            # 条件を評価（より厳密な真偽値チェック）
-            condition_value = context.get(condition, False)
+            # より複雑な if-elif-else 構造を解析
+            return self._parse_complex_conditional(full_match, context)
 
-            # 値の型に応じた真偽判定
-            if isinstance(condition_value, bool):
-                is_true = condition_value
-            elif isinstance(condition_value, str):
-                is_true = (
-                    condition_value.strip() != ""
-                    and condition_value.lower() not in ["false", "0", "none"]
-                )
-            elif isinstance(condition_value, int | float):
-                is_true = condition_value != 0
-            elif isinstance(condition_value, list):
-                is_true = len(condition_value) > 0
-            elif condition_value is None:
-                is_true = False
-            else:
-                is_true = bool(condition_value)
-            # ログでデバッグ情報を出力
-            self.logger.debug(
-                "Processing conditional",
-                condition=condition,
-                raw_value=condition_value,
-                evaluated_value=is_true,
-                content_preview=section_content[:50],
-            )
-
-            # 条件が真の場合のみコンテンツを返す
-            if is_true:
-                return section_content
-            return ""
-
-        # 複数回処理してネストした条件も対応
+        # 複数回処理してネストした条件にも対応
         processed = content
-        for _ in range(5):  # 最大5回の繰り返し処理に増加
-            new_processed = str(
-                re.sub(pattern, replace_conditional, processed, flags=re.DOTALL)
+        for _ in range(5):  # 最大 5 回の繰り返し処理
+            # シンプルな if 文から処理
+            simple_if_pattern = r"\{\{\s*#if\s+(\w+)\s*\}\}((?:(?!\{\{\s*(?:#elif|#else|/if)\s*\}\}).)*?)\{\{\s*/if\s*\}\}"
+            new_processed = re.sub(
+                simple_if_pattern,
+                lambda m: self._process_simple_if(m, context),
+                processed,
+                flags=re.DOTALL,
             )
+
+            # 複雑な if-elif-else 構造を処理
+            complex_if_pattern = r"\{\{\s*#if\s+([^}]+)\s*\}\}(.*?)\{\{\s*/if\s*\}\}"
+            new_processed = re.sub(
+                complex_if_pattern, replace_conditional, new_processed, flags=re.DOTALL
+            )
+
             if new_processed == processed:
                 break
             processed = new_processed
 
         return processed
+
+    def _process_simple_if(self, match: re.Match[str], context: dict[str, Any]) -> str:
+        """シンプルな if 文を処理"""
+        condition = match.group(1).strip()
+        section_content = match.group(2)
+
+        condition_result = self._evaluate_condition(condition, context)
+
+        self.logger.debug(
+            "Processing simple conditional",
+            condition=condition,
+            result=condition_result,
+            content_preview=section_content[:50],
+        )
+
+        return section_content if condition_result else ""
+
+    def _parse_complex_conditional(
+        self, conditional_block: str, context: dict[str, Any]
+    ) -> str:
+        """複雑な if-elif-else 構造を解析"""
+        try:
+            # if 文の解析
+            if_match = re.search(r"\{\{\s*#if\s+([^}]+)\s*\}\}", conditional_block)
+            if not if_match:
+                return ""
+
+            # 条件とコンテンツブロックを順次解析
+            remaining_content = conditional_block[if_match.end() :]
+            conditions_and_content = []
+
+            # if 条件
+            if_condition = if_match.group(1).strip()
+            conditions_and_content.append(("if", if_condition, ""))
+
+            # elif 条件を検索
+            elif_pattern = r"\{\{\s*#elif\s+([^}]+)\s*\}\}"
+            else_pattern = r"\{\{\s*#else\s*\}\}"
+            endif_pattern = r"\{\{\s*/if\s*\}\}"
+
+            current_pos = 0
+
+            while current_pos < len(remaining_content):
+                elif_match = re.search(elif_pattern, remaining_content[current_pos:])
+                else_match = re.search(else_pattern, remaining_content[current_pos:])
+                endif_match = re.search(endif_pattern, remaining_content[current_pos:])
+
+                # 次に現れるタグを特定
+                next_matches = []
+                if elif_match:
+                    next_matches.append(
+                        (elif_match.start() + current_pos, "elif", elif_match)
+                    )
+                if else_match:
+                    next_matches.append(
+                        (else_match.start() + current_pos, "else", else_match)
+                    )
+                if endif_match:
+                    next_matches.append(
+                        (endif_match.start() + current_pos, "endif", endif_match)
+                    )
+
+                if not next_matches:
+                    break
+
+                # 最も近いタグを選択
+                next_matches.sort()
+                next_pos, next_type, next_match = next_matches[0]
+
+                # 現在のブロックのコンテンツを抽出
+                block_content = remaining_content[current_pos:next_pos].strip()
+
+                # 前の条件にコンテンツを設定
+                if conditions_and_content:
+                    conditions_and_content[-1] = (
+                        conditions_and_content[-1][0],
+                        conditions_and_content[-1][1],
+                        block_content,
+                    )
+
+                if next_type == "elif":
+                    elif_condition = next_match.group(1).strip()
+                    conditions_and_content.append(("elif", elif_condition, ""))
+                    current_pos = next_pos + len(next_match.group(0))
+                elif next_type == "else":
+                    conditions_and_content.append(("else", "", ""))
+                    current_pos = next_pos + len(next_match.group(0))
+                elif next_type == "endif":
+                    if (
+                        len(conditions_and_content) > 0
+                        and conditions_and_content[-1][2] == ""
+                    ):
+                        # 最後のブロックのコンテンツを設定
+                        final_content = remaining_content[current_pos:next_pos].strip()
+                        conditions_and_content[-1] = (
+                            conditions_and_content[-1][0],
+                            conditions_and_content[-1][1],
+                            final_content,
+                        )
+                    break
+
+            # 条件を順次評価
+            for cond_type, condition, content in conditions_and_content:
+                if cond_type == "else":
+                    return content  # else 句は無条件で実行
+
+                if self._evaluate_condition(condition, context):
+                    return content
+
+            return ""  # どの条件も満たされない場合
+
+        except Exception as e:
+            self.logger.error("Failed to parse complex conditional", error=str(e))
+            return ""
+
+    def _evaluate_condition(self, condition: str, context: dict[str, Any]) -> bool:
+        """条件を評価（拡張版）"""
+        try:
+            condition = condition.strip()
+
+            # NOT 演算子を最初に処理
+            if condition.startswith("not "):
+                return not self._evaluate_condition(condition[4:].strip(), context)
+
+            # AND/OR 演算子を優先的に処理（複合条件）
+            if " and " in condition:
+                conditions = condition.split(" and ")
+                return all(
+                    self._evaluate_condition(cond.strip(), context)
+                    for cond in conditions
+                )
+
+            if " or " in condition:
+                conditions = condition.split(" or ")
+                return any(
+                    self._evaluate_condition(cond.strip(), context)
+                    for cond in conditions
+                )
+
+            # 比較演算子をサポート
+            if " == " in condition:
+                left, right = condition.split(" == ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                return str(left_val) == str(right_val)
+
+            if " != " in condition:
+                left, right = condition.split(" != ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                return str(left_val) != str(right_val)
+
+            if " >= " in condition:
+                left, right = condition.split(" >= ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) >= float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " <= " in condition:
+                left, right = condition.split(" <= ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) <= float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " > " in condition:
+                left, right = condition.split(" > ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) > float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " < " in condition:
+                left, right = condition.split(" < ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) < float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            # シンプルな真偽値評価
+            condition_value = context.get(condition, False)
+            return self._is_truthy(condition_value)
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to evaluate condition", condition=condition, error=str(e)
+            )
+            return False
+
+    def _get_condition_value(self, expr: str, context: dict[str, Any]) -> Any:
+        """条件式の値を取得"""
+        expr = expr.strip()
+
+        # 文字列リテラル（クォート付き）を最初にチェック
+        if (expr.startswith('"') and expr.endswith('"')) or (
+            expr.startswith("'") and expr.endswith("'")
+        ):
+            return expr[1:-1]
+
+        # リテラル値の判定
+        if expr in ["true", "True"]:
+            return True
+        if expr in ["false", "False"]:
+            return False
+        if expr in ["null", "None"]:
+            return None
+
+        # 数値の判定
+        try:
+            if "." in expr:
+                return float(expr)
+            return int(expr)
+        except ValueError:
+            pass
+
+        # 変数の値を取得
+        return context.get(expr, "")
+
+    def _is_truthy(self, value: Any) -> bool:
+        """値の真偽を判定"""
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, str):
+            return value.strip() != "" and value.lower() not in ["false", "0", "none"]
+        elif isinstance(value, int | float):
+            return value != 0
+        elif isinstance(value, list):
+            return len(value) > 0
+        elif value is None:
+            return False
+        else:
+            return bool(value)
+
+    async def validate_template(self, template_name: str) -> dict[str, Any]:
+        """テンプレートの構文を検証"""
+        validation_result: dict[str, Any] = {
+            "valid": True,
+            "errors": list[str](),
+            "warnings": list[str](),
+            "metadata": dict[str, Any](),
+        }
+
+        try:
+            template_content = await self.load_template(template_name)
+            if not template_content:
+                validation_result["valid"] = False
+                validation_result["errors"].append(
+                    f"Template '{template_name}' not found"
+                )
+                return validation_result
+
+            # 基本的な構文チェック
+            validation_result = self._validate_template_syntax(
+                template_content, validation_result
+            )
+
+            # 循環参照チェック
+            validation_result = await self._validate_inheritance_chain(
+                template_name, validation_result
+            )
+
+            # 未使用変数の検出
+            validation_result = self._validate_template_variables(
+                template_content, validation_result
+            )
+
+            self.logger.info(
+                "Template validation completed",
+                template=template_name,
+                valid=validation_result["valid"],
+                error_count=len(validation_result["errors"]),
+                warning_count=len(validation_result["warnings"]),
+            )
+
+            return validation_result
+
+        except Exception as e:
+            validation_result["valid"] = False
+            validation_result["errors"].append(f"Validation failed: {str(e)}")
+            self.logger.error(
+                "Template validation failed", template=template_name, error=str(e)
+            )
+            return validation_result
+
+    def _validate_template_syntax(
+        self, content: str, result: dict[str, Any]
+    ) -> dict[str, Any]:
+        """テンプレート構文の基本検証"""
+        try:
+            # 括弧の対応チェック
+            open_brackets = content.count("{{")
+            close_brackets = content.count("}}")
+            if open_brackets != close_brackets:
+                result["errors"].append(
+                    f"Mismatched brackets: {open_brackets} opening, {close_brackets} closing"
+                )
+                result["valid"] = False
+
+            # if-endif 対応チェック
+            if_count = len(re.findall(r"\{\{\s*#if\s+", content))
+            endif_count = len(re.findall(r"\{\{\s*/if\s*\}\}", content))
+            if if_count != endif_count:
+                result["errors"].append(
+                    f"Mismatched if statements: {if_count} #if, {endif_count} /if"
+                )
+                result["valid"] = False
+
+            # each-endeach 対応チェック
+            each_count = len(re.findall(r"\{\{\s*#each\s+", content))
+            endeach_count = len(re.findall(r"\{\{\s*/each\s*\}\}", content))
+            if each_count != endeach_count:
+                result["errors"].append(
+                    f"Mismatched each statements: {each_count} #each, {endeach_count} /each"
+                )
+                result["valid"] = False
+
+            # block-endblock 対応チェック
+            block_count = len(re.findall(r"\{\{\s*block\s+", content))
+            endblock_count = len(re.findall(r"\{\{\s*/block\s*\}\}", content))
+            if block_count != endblock_count:
+                result["errors"].append(
+                    f"Mismatched block statements: {block_count} block, {endblock_count} /block"
+                )
+                result["valid"] = False
+
+            # 不正な関数呼び出しの検出
+            invalid_functions = re.findall(r"\{\{([a-zA-Z_]\w*)\([^)]*\)\}\}", content)
+            known_functions = [
+                "date_format",
+                "tag_list",
+                "truncate",
+                "number_format",
+                "conditional",
+                "length",
+                "default",
+            ]
+            for func in invalid_functions:
+                if func not in known_functions:
+                    result["warnings"].append(f"Unknown function: {func}")
+
+            return result
+
+        except Exception as e:
+            result["errors"].append(f"Syntax validation failed: {str(e)}")
+            result["valid"] = False
+            return result
+
+    async def _validate_inheritance_chain(
+        self, template_name: str, result: dict[str, Any]
+    ) -> dict[str, Any]:
+        """テンプレート継承の循環参照チェック"""
+        try:
+            visited: set[str] = set()
+            current: str | None = template_name
+
+            while current:
+                if current in visited:
+                    result["errors"].append(
+                        f"Circular inheritance detected in chain: {' -> '.join(visited)} -> {current}"
+                    )
+                    result["valid"] = False
+                    break
+
+                visited.add(current)
+
+                # 親テンプレートを検索
+                template_content = await self.load_template(current)
+                if not template_content:
+                    break
+
+                extends_match = re.search(
+                    r'\{\{extends\s+["\']([^"\']+)["\']\s*\}\}', template_content
+                )
+                current = extends_match.group(1) if extends_match else None
+
+            return result
+
+        except Exception as e:
+            result["errors"].append(f"Inheritance validation failed: {str(e)}")
+            result["valid"] = False
+            return result
+
+    def _validate_template_variables(
+        self, content: str, result: dict[str, Any]
+    ) -> dict[str, Any]:
+        """テンプレート変数の検証"""
+        try:
+            # 使用されている変数を抽出
+            variables = set()
+
+            # 基本的なプレースホルダー
+            basic_vars = re.findall(r"\{\{([a-zA-Z_]\w*)\}\}", content)
+            variables.update(basic_vars)
+
+            # 条件文の変数
+            condition_vars = re.findall(r"\{\{\s*#if\s+([a-zA-Z_]\w*)", content)
+            variables.update(condition_vars)
+
+            # ループの変数
+            loop_vars = re.findall(r"\{\{\s*#each\s+([a-zA-Z_]\w*)", content)
+            variables.update(loop_vars)
+
+            # 関数内の変数
+            function_vars = re.findall(r"\{\{[a-zA-Z_]\w*\(([a-zA-Z_]\w*)", content)
+            variables.update(function_vars)
+
+            # 一般的に使用される変数リスト
+            common_vars = {
+                "current_date",
+                "current_time",
+                "date_iso",
+                "date_ymd",
+                "date_japanese",
+                "time_hm",
+                "content",
+                "author_name",
+                "channel_name",
+                "ai_processed",
+                "ai_summary",
+                "ai_key_points",
+                "ai_tags",
+                "ai_category",
+                "ai_confidence",
+                "title",
+                "filename",
+            }
+
+            # 未知の変数を特定
+            unknown_vars = variables - common_vars
+            if unknown_vars:
+                result["warnings"].append(
+                    f"Potentially undefined variables: {', '.join(sorted(unknown_vars))}"
+                )
+
+            result["metadata"]["variables_used"] = sorted(variables)
+            result["metadata"]["unknown_variables"] = sorted(unknown_vars)
+
+            return result
+
+        except Exception as e:
+            result["warnings"].append(f"Variable validation failed: {str(e)}")
+            return result
+
+    async def validate_all_templates(self) -> dict[str, dict[str, Any]]:
+        """全テンプレートの検証"""
+        results = {}
+
+        try:
+            templates = await self.list_available_templates()
+            for template_name in templates:
+                results[template_name] = await self.validate_template(template_name)
+
+            # 全体統計
+            total_templates = len(results)
+            valid_templates = sum(1 for r in results.values() if r["valid"])
+
+            self.logger.info(
+                "All templates validated",
+                total=total_templates,
+                valid=valid_templates,
+                invalid=total_templates - valid_templates,
+            )
+
+            return results
+
+        except Exception as e:
+            self.logger.error("Failed to validate all templates", error=str(e))
+            return {"error": {"errors": [str(e)], "valid": False}}
 
     async def _process_each_sections(
         self, content: str, context: dict[str, Any]
@@ -249,7 +841,10 @@ class TemplateEngine(LoggerMixin):
     async def _process_custom_functions(
         self, content: str, context: dict[str, Any]
     ) -> str:
-        """カスタム関数を処理"""
+        """カスタム関数を処理（拡張版）"""
+
+        # インクルード処理: {{include "template_name"}}
+        content = await self._process_includes(content, context)
 
         # 日付フォーマット: {{date_format(date, format)}}
         def date_format_func(match: re.Match[str]) -> str:
@@ -275,7 +870,7 @@ class TemplateEngine(LoggerMixin):
             tags_key = match.group(1).strip()
             if tags_key in context and isinstance(context[tags_key], list):
                 tags = context[tags_key]
-                filtered_tags = [tag for tag in tags if tag]  # 空文字やNoneを除外
+                filtered_tags = [tag for tag in tags if tag]  # 空文字や None を除外
                 return " ".join(f"#{tag}" for tag in filtered_tags)
             else:
                 self.logger.debug(f"Tags key '{tags_key}' not found or not list")
@@ -303,6 +898,115 @@ class TemplateEngine(LoggerMixin):
 
         content = re.sub(r"\{\{truncate\((.*?)\)\}\}", truncate_func, content)
 
+        # 新機能: 数値フォーマット {{number_format(number, format)}}
+        def number_format_func(match: re.Match[str]) -> str:
+            args_str = match.group(1)
+            args = [arg.strip() for arg in args_str.split(",")]
+            if len(args) >= 2:
+                number_key = args[0].strip()
+                format_str = args[1].strip().strip("\"'")
+
+                if number_key in context:
+                    try:
+                        number = float(context[number_key])
+                        if format_str == "currency":
+                            return f"¥{number:,.0f}"
+                        elif format_str == "percent":
+                            return f"{number:.1%}"
+                        elif format_str.startswith("decimal"):
+                            decimals = (
+                                int(format_str.split("_")[1])
+                                if "_" in format_str
+                                else 2
+                            )
+                            return f"{number:.{decimals}f}"
+                        else:
+                            return f"{number:,}"
+                    except (ValueError, TypeError):
+                        self.logger.debug(
+                            f"Invalid number value for key '{number_key}'"
+                        )
+            return ""
+
+        content = re.sub(r"\{\{number_format\((.*?)\)\}\}", number_format_func, content)
+
+        # 新機能: 条件式 {{conditional(condition, true_value, false_value)}}
+        def conditional_func(match: re.Match[str]) -> str:
+            args_str = match.group(1)
+            args = [arg.strip().strip("\"'") for arg in args_str.split(",")]
+            if len(args) >= 3:
+                condition = args[0]
+                true_val = args[1]
+                false_val = args[2]
+
+                condition_result = context.get(condition, False)
+                if isinstance(condition_result, bool):
+                    return true_val if condition_result else false_val
+                elif isinstance(condition_result, str):
+                    return true_val if condition_result.strip() != "" else false_val
+                else:
+                    return true_val if condition_result else false_val
+            return ""
+
+        content = re.sub(r"\{\{conditional\((.*?)\)\}\}", conditional_func, content)
+
+        # 新機能: 配列の長さ {{length(array)}}
+        def length_func(match: re.Match[str]) -> str:
+            array_key = match.group(1).strip()
+            if array_key in context:
+                value = context[array_key]
+                if isinstance(value, list | dict | str):
+                    return str(len(value))
+            return "0"
+
+        content = re.sub(r"\{\{length\((.*?)\)\}\}", length_func, content)
+
+        # 新機能: デフォルト値 {{default(value, default)}}
+        def default_func(match: re.Match[str]) -> str:
+            args_str = match.group(1)
+            args = [arg.strip().strip("\"'") for arg in args_str.split(",")]
+            if len(args) >= 2:
+                value_key = args[0]
+                default_val = args[1]
+
+                value = context.get(value_key)
+                if value is None or (isinstance(value, str) and value.strip() == ""):
+                    return default_val
+                return str(value)
+            return ""
+
+        content = re.sub(r"\{\{default\((.*?)\)\}\}", default_func, content)
+
+        return content
+
+    async def _process_includes(self, content: str, context: dict[str, Any]) -> str:
+        """インクルード処理"""
+        include_pattern = r'\{\{include\s+["\']([^"\']+)["\']\s*\}\}'
+
+        async def replace_include(match):
+            include_name = match.group(1)
+            try:
+                include_content = await self.load_template(include_name)
+                if include_content:
+                    # インクルードしたテンプレートも同じコンテキストでレンダリング
+                    return await self.render_template(include_content, context)
+                else:
+                    self.logger.warning(f"Include template not found: {include_name}")
+                    return f"<!-- Include not found: {include_name} -->"
+            except Exception as e:
+                self.logger.error(
+                    f"Failed to process include: {include_name}", error=str(e)
+                )
+                return f"<!-- Include error: {include_name} -->"
+
+        # 非同期 replace 処理
+        while True:
+            match = re.search(include_pattern, content)
+            if not match:
+                break
+            replacement = await replace_include(match)
+            content = content[: match.start()] + replacement + content[match.end() :]
+
         return content
 
     def _clean_unprocessed_template_vars(self, content: str) -> str:
@@ -311,20 +1015,20 @@ class TemplateEngine(LoggerMixin):
         content = re.sub(r"\{\{\s*#if\s+\w+\s*\}\}", "", content)
         content = re.sub(r"\{\{\s*/if\s*\}\}", "", content)
 
-        # 残存するeach文のタグを除去
+        # 残存する each 文のタグを除去
         content = re.sub(r"\{\{\s*#each\s+\w+\s*\}\}", "", content)
         content = re.sub(r"\{\{\s*/each\s*\}\}", "", content)
 
         # その他の未処理プレースホルダーを除去
         content = re.sub(r"\{\{\s*[^}]+\s*\}\}", "", content)
 
-        # 連続する空行を整理（3行以上の空行を2行に）
+        # 連続する空行を整理（ 3 行以上の空行を 2 行に）
         content = re.sub(r"\n\s*\n\s*\n+", "\n\n", content)
 
         # 先頭の空行を除去
         content = content.lstrip("\n")
 
-        # 末尾の余分な空行を除去（最大2行まで）
+        # 末尾の余分な空行を除去（最大 2 行まで）
         content = re.sub(r"\n{3,}$", "\n\n", content)
 
         return content
@@ -340,7 +1044,7 @@ class TemplateEngine(LoggerMixin):
 
         Args:
             message_data: メッセージデータ
-            ai_result: AI処理結果
+            ai_result: AI 処理結果
             additional_context: 追加のコンテキスト
 
         Returns:
@@ -356,7 +1060,7 @@ class TemplateEngine(LoggerMixin):
                 "current_time": now,
                 "date_iso": now.isoformat(),
                 "date_ymd": now.strftime("%Y-%m-%d"),
-                "date_japanese": now.strftime("%Y年%m月%d日"),
+                "date_japanese": now.strftime("%Y 年%m 月%d 日"),
                 "time_hm": now.strftime("%H:%M"),
             }
         )
@@ -372,7 +1076,7 @@ class TemplateEngine(LoggerMixin):
             # コンテンツの適切な抽出と清潔化
             raw_content = content_info.get("raw_content", "")
             if isinstance(raw_content, dict):
-                # contentがdict形式の場合、実際のテキストを抽出
+                # content が dict 形式の場合、実際のテキストを抽出
                 if "content" in raw_content:
                     raw_content = raw_content["content"]
                 else:
@@ -400,9 +1104,9 @@ class TemplateEngine(LoggerMixin):
                 }
             )
 
-        # AI処理結果から抽出
+        # AI 処理結果から抽出
         if ai_result:
-            # AI要約の適切な処理
+            # AI 要約の適切な処理
             ai_summary = ""
             if ai_result.summary and ai_result.summary.summary:
                 ai_summary = self._clean_content_text(ai_result.summary.summary)
@@ -470,7 +1174,7 @@ class TemplateEngine(LoggerMixin):
             if "content" in text:
                 text = str(text["content"])
             else:
-                # dict全体をstr()したものではなく、空文字列を返す
+                # dict 全体を str() したものではなく、空文字列を返す
                 self.logger.warning(
                     "Unexpected dict format in content", dict_keys=list(text.keys())
                 )
@@ -478,9 +1182,9 @@ class TemplateEngine(LoggerMixin):
         elif not isinstance(text, str):
             text = str(text)
 
-        # dict文字列形式のパターンを検出してクリーンアップ
+        # dict 文字列形式のパターンを検出してクリーンアップ
         if text.startswith("{'content':") or text.startswith('{"content":'):
-            # dict形式の文字列から実際のcontentを抽出する試み
+            # dict 形式の文字列から実際の content を抽出する試み
             try:
                 import ast
 
@@ -527,11 +1231,11 @@ class TemplateEngine(LoggerMixin):
         Args:
             template_name: テンプレート名
             message_data: メッセージデータ
-            ai_result: AI処理結果
+            ai_result: AI 処理結果
             additional_context: 追加のコンテキスト
 
         Returns:
-            生成されたObsidianNote、失敗した場合はNone
+            生成された ObsidianNote 、失敗した場合は None
         """
         try:
             # テンプレートを読み込み
@@ -550,7 +1254,7 @@ class TemplateEngine(LoggerMixin):
             # フロントマターと本文を分離
             frontmatter_dict, content = self._parse_template_content(rendered_content)
 
-            # NoteFrontmatterオブジェクトを作成
+            # NoteFrontmatter オブジェクトを作成
             # 必要なフィールドが不足している場合はデフォルト値を設定
             self._prepare_frontmatter_dict(frontmatter_dict, context)
             frontmatter = NoteFrontmatter(**frontmatter_dict)
@@ -564,7 +1268,7 @@ class TemplateEngine(LoggerMixin):
 
             file_path = self.vault_path / VaultFolder.INBOX.value / filename
 
-            # ObsidianNoteオブジェクトを作成
+            # ObsidianNote オブジェクトを作成
             note = ObsidianNote(
                 filename=filename,
                 file_path=file_path,
@@ -599,16 +1303,16 @@ class TemplateEngine(LoggerMixin):
         template_name: str = "message_note",
     ) -> ObsidianNote | None:
         """
-        Discord メッセージ用ノートを生成（templates.py の MessageNoteTemplate.generate_note と同等機能）
+        Discord メッセージ用ノートを生成（ templates.py の MessageNoteTemplate.generate_note と同等機能）
 
         Args:
             message_data: メッセージメタデータ
-            ai_result: AI処理結果
+            ai_result: AI 処理結果
             vault_folder: 保存先フォルダ（指定されない場合は自動決定）
             template_name: 使用するテンプレート名
 
         Returns:
-            生成されたObsidianNote、失敗した場合はNone
+            生成された ObsidianNote 、失敗した場合は None
         """
         try:
             # メッセージ情報の抽出
@@ -616,7 +1320,7 @@ class TemplateEngine(LoggerMixin):
             content_info = metadata.get("content", {})
             timing_info = metadata.get("timing", {})
 
-            # AI処理結果の抽出
+            # AI 処理結果の抽出
             ai_category = None
             if ai_result and ai_result.category:
                 ai_category = ai_result.category.category.value
@@ -690,7 +1394,7 @@ class TemplateEngine(LoggerMixin):
         template_name: str = "daily_note",
     ) -> ObsidianNote | None:
         """
-        日次ノートを生成（templates.py の DailyNoteTemplate.generate_note と同等機能）
+        日次ノートを生成（ templates.py の DailyNoteTemplate.generate_note と同等機能）
 
         Args:
             date: 対象日
@@ -698,7 +1402,7 @@ class TemplateEngine(LoggerMixin):
             template_name: 使用するテンプレート名
 
         Returns:
-            生成されたObsidianNote、失敗した場合はNone
+            生成された ObsidianNote 、失敗した場合は None
         """
         try:
             # ファイル名とパス
@@ -770,9 +1474,9 @@ class TemplateEngine(LoggerMixin):
     def _extract_title_from_content(
         self, content: str, ai_summary: str | None = None
     ) -> str:
-        """コンテンツからタイトルを抽出（templates.py から移植）"""
+        """コンテンツからタイトルを抽出（ templates.py から移植）"""
 
-        # AI要約がある場合はそれを基にタイトル生成
+        # AI 要約がある場合はそれを基にタイトル生成
         if ai_summary:
             # エスケープ文字を適切に処理
             clean_summary = self._clean_content_text(ai_summary)
@@ -782,14 +1486,14 @@ class TemplateEngine(LoggerMixin):
                 # 不要な記号を除去
                 title = first_line.lstrip("・-*").strip()
                 if len(title) > 5:  # 十分な長さがある場合
-                    return title[:50]  # 最大50文字
+                    return title[:50]  # 最大 50 文字
 
         # コンテンツから抽出
         if content:
             # エスケープ文字を適切に処理
             clean_content = self._clean_content_text(content)
             if clean_content:
-                # 最初の行または最初の50文字を使用
+                # 最初の行または最初の 50 文字を使用
                 first_line = clean_content.split("\n")[0].strip()
                 if first_line:
                     return first_line[:50]
@@ -802,7 +1506,7 @@ class TemplateEngine(LoggerMixin):
         frontmatter_dict: dict[str, Any] = {}
         main_content = content
 
-        # YAMLフロントマターの検出と解析
+        # YAML フロントマターの検出と解析
         frontmatter_pattern = r"^---\n(.*?)\n---\n(.*)"
         match = re.match(frontmatter_pattern, content, re.DOTALL)
 
@@ -828,7 +1532,7 @@ class TemplateEngine(LoggerMixin):
         """フロントマターディクショナリを NoteFrontmatter モデルに適合するよう準備"""
         # 必須フィールドの設定
         if "obsidian_folder" not in frontmatter_dict:
-            # note typeに基づいてフォルダを決定
+            # note type に基づいてフォルダを決定
             note_type = frontmatter_dict.get("type", "general")
             folder_mapping = {
                 "idea": VaultFolder.IDEAS.value,
@@ -939,8 +1643,268 @@ class TemplateEngine(LoggerMixin):
             )
             return False
 
+    async def create_advanced_templates(self) -> bool:
+        """高度な機能を使用したサンプルテンプレートを作成"""
+        try:
+            await self.ensure_template_directory()
+
+            # サンプルテンプレート群
+            advanced_templates = {
+                "base_note": self._get_base_note_template(),
+                "message_note_advanced": self._get_advanced_message_template(),
+                "project_status": self._get_project_status_template(),
+                "weekly_review": self._get_weekly_review_template(),
+            }
+
+            for template_name, template_content in advanced_templates.items():
+                template_file = self.template_path / f"{template_name}.md"
+
+                # 既存のテンプレートは上書きしない
+                if template_file.exists():
+                    continue
+
+                async with aiofiles.open(template_file, "w", encoding="utf-8") as f:
+                    await f.write(template_content)
+
+                self.logger.info("Advanced template created", template=template_name)
+
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to create advanced templates", error=str(e), exc_info=True
+            )
+            return False
+
+    def _get_base_note_template(self) -> str:
+        """基本ノートテンプレート（継承用ベース）"""
+        return """---
+type: {{default(note_type, "general")}}
+created: {{date_iso}}
+modified: {{date_iso}}
+tags:
+  - {{default(note_type, "general")}}
+{{#if ai_tags}}
+{{#each ai_tags}}
+  - {{@item}}
+{{/each}}
+{{/if}}
+author: {{default(author_name, "System")}}
+---
+
+{{block "title"}}
+# 📝 {{default(title, "新しいノート")}}
+{{/block}}
+
+{{block "metadata"}}
+## 📋 基本情報
+
+- **作成日**: {{date_format(current_date, "%Y 年%m 月%d 日 %H:%M")}}
+- **作成者**: {{default(author_name, "不明")}}
+{{#if channel_name}}
+- **チャンネル**: #{{channel_name}}
+{{/if}}
+{{/block}}
+
+{{block "content"}}
+## 📝 内容
+
+{{default(content, "内容を入力してください。")}}
+{{/block}}
+
+{{block "footer"}}
+---
+*最終更新: {{date_format(current_date, "%Y-%m-%d %H:%M")}}*
+{{/block}}"""
+
+    def _get_advanced_message_template(self) -> str:
+        """高度なメッセージテンプレート"""
+        return """{{extends "base_note"}}
+
+{{block "title"}}
+# 💬 {{conditional(ai_summary, truncate(ai_summary, 50), "Discord メッセージ")}}
+{{/block}}
+
+{{block "content"}}
+{{#if ai_processed}}
+## 🤖 AI 分析
+
+**要約**: {{ai_summary}}
+
+{{#if ai_key_points and length(ai_key_points) > 0}}
+### 重要なポイント
+{{#each ai_key_points}}
+- {{@item}}
+{{/each}}
+{{/if}}
+
+**カテゴリ**: {{ai_category}}
+**信頼度**: {{number_format(ai_confidence, "percent")}}
+
+{{#if ai_confidence < 0.7}}
+> ⚠️ 注意: AI 分析の信頼度が低いです。内容を確認してください。
+{{/if}}
+
+{{/if}}
+
+## 📝 元のメッセージ
+
+{{content}}
+
+{{#if has_attachments}}
+## 📎 添付ファイル
+
+{{#each attachments}}
+- [{{@item.name}}]({{@item.url}}) ({{@item.size}} bytes)
+{{/each}}
+{{/if}}
+
+## 🔍 メタデータ
+
+- **メッセージ ID**: `{{message_id}}`
+- **文字数**: {{number_format(content_length, "decimal_0")}}文字
+{{#if processing_time > 0}}
+- **処理時間**: {{number_format(processing_time, "decimal_0")}}ms
+{{/if}}
+{{/block}}"""
+
+    def _get_project_status_template(self) -> str:
+        """プロジェクト状況テンプレート"""
+        return """---
+type: project
+status: {{default(project_status, "active")}}
+priority: {{default(priority, "medium")}}
+created: {{date_iso}}
+due_date: {{default(due_date, "")}}
+tags:
+  - project
+  - {{default(project_status, "active")}}
+---
+
+# 🚀 {{default(project_name, "プロジェクト名")}}
+
+## 📊 プロジェクト概要
+
+**ステータス**: {{conditional(project_status == "completed", "✅ 完了", conditional(project_status == "active", "🔄 進行中", "⏸️ 保留"))}}
+**優先度**: {{conditional(priority == "high", "🔴 高", conditional(priority == "low", "🟢 低", "🟡 中"))}}
+
+{{#if due_date}}
+**期限**: {{date_format(due_date, "%Y 年%m 月%d 日")}}
+{{/if}}
+
+## 🎯 目標・成果物
+
+{{default(objectives, "目標を設定してください。")}}
+
+## 📅 マイルストーン
+
+{{#if milestones and length(milestones) > 0}}
+{{#each milestones}}
+- {{conditional(@item.completed, "✅", "⏳")}} {{@item.title}} {{#if @item.due_date}}(期限: {{date_format(@item.due_date, "%m/%d")}}){{/if}}
+{{/each}}
+{{#else}}
+- [ ] マイルストーン 1
+- [ ] マイルストーン 2
+{{/if}}
+
+## 📝 進捗メモ
+
+{{default(progress_notes, "進捗状況を記録してください。")}}
+
+## ⚠️ 課題・リスク
+
+{{#if risks and length(risks) > 0}}
+{{#each risks}}
+- **{{@item.level}}**: {{@item.description}}
+{{/each}}
+{{#else}}
+現在、特定の課題・リスクはありません。
+{{/if}}
+
+## 📈 次のアクション
+
+- [ ] アクション項目 1
+- [ ] アクション項目 2
+
+---
+*更新日: {{date_format(current_date, "%Y-%m-%d")}}*"""
+
+    def _get_weekly_review_template(self) -> str:
+        """週次レビューテンプレート"""
+        return """---
+type: review
+period: weekly
+week_start: {{date_format(current_date, "%Y-%m-%d")}}
+created: {{date_iso}}
+tags:
+  - review
+  - weekly
+  - {{date_format(current_date, "%Y-W%U")}}
+---
+
+# 📊 週次レビュー - {{date_format(current_date, "%Y 年第%U 週")}}
+
+## 📅 レビュー期間
+
+**開始**: {{date_format(current_date, "%Y 年%m 月%d 日")}}
+**終了**: {{date_format(current_date, "%Y 年%m 月%d 日")}}
+
+## 🎯 今週の成果
+
+### 完了したタスク
+{{#if completed_tasks and length(completed_tasks) > 0}}
+{{#each completed_tasks}}
+- ✅ {{@item}}
+{{/each}}
+{{#else}}
+- 完了したタスクを記録してください
+{{/if}}
+
+### 主要な成果・達成
+{{default(achievements, "今週の主要な成果を記録してください。")}}
+
+## 📈 数値データ
+
+{{#if weekly_stats}}
+- **処理メッセージ数**: {{number_format(weekly_stats.total_messages, "decimal_0")}}件
+- **アクティブ日数**: {{weekly_stats.active_days}}/7 日
+- **平均日次処理数**: {{number_format(weekly_stats.avg_daily_messages, "decimal_1")}}件
+{{/if}}
+
+## 🤔 振り返り
+
+### うまくいったこと
+{{default(what_went_well, "うまくいったことを記録してください。")}}
+
+### 改善できること
+{{default(what_to_improve, "改善できることを記録してください。")}}
+
+### 学んだこと
+{{default(lessons_learned, "今週学んだことを記録してください。")}}
+
+## 🎯 来週の計画
+
+### 優先タスク
+- [ ] 高優先度タスク 1
+- [ ] 高優先度タスク 2
+- [ ] 高優先度タスク 3
+
+### 注力分野
+{{default(focus_areas, "来週の注力分野を設定してください。")}}
+
+## 📊 カテゴリ別分析
+
+{{#if category_stats and length(category_stats) > 0}}
+{{#each category_stats}}
+- **{{@index}}**: {{number_format(@item, "decimal_0")}}件
+{{/each}}
+{{/if}}
+
+---
+*レビュー作成日: {{date_format(current_date, "%Y 年%m 月%d 日")}}*"""
+
     def _get_daily_note_template(self) -> str:
-        """デイリーノートテンプレート"""
+        """デイリーノートテンプレート（改良版）"""
         return """---
 type: daily
 date: {{date_ymd}}
@@ -951,58 +1915,92 @@ ai_processed: {{ai_processed}}
 {{#if ai_processed}}
 ai_summary: "{{ai_summary}}"
 ai_category: {{ai_category}}
+ai_confidence: {{ai_confidence}}
 {{/if}}
+created: {{date_iso}}
+modified: {{date_iso}}
 ---
 
-# 📝 {{#if ai_summary}}{{truncate(ai_summary, 60)}}{{else}}{{date_format(current_date, "%Y年%m月%d日")}} - メモ{{/if}}
+# 📅 {{date_format(current_date, "%Y 年%m 月%d 日")}}の記録
 
 {{#if content}}
 ## 💭 内容
 
 {{content}}
 
+{{#elif ai_summary}}
+## 💭 要約
+
+{{ai_summary}}
+
+{{#else}}
+## 💭 今日の出来事
+
+今日の重要な出来事や気づきを記録する。
+
 {{/if}}
+
 {{#if ai_processed}}
-## 🤖 AI分析
+## 🤖 AI 分析結果
 
-**要約**: {{ai_summary}}
+**カテゴリ**: {{ai_category}} {{#if ai_confidence}}(信頼度: {{number_format(ai_confidence, "percent")}}){{/if}}
 
-{{#if ai_key_points}}
-### 主要ポイント
+{{#if ai_key_points and length(ai_key_points) > 0}}
+### 🎯 主要ポイント
 {{#each ai_key_points}}
 - {{@item}}
 {{/each}}
 {{/if}}
 
-**カテゴリ**: {{ai_category}} (信頼度: {{ai_confidence}})
-
 {{#if ai_reasoning}}
-**根拠**: {{ai_reasoning}}
+**分析根拠**: {{ai_reasoning}}
 {{/if}}
 
-{{/if}}
-## 📅 メタデータ
+{{#else}}
+## 📝 今日のタスク
 
-- **作成者**: {{author_name}}
-- **作成日時**: {{date_format(current_date, "%Y年%m月%d日 %H:%M:%S")}}
-- **チャンネル**: #{{channel_name}}
-{{#if ai_processed}}
-- **AI処理時間**: {{processing_time}}ms
+- [ ] 重要なタスク 1
+- [ ] 重要なタスク 2
+
+## 🎯 今日の目標
+
+## 💡 学んだこと・気づき
+
 {{/if}}
 
-{{#if ai_tags}}
+## 📊 統計情報
+
+{{#if daily_stats}}
+- **処理メッセージ数**: {{default(total_messages, "0")}}件
+- **AI 処理メッセージ数**: {{default(processed_messages, "0")}}件
+{{#if ai_processing_time_total > 0}}
+- **AI 処理時間**: {{number_format(ai_processing_time_total, "decimal_2")}}ms
+{{/if}}
+
+{{#if categories and length(categories) > 0}}
+### カテゴリ別分析
+{{#each categories}}
+- **{{@index}}**: {{@item}}件
+{{/each}}
+{{/if}}
+{{/if}}
+
+## 🔗 関連リンク
+
+{{#if channel_name}}
+- **Discord チャンネル**: #{{channel_name}}
+{{/if}}
+- **昨日**: [[{{date_format(current_date, "%Y-%m-%d")}}]]
+- **明日**: [[{{date_format(current_date, "%Y-%m-%d")}}]]
+
+{{#if ai_tags and length(ai_tags) > 0}}
 ## 🏷️ タグ
 
 {{tag_list(ai_tags)}}
-
 {{/if}}
-## 🔗 関連リンク
-
-- **Discord Message**: [リンク](https://discord.com/channels/)
-- **チャンネル**: #{{channel_name}}
 
 ---
-*このノートはDiscord-Obsidian Memo Botによって自動生成されました*"""
+*このノートは Discord-Obsidian Memo Bot によって自動生成されました*"""
 
     def _get_idea_note_template(self) -> str:
         """アイデアノートテンプレート"""
@@ -1038,7 +2036,7 @@ ai_confidence: {{ai_confidence}}
 
 {{/if}}
 {{#if ai_processed}}
-## 🤖 AI分析
+## 🤖 AI 分析
 
 **要約**: {{ai_summary}}
 
@@ -1070,10 +2068,10 @@ ai_confidence: {{ai_confidence}}
 {{/if}}
 ## 📅 作成日時
 
-{{date_format(current_date, "%Y年%m月%d日 %H:%M")}}
+{{date_format(current_date, "%Y 年%m 月%d 日 %H:%M")}}
 
 ---
-*このノートはDiscord-Obsidian Memo Botによって自動生成されました*"""
+*このノートは Discord-Obsidian Memo Bot によって自動生成されました*"""
 
     def _get_meeting_note_template(self) -> str:
         """会議ノートテンプレート"""
@@ -1091,7 +2089,7 @@ participants: []
 
 ## ℹ️ 基本情報
 
-- **日時**: {{date_format(current_date, "%Y年%m月%d日 %H:%M")}}
+- **日時**: {{date_format(current_date, "%Y 年%m 月%d 日 %H:%M")}}
 - **参加者**:
 - **場所**:
 
@@ -1102,8 +2100,8 @@ participants: []
 1. {{@item}}
 {{/each}}
 {{else}}
-1. 議題項目1
-2. 議題項目2
+1. 議題項目 1
+2. 議題項目 2
 {{/if}}
 
 ## 💬 討議内容
@@ -1115,7 +2113,7 @@ participants: []
 {{/if}}
 
 {{#if ai_processed}}
-## 🤖 AI要約
+## 🤖 AI 要約
 
 {{ai_summary}}
 
@@ -1124,8 +2122,8 @@ participants: []
 
 ## ✅ アクションアイテム
 
-- [ ] TODO項目1
-- [ ] TODO項目2
+- [ ] TODO 項目 1
+- [ ] TODO 項目 2
 
 ## 📝 次回までの課題
 
@@ -1166,7 +2164,7 @@ ai_processed: {{ai_processed}}
 {{/if}}
 
 {{#if ai_processed}}
-## 🤖 AI分析
+## 🤖 AI 分析
 
 **要約**: {{ai_summary}}
 

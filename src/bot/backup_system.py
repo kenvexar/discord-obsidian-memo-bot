@@ -11,6 +11,7 @@ from typing import Any
 from discord.ext import commands, tasks
 
 from ..config.settings import get_settings
+from ..obsidian.github_sync import GitHubObsidianSync
 from ..utils.mixins import LoggerMixin
 from .notification_system import NotificationCategory, NotificationLevel
 
@@ -63,8 +64,11 @@ class DataBackupSystem(LoggerMixin):
         self.max_backup_files = 30
         self.backup_destinations = [BackupDestination.LOCAL]
 
-        # settingsインスタンスを取得
+        # settings インスタンスを取得
         settings = get_settings()
+
+        # GitHub 同期システム
+        self.github_sync = GitHubObsidianSync()
 
         # バックアップ対象ディレクトリ
         self.backup_sources = {
@@ -313,7 +317,7 @@ class DataBackupSystem(LoggerMixin):
         }
 
     async def _run_obsidian_backup(self, backup_id: str) -> dict[str, Any]:
-        """Obsidian専用バックアップ"""
+        """Obsidian 専用バックアップ"""
         backup_path = self.backup_dir / f"{backup_id}_obsidian.zip"
         files_backed_up = 0
         total_size = 0
@@ -408,8 +412,8 @@ class DataBackupSystem(LoggerMixin):
             # クラウドストレージへの保存（未実装）
             self.logger.info(f"Cloud storage backup not implemented for {backup_id}")
         elif destination == BackupDestination.GITHUB:
-            # GitHubへの保存（未実装）
-            self.logger.info(f"GitHub backup not implemented for {backup_id}")
+            # GitHub への保存
+            await self._save_to_github(backup_id, backup_result)
 
     async def restore_backup(
         self, backup_id: str, target_directory: Path | None = None
@@ -553,7 +557,7 @@ class DataBackupSystem(LoggerMixin):
 
     def _record_backup(self, backup_result: dict[str, Any]) -> None:
         """バックアップ履歴記録"""
-        # datetimeオブジェクトを文字列に変換
+        # datetime オブジェクトを文字列に変換
         serializable_result = backup_result.copy()
         for key in ["start_time", "end_time"]:
             if key in serializable_result and isinstance(
@@ -562,6 +566,25 @@ class DataBackupSystem(LoggerMixin):
                 serializable_result[key] = serializable_result[key].isoformat()
 
         self.backup_history.append(serializable_result)
+
+    async def _save_to_github(
+        self, backup_id: str, backup_result: dict[str, Any]
+    ) -> None:
+        """GitHub への保存"""
+        try:
+            commit_message = (
+                f"Backup: {backup_id} - {backup_result.get('files_backed_up', 0)} files"
+            )
+            success = await self.github_sync.sync_to_github(commit_message)
+
+            if success:
+                self.logger.info(f"Successfully saved backup {backup_id} to GitHub")
+            else:
+                self.logger.warning(f"Failed to save backup {backup_id} to GitHub")
+
+        except Exception as e:
+            self.logger.error(f"GitHub backup failed for {backup_id}: {e}")
+            raise
 
         # 履歴サイズ制限
         if len(self.backup_history) > 50:

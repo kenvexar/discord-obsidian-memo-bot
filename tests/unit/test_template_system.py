@@ -5,6 +5,7 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 
+import aiofiles
 import pytest
 
 # Set up test environment variables before importing modules
@@ -348,6 +349,205 @@ This is the main content.
         assert "idea" in note.content.lower()
         assert "great idea for a new project" in note.content
         assert note.frontmatter.ai_processed is False  # No AI result provided
+
+    async def test_template_inheritance(self):
+        """テンプレート継承機能のテスト"""
+        # 親テンプレートを作成
+        parent_content = """---
+type: base
+---
+# Base Template
+
+{{block "content"}}
+Default content
+{{/block}}
+
+{{block "footer"}}
+Base footer
+{{/block}}"""
+
+        parent_file = self.template_engine.template_path / "base.md"
+        parent_file.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(parent_file, "w", encoding="utf-8") as f:
+            await f.write(parent_content)
+
+        # 子テンプレートを作成
+        child_content = """{{extends "base"}}
+
+{{block "content"}}
+Child specific content
+{{/block}}"""
+
+        child_file = self.template_engine.template_path / "child.md"
+        async with aiofiles.open(child_file, "w", encoding="utf-8") as f:
+            await f.write(child_content)
+
+        # テンプレートを読み込み
+        result = await self.template_engine.load_template("child")
+
+        assert result is not None
+        assert "Child specific content" in result
+        assert "Base footer" in result
+        assert "Default content" not in result
+
+    async def test_new_template_functions(self):
+        """新しいテンプレート関数のテスト"""
+        template_content = """
+Number: {{number_format(amount, "currency")}}
+Percent: {{number_format(score, "percent")}}
+Default: {{default(missing_value, "fallback")}}
+Length: {{length(items)}}
+Conditional: {{conditional(is_active, "Active", "Inactive")}}"""
+
+        context = {
+            "amount": 1234.56,
+            "score": 0.85,
+            "items": ["a", "b", "c"],
+            "is_active": True,
+            "missing_value": None,
+        }
+
+        result = await self.template_engine.render_template(template_content, context)
+
+        assert "¥1,235" in result
+        assert "85.0%" in result
+        assert "fallback" in result
+        assert "3" in result
+        assert "Active" in result
+
+    async def test_elif_conditions(self):
+        """elif 条件分岐のテスト"""
+        template_content = """{{#if score > 90}}
+Excellent
+{{#elif score > 70}}
+Good
+{{#elif score > 50}}
+Average
+{{#else}}
+Poor
+{{/if}}"""
+
+        # 優秀なスコアのテスト
+        context = {"score": 95}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Excellent" in result.strip()
+
+        # 良いスコアのテスト
+        context = {"score": 80}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Good" in result.strip()
+
+        # 平均的なスコアのテスト
+        context = {"score": 60}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Average" in result.strip()
+
+        # 低いスコアのテスト
+        context = {"score": 30}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Poor" in result.strip()
+
+    async def test_template_validation(self):
+        """テンプレート検証機能のテスト"""
+        # 正常なテンプレート
+        valid_template = """---
+type: test
+---
+# Valid Template
+{{#if condition}}
+Content
+{{/if}}"""
+
+        valid_file = self.template_engine.template_path / "valid.md"
+        valid_file.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(valid_file, "w", encoding="utf-8") as f:
+            await f.write(valid_template)
+
+        result = await self.template_engine.validate_template("valid")
+        assert result["valid"] is True
+        assert len(result["errors"]) == 0
+
+        # 不正なテンプレート（括弧が対応していない）
+        invalid_template = """{{#if condition}}
+Content
+{{/each}}"""  # 間違った終了タグ
+
+        invalid_file = self.template_engine.template_path / "invalid.md"
+        invalid_file.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(invalid_file, "w", encoding="utf-8") as f:
+            await f.write(invalid_template)
+
+        result = await self.template_engine.validate_template("invalid")
+        assert result["valid"] is False
+        assert len(result["errors"]) > 0
+
+    async def test_advanced_conditionals(self):
+        """高度な条件式のテスト"""
+        template_content = """{{#if score >= 80 and active}}
+High performing and active
+{{#elif score >= 60 or priority == "high"}}
+Moderate or high priority
+{{#elif not disabled}}
+Enabled
+{{#else}}
+Default case
+{{/if}}"""
+
+        # AND 条件テスト
+        context = {"score": 85, "active": True}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "High performing and active" in result.strip()
+
+        # OR 条件テスト
+        context = {"score": 50, "priority": "high"}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Moderate or high priority" in result.strip()
+
+        # NOT 条件テスト
+        context = {"score": 30, "disabled": False}
+        result = await self.template_engine.render_template(template_content, context)
+        assert "Enabled" in result.strip()
+
+    async def test_include_functionality(self):
+        """インクルード機能のテスト"""
+        # インクルードされるテンプレート
+        include_content = "Included content: {{value}}"
+        include_file = self.template_engine.template_path / "include_test.md"
+        include_file.parent.mkdir(parents=True, exist_ok=True)
+        async with aiofiles.open(include_file, "w", encoding="utf-8") as f:
+            await f.write(include_content)
+
+        # メインテンプレート
+        main_content = """Main content
+{{include "include_test"}}
+End of main"""
+
+        context = {"value": "test123"}
+        result = await self.template_engine.render_template(main_content, context)
+
+        assert "Main content" in result
+        assert "Included content: test123" in result
+        assert "End of main" in result
+
+    async def test_cache_functionality(self):
+        """キャッシュ機能のテスト"""
+        template_content = "Simple template: {{value}}"
+        template_file = self.template_engine.template_path / "cache_test.md"
+        template_file.parent.mkdir(parents=True, exist_ok=True)
+
+        async with aiofiles.open(template_file, "w", encoding="utf-8") as f:
+            await f.write(template_content)
+
+        # 初回読み込み
+        result1 = await self.template_engine.load_template("cache_test")
+        assert result1 == template_content
+
+        # キャッシュから読み込み
+        result2 = await self.template_engine.load_template("cache_test")
+        assert result2 == template_content
+
+        # キャッシュが使用されているか確認
+        assert "cache_test" in self.template_engine.cached_templates
 
 
 def test_value_formatting() -> None:

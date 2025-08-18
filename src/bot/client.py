@@ -151,6 +151,24 @@ class DiscordBot(LoggerMixin):
             # Start backup and review systems
             if self.backup_system:
                 await self.backup_system.start()
+
+                # GitHub 同期: アプリ起動時に vault をリストア
+                try:
+                    if (
+                        hasattr(self.backup_system, "github_sync")
+                        and self.backup_system.github_sync.is_configured
+                    ):
+                        await self.backup_system.github_sync.setup_git_repository()
+                        restore_success = (
+                            await self.backup_system.github_sync.sync_from_github()
+                        )
+                        if restore_success:
+                            self.logger.info("Successfully restored vault from GitHub")
+                        else:
+                            self.logger.warning("Failed to restore vault from GitHub")
+                except Exception as e:
+                    self.logger.error(f"GitHub restore error during startup: {e}")
+
             if self.review_system:
                 await self.review_system.start()
 
@@ -632,6 +650,28 @@ class DiscordBot(LoggerMixin):
 
         # Stop backup and review systems
         if hasattr(self, "backup_system") and self.backup_system:
+            # GitHub 同期: アプリ終了時に vault をバックアップ
+            try:
+                if (
+                    hasattr(self.backup_system, "github_sync")
+                    and self.backup_system.github_sync.is_configured
+                ):
+                    backup_success = (
+                        await self.backup_system.github_sync.sync_to_github(
+                            "Bot shutdown backup"
+                        )
+                    )
+                    if backup_success:
+                        self.logger.info(
+                            "Successfully backed up vault to GitHub during shutdown"
+                        )
+                    else:
+                        self.logger.warning(
+                            "Failed to backup vault to GitHub during shutdown"
+                        )
+            except Exception as e:
+                self.logger.error(f"GitHub backup error during shutdown: {e}")
+
             await self.backup_system.stop()
         if hasattr(self, "review_system") and self.review_system:
             await self.review_system.stop()
@@ -725,11 +765,11 @@ class SystemMetrics(LoggerMixin):
         )
 
     def record_api_usage(self, minutes: float) -> None:
-        """API使用時間の記録"""
+        """API 使用時間の記録"""
         self.metrics["api_usage_minutes"] += minutes
 
     def record_file_created(self) -> None:
-        """Obsidianファイル作成の記録"""
+        """Obsidian ファイル作成の記録"""
         self.metrics["obsidian_files_created"] += 1
 
     def record_error(self, error_type: str, message: str) -> None:
@@ -738,7 +778,7 @@ class SystemMetrics(LoggerMixin):
         self.error_history.append(
             {"timestamp": datetime.now(), "type": error_type, "message": message}
         )
-        # 古いエラー履歴を削除（過去1時間のみ保持）
+        # 古いエラー履歴を削除（過去 1 時間のみ保持）
         cutoff = datetime.now() - timedelta(hours=1)
         self.error_history = [e for e in self.error_history if e["timestamp"] > cutoff]
 
@@ -791,7 +831,7 @@ class SystemMetrics(LoggerMixin):
         }
 
     def _calculate_performance_score(self) -> int:
-        """パフォーマンススコアの計算（0-100）"""
+        """パフォーマンススコアの計算（ 0-100 ）"""
         score = 100
 
         # エラー率による減点
@@ -800,18 +840,18 @@ class SystemMetrics(LoggerMixin):
         )
         if total_requests > 0:
             error_rate = self.metrics["failed_ai_requests"] / total_requests
-            score -= int(error_rate * 50)  # 最大50点減点
+            score -= int(error_rate * 50)  # 最大 50 点減点
 
         # 最近のエラー数による減点
         recent_errors = len(self.error_history)
         if recent_errors > 10:
-            score -= min(30, recent_errors - 10)  # 最大30点減点
+            score -= min(30, recent_errors - 10)  # 最大 30 点減点
 
         # 警告数による減点
         if self.metrics["warnings_last_hour"] > 5:
             score -= min(
                 20, (self.metrics["warnings_last_hour"] - 5) * 2
-            )  # 最大20点減点
+            )  # 最大 20 点減点
 
         return max(0, score)
 
@@ -841,7 +881,7 @@ class SystemMetrics(LoggerMixin):
 
 
 class APIUsageMonitor(LoggerMixin):
-    """API使用量の監視とダッシュボード"""
+    """API 使用量の監視とダッシュボード"""
 
     def __init__(self) -> None:
         self.gemini_usage: dict[str, Any] = {"requests": 0, "tokens": 0, "errors": 0}
@@ -854,7 +894,7 @@ class APIUsageMonitor(LoggerMixin):
         self.usage_warnings_sent: set[str] = set()
 
     def track_gemini_usage(self, tokens: int, success: bool) -> None:
-        """Gemini API使用量の記録"""
+        """Gemini API 使用量の記録"""
         self.gemini_usage["requests"] += 1
         if success:
             self.gemini_usage["tokens"] += tokens
@@ -864,7 +904,7 @@ class APIUsageMonitor(LoggerMixin):
         self._check_usage_limits()
 
     def track_speech_usage(self, minutes: float, success: bool) -> None:
-        """Speech API使用量の記録"""
+        """Speech API 使用量の記録"""
         self.speech_usage["requests"] += 1
         if success:
             self.speech_usage["minutes"] += minutes
@@ -875,7 +915,7 @@ class APIUsageMonitor(LoggerMixin):
 
     def _check_usage_limits(self) -> None:
         """使用量制限のチェックと警告"""
-        # Gemini API制限チェック（80%に達した場合）
+        # Gemini API 制限チェック（ 80% に達した場合）
         gemini_usage_percent = (
             self.gemini_usage["requests"] / self.daily_limits["gemini_requests"]
         ) * 100
@@ -888,7 +928,7 @@ class APIUsageMonitor(LoggerMixin):
             )
             self.usage_warnings_sent.add("gemini_80")
 
-        # Speech API制限チェック（80%に達した場合）
+        # Speech API 制限チェック（ 80% に達した場合）
         speech_usage_percent = (
             self.speech_usage["minutes"] / self.daily_limits["speech_minutes"]
         ) * 100
@@ -902,7 +942,7 @@ class APIUsageMonitor(LoggerMixin):
             self.usage_warnings_sent.add("speech_80")
 
     def get_usage_dashboard(self) -> dict:
-        """API使用量ダッシュボードデータの取得"""
+        """API 使用量ダッシュボードデータの取得"""
         return {
             "gemini_api": {
                 "requests_used": self.gemini_usage["requests"],
