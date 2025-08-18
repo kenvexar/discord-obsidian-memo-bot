@@ -4,25 +4,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-AI駆動の個人ナレッジマネジメントシステム - Discordを介してメモを収集し、自動的にObsidianで整理
+AI 駆動の個人ナレッジマネジメントシステム - Discord を介してメモを収集し、自動的に Obsidian で整理
 
 ## 概要
 
-Discord-Obsidian Memo Botは、Discordを統合インターフェースとして使用し、AI分析による自動メモ処理とObsidianナレッジベースへの保存を提供する包括的な個人ナレッジマネジメントシステムです。
+Discord-Obsidian Memo Bot は、 Discord を統合インターフェースとして使用し、 AI 分析による自動メモ処理と Obsidian ナレッジベースへの保存を提供する包括的な個人ナレッジマネジメントシステムです。
 
 ### 主要機能
 
-🤖 **AI駆動の自動処理**
-- Google Gemini AIによるメッセージの自動分析・分類・要約
-- URLコンテンツの自動取得と要約
+🤖 **AI 駆動の自動処理**
+- Google Gemini AI によるメッセージの自動分析・分類・要約
+- URL コンテンツの自動取得と要約
 - インテリジェントなタグ付けとカテゴリ分類
 
 🎤 **音声メモ対応**
-- Google Cloud Speech-to-Textによる高精度音声認識
-- 複数音声フォーマット対応（MP3, WAV, FLAC, OGG, M4A, WEBM）
+- Google Cloud Speech-to-Text による高精度音声認識
+- 複数音声フォーマット対応（ MP3, WAV, FLAC, OGG, M4A, WEBM ）
 
-📝 **Obsidian完全統合**
-- 構造化Markdownノートの自動生成
+📝 **Obsidian 完全統合**
+- 構造化 Markdown ノートの自動生成
 - 内容に基づく自動フォルダ分類
 - デイリーノートとの統合
 - 柔軟なテンプレートシステム
@@ -38,17 +38,17 @@ Discord-Obsidian Memo Botは、Discordを統合インターフェースとして
 - 生産性レビューの自動生成
 
 🏃‍♂️ **健康データ統合**（オプション）
-- Garmin Connect統合による活動データ同期
+- Garmin Connect 統合による活動データ同期
 - 睡眠・運動パターンの分析
 
 ## クイックスタート
 
 ### 1. 前提条件
-- Python 3.13以上
-- [uv](https://github.com/astral-sh/uv)（高速Pythonパッケージマネージャー）
-- Discord Botトークン
-- Google Gemini APIキー
-- Obsidianボルト
+- Python 3.13 以上
+- [uv](https://github.com/astral-sh/uv) （高速 Python パッケージマネージャー）
+- Discord Bot トークン
+- Google Gemini API キー
+- Obsidian ボルト
 
 ### 2. インストール
 ```bash
@@ -61,7 +61,7 @@ uv sync
 
 # 環境設定
 cp .env.example .env
-# .envファイルを編集してAPIキーを設定
+# .env ファイルを編集して API キーを設定
 ```
 
 ### 3. 基本設定
@@ -74,14 +74,14 @@ GEMINI_API_KEY=your_gemini_api_key
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 ```
 
-**それだけです！** チャンネルIDの設定は不要です。
+**それだけです！** チャンネル ID の設定は不要です。
 
 ### 4. 起動
 ```bash
 uv run python -m src.main
 ```
 
-### 5. Discordチャンネル作成
+### 5. Discord チャンネル作成
 
 以下のチャンネルを作成するだけ：
 ```
@@ -99,25 +99,25 @@ uv run python -m src.main
 ```
 
 ### 6. 使用開始
-設定したDiscordチャンネルにメッセージを投稿するだけ！AIが自動的に処理してObsidianに保存します。
+設定した Discord チャンネルにメッセージを投稿するだけ！ AI が自動的に処理して Obsidian に保存します。
 
-> **✨ 特徴：チャンネルID設定不要**
+> **✨ 特徴：チャンネル ID 設定不要**
 > 標準的なチャンネル名（`inbox`, `voice`, `money`等）で自動検出します。
-> 面倒なチャンネルIDのコピペは不要です！
+> 面倒なチャンネル ID のコピペは不要です！
 
 ## ドキュメント
 
 詳細な情報については、以下のドキュメントをご参照ください：
 
 ### 📚 ユーザー向け
-- **[簡単セットアップガイド](docs/EASY_SETUP.md)** - 🆕 チャンネルID設定不要の5分セットアップ
+- **[簡単セットアップガイド](docs/EASY_SETUP.md)** - 🆕 チャンネル ID 設定不要の 5 分セットアップ
 - **[チャンネル管理ガイド](docs/CHANNEL_MANAGEMENT.md)** - 詳細なチャンネル設定方法
 - **[ローカルテスト手順](docs/LOCAL_TESTING.md)** - 開発・テスト環境での動作確認
 
 ### 🛠️ 開発者向け
 - **[開発ガイド](docs/developer/development-guide.md)** - 開発環境構築
 - **[アーキテクチャ](docs/developer/architecture.md)** - システム設計
-- **[API仕様](docs/developer/api-reference.md)** - API詳細
+- **[API 仕様](docs/developer/api-reference.md)** - API 詳細
 - **[コントリビューション](docs/developer/contributing.md)** - 貢献方法
 
 ### 🚀 運用者向け
@@ -131,10 +131,10 @@ uv run python -m src.main
 ## 主な特徴
 
 ### 🎯 ゼロ設定の自動化
-メッセージを投稿するだけで、AIが内容を分析し適切なフォルダに構造化して保存
+メッセージを投稿するだけで、 AI が内容を分析し適切なフォルダに構造化して保存
 
 ### 🔄 シームレスな統合
-Discord ↔ AI処理 ↔ Obsidian の完全自動化されたワークフロー
+Discord ↔ AI 処理 ↔ Obsidian の完全自動化されたワークフロー
 
 ### 🧠 インテリジェントな分類
 機械学習による内容の自動分類とタグ付け
@@ -143,33 +143,33 @@ Discord ↔ AI処理 ↔ Obsidian の完全自動化されたワークフロー
 メモ、タスク、金融、健康データを一元管理
 
 ### 🔒 セキュリティ重視
-Google Cloud Secret Managerによる安全な認証情報管理
+Google Cloud Secret Manager による安全な認証情報管理
 
 ## サポートされる環境
 
 - **開発**: ローカル開発環境（モックモード対応）
-- **本番**: Google Cloud Run（24時間365日稼働）
-- **コンテナ**: Docker対応
-- **OS**: macOS, Linux, Windows（WSL2）
+- **本番**: Google Cloud Run （ 24 時間 365 日稼働）
+- **コンテナ**: Docker 対応
+- **OS**: macOS, Linux, Windows （ WSL2 ）
 
 ## コミュニティとサポート
 
-- **Issues**: [GitHub Issues](https://github.com/kenvexar/discord-obsidian-memo-bot/issues)でバグ報告・機能要求
+- **Issues**: [GitHub Issues](https://github.com/kenvexar/discord-obsidian-memo-bot/issues) でバグ報告・機能要求
 - **Discussions**: プロジェクトについて議論
 - **Documentation**: 包括的なドキュメントでサポート
 
 ## ライセンス
 
-MIT License - 詳細は[LICENSE](LICENSE)ファイルをご覧ください。
+MIT License - 詳細は[LICENSE](LICENSE) ファイルをご覧ください。
 
 ## 貢献
 
-プロジェクトへの貢献を歓迎します！詳細は[コントリビューションガイド](docs/developer/contributing.md)をご確認ください。
+プロジェクトへの貢献を歓迎します！詳細は[コントリビューションガイド](docs/developer/contributing.md) をご確認ください。
 
 ---
 
 **プロジェクト情報**
 - バージョン: 0.1.0
-- Python要求バージョン: 3.13以上
+- Python 要求バージョン: 3.13 以上
 - メンテナー: Kent
-- 最終更新: 2025年8月17日
+- 最終更新: 2025 年 8 月 18 日
