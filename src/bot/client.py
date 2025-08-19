@@ -679,28 +679,24 @@ class DiscordBot(LoggerMixin):
         # Close Discord client
         await self.client.close()
 
-    async def send_notification(
-        self, message: str, channel_id: int | None = None
-    ) -> None:
-        """Send a notification message to a channel"""
+    async def send_notification(self, message: str) -> None:
+        """Send a notification message to the notifications channel"""
         if not self.is_ready or not self.guild:
             self.logger.warning("Bot not ready, cannot send notification")
             return
 
-        if channel_id:
-            channel = self.guild.get_channel(channel_id)
-        else:
-            notifications_channel_id = self.channel_config.get_channel_by_name(
-                "notifications"
-            )
-            channel = (
-                self.guild.get_channel(notifications_channel_id)
-                if notifications_channel_id
-                else None
-            )
+        # デフォルトの通知チャンネルのみ使用
+        notifications_channel_id = self.channel_config.get_channel_by_name(
+            "notifications"
+        )
+        channel = (
+            self.guild.get_channel(notifications_channel_id)
+            if notifications_channel_id
+            else None
+        )
 
         if not channel:
-            self.logger.error("Notification channel not found", channel_id=channel_id)
+            self.logger.error("Notification channel not found")
             return
 
         try:
@@ -720,7 +716,7 @@ class DiscordBot(LoggerMixin):
         except Exception as e:
             self.logger.error(
                 "Failed to send notification",
-                channel_id=channel.id if channel else channel_id,
+                channel_id=channel.id if channel else None,
                 error=str(e),
                 exc_info=True,
             )
