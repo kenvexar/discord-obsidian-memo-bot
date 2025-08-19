@@ -33,7 +33,7 @@ class NoteStatus(Enum):
 class VaultFolder(Enum):
     """Vault内のフォルダ構造"""
 
-    # 基本フォルダ（setup-guide.mdに基づく）
+    # 基本フォルダ（CLAUDE.md + docs/user/examples.md に基づく）
     INBOX = "00_Inbox"
     PROJECTS = "01_Projects"
     DAILY_NOTES = "02_DailyNotes"
@@ -43,7 +43,7 @@ class VaultFolder(Enum):
     FINANCE = "06_Finance"
     TASKS = "07_Tasks"
     HEALTH = "08_Health"
-    LEARNING = "09_Learning"  # 新規追加：学習管理
+    KNOWLEDGE = "09_Knowledge"  # チーム知識・ナレッジベース
 
     # アタッチメント用フォルダ
     ATTACHMENTS = "10_Attachments"
@@ -89,11 +89,11 @@ class VaultFolder(Enum):
     HEALTH_MEDICAL = "08_Health/medical"
     HEALTH_ANALYTICS = "08_Health/analytics"
 
-    # Learning subfolders
-    LEARNING_COURSES = "09_Learning/courses"
-    LEARNING_BOOKS = "09_Learning/books"
-    LEARNING_SKILLS = "09_Learning/skills"
-    LEARNING_NOTES = "09_Learning/notes"
+    # Knowledge subfolders（team-knowledge対応）
+    KNOWLEDGE_TECHNICAL = "09_Knowledge/technical"
+    KNOWLEDGE_PROCESSES = "09_Knowledge/processes"
+    KNOWLEDGE_TOOLS = "09_Knowledge/tools"
+    KNOWLEDGE_LEARNINGS = "09_Knowledge/learnings"
 
 
 class NoteFrontmatter(BaseModel):
@@ -308,7 +308,7 @@ class FolderMapping:
     # カテゴリベースのマッピング（改善版）
     CATEGORY_FOLDER_MAPPING = {
         "仕事": VaultFolder.PROJECTS,
-        "学習": VaultFolder.LEARNING,  # 改善：学習専用フォルダ
+        "学習": VaultFolder.KNOWLEDGE,  # LEARNING → KNOWLEDGE に変更
         "プロジェクト": VaultFolder.PROJECTS,
         "生活": VaultFolder.DAILY_NOTES,
         "アイデア": VaultFolder.IDEAS,
@@ -318,7 +318,8 @@ class FolderMapping:
         "その他": VaultFolder.INBOX,
         # 英語カテゴリも追加
         "work": VaultFolder.PROJECTS,
-        "learning": VaultFolder.LEARNING,
+        "learning": VaultFolder.KNOWLEDGE,  # LEARNING → KNOWLEDGE に変更
+        "knowledge": VaultFolder.KNOWLEDGE,  # 新規追加
         "project": VaultFolder.PROJECTS,
         "life": VaultFolder.DAILY_NOTES,
         "idea": VaultFolder.IDEAS,
@@ -352,11 +353,15 @@ class FolderMapping:
         "wellness": VaultFolder.HEALTH_WELLNESS,
         "medical": VaultFolder.HEALTH_MEDICAL,
         "health_analytics": VaultFolder.HEALTH_ANALYTICS,
-        # Learning subcategories
-        "course": VaultFolder.LEARNING_COURSES,
-        "book": VaultFolder.LEARNING_BOOKS,
-        "skill": VaultFolder.LEARNING_SKILLS,
-        "study_note": VaultFolder.LEARNING_NOTES,
+        # Knowledge subcategories（LEARNING → KNOWLEDGE に変更）
+        "technical": VaultFolder.KNOWLEDGE_TECHNICAL,
+        "processes": VaultFolder.KNOWLEDGE_PROCESSES,
+        "tools": VaultFolder.KNOWLEDGE_TOOLS,
+        "learnings": VaultFolder.KNOWLEDGE_LEARNINGS,
+        "course": VaultFolder.KNOWLEDGE_LEARNINGS,  # 後方互換性
+        "book": VaultFolder.KNOWLEDGE_LEARNINGS,  # 後方互換性
+        "skill": VaultFolder.KNOWLEDGE_LEARNINGS,  # 後方互換性
+        "study_note": VaultFolder.KNOWLEDGE_LEARNINGS,  # 後方互換性
         # Inbox subcategories
         "unprocessed": VaultFolder.INBOX_UNPROCESSED,
         "pending": VaultFolder.INBOX_PENDING,
@@ -428,14 +433,14 @@ class FolderMapping:
         ]
 
     @classmethod
-    def get_all_learning_folders(cls) -> list[VaultFolder]:
-        """すべての学習関連フォルダを取得"""
+    def get_all_knowledge_folders(cls) -> list[VaultFolder]:
+        """すべてのナレッジ関連フォルダを取得（LEARNING → KNOWLEDGE に変更）"""
         return [
-            VaultFolder.LEARNING,
-            VaultFolder.LEARNING_COURSES,
-            VaultFolder.LEARNING_BOOKS,
-            VaultFolder.LEARNING_SKILLS,
-            VaultFolder.LEARNING_NOTES,
+            VaultFolder.KNOWLEDGE,
+            VaultFolder.KNOWLEDGE_TECHNICAL,
+            VaultFolder.KNOWLEDGE_PROCESSES,
+            VaultFolder.KNOWLEDGE_TOOLS,
+            VaultFolder.KNOWLEDGE_LEARNINGS,
         ]
 
 

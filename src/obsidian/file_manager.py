@@ -935,6 +935,7 @@ class ObsidianFileManager(LoggerMixin):
             VaultFolder.FINANCE,
             VaultFolder.TASKS,
             VaultFolder.HEALTH,
+            VaultFolder.KNOWLEDGE,  # LEARNING → KNOWLEDGE に変更
             VaultFolder.META,
             VaultFolder.TEMPLATES,
             VaultFolder.ATTACHMENTS,

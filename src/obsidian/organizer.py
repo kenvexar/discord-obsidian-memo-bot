@@ -30,7 +30,7 @@ class VaultOrganizer(LoggerMixin):
             file_manager: ObsidianFileManager instance
         """
         self.file_manager = file_manager
-        # TemplateEngineを使用するように変更
+        # TemplateEngine を使用するように変更
         from .daily_integration import DailyNoteIntegration
         from .template_system import TemplateEngine
 
@@ -82,12 +82,12 @@ class VaultOrganizer(LoggerMixin):
                     results["processed"] += 1
 
                     try:
-                        # AI分類結果に基づいて移動先を決定（改善版）
+                        # AI 分類結果に基づいて移動先を決定（改善版）
                         target_folder = None
                         subcategory = None
 
                         if note.frontmatter.ai_category:
-                            # AI分類結果からフォルダを決定
+                            # AI 分類結果からフォルダを決定
                             from ..ai.models import ProcessingCategory
 
                             try:
@@ -403,7 +403,7 @@ class VaultOrganizer(LoggerMixin):
                 "removed_folders": [],
             }
 
-            # Vault内の全フォルダを検索
+            # Vault 内の全フォルダを検索
             for folder_path in self.file_manager.vault_path.rglob("*"):
                 if not folder_path.is_dir():
                     continue
@@ -460,7 +460,7 @@ class VaultOrganizer(LoggerMixin):
 
     async def optimize_vault_structure(self, dry_run: bool = False) -> dict[str, Any]:
         """
-        Vault構造の最適化
+        Vault 構造の最適化
 
         Args:
             dry_run: 実際の最適化を行わずに計画のみ表示
@@ -491,7 +491,7 @@ class VaultOrganizer(LoggerMixin):
             # 3. 空フォルダのクリーンアップ
             results["cleanup"] = await self.cleanup_empty_folders(dry_run=dry_run)
 
-            # 4. 過去1週間の日次ノート作成
+            # 4. 過去 1 週間の日次ノート作成
             for i in range(7):
                 date = datetime.now() - timedelta(days=i)
                 daily_note = await self.create_daily_note(date)
@@ -568,12 +568,12 @@ class VaultOrganizer(LoggerMixin):
                 VaultFolder.HEALTH_WELLNESS,
                 VaultFolder.HEALTH_MEDICAL,
                 VaultFolder.HEALTH_ANALYTICS,
-                # New Learning structure
-                VaultFolder.LEARNING,
-                VaultFolder.LEARNING_COURSES,
-                VaultFolder.LEARNING_BOOKS,
-                VaultFolder.LEARNING_SKILLS,
-                VaultFolder.LEARNING_NOTES,
+                # New Knowledge structure
+                VaultFolder.KNOWLEDGE,
+                VaultFolder.KNOWLEDGE_TECHNICAL,
+                VaultFolder.KNOWLEDGE_PROCESSES,
+                VaultFolder.KNOWLEDGE_TOOLS,
+                VaultFolder.KNOWLEDGE_LEARNINGS,
             ]
 
             for folder in folders_to_create:
@@ -728,7 +728,7 @@ class VaultOrganizer(LoggerMixin):
             }
 
             for note in daily_notes:
-                # AI処理済みノートの統計
+                # AI 処理済みノートの統計
                 if (
                     hasattr(note.frontmatter, "ai_processed")
                     and note.frontmatter.ai_processed
