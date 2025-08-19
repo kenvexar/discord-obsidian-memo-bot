@@ -27,12 +27,13 @@ from .models import (
 class ObsidianFileManager(LoggerMixin):
     """Obsidian vault file management system"""
 
-    def __init__(self, vault_path: Path | None = None):
+    def __init__(self, vault_path: Path | None = None, enable_local_data: bool = True):
         """
         Initialize Obsidian file manager
 
         Args:
             vault_path: Path to Obsidian vault (defaults to settings)
+            enable_local_data: ローカルデータ管理を有効にするか
         """
         if vault_path:
             self.vault_path = vault_path
@@ -48,19 +49,28 @@ class ObsidianFileManager(LoggerMixin):
         self._stats_cache: VaultStats | None = None
         self._stats_cache_time: datetime | None = None
 
+        # ローカルデータ管理
+        self.local_data_manager = None
+        if enable_local_data:
+            from .local_data_manager import LocalDataManager
+
+            self.local_data_manager = LocalDataManager(self.vault_path)
+
         self.logger.info(
-            "Obsidian file manager initialized", vault_path=str(self.vault_path)
+            "Obsidian file manager initialized",
+            vault_path=str(self.vault_path),
+            local_data_enabled=enable_local_data,
         )
 
     async def initialize_vault(self) -> bool:
         """
-        Vault構造を初期化
+        Vault 構造を初期化
 
         Returns:
             初期化成功可否
         """
         try:
-            # Vaultディレクトリの作成
+            # Vault ディレクトリの作成
             self.vault_path.mkdir(parents=True, exist_ok=True)
 
             # 必要なフォルダ構造を作成
@@ -102,12 +112,17 @@ class ObsidianFileManager(LoggerMixin):
                 )
                 return False
 
-            # Markdownコンテンツの生成
+            # Markdown コンテンツの生成
             markdown_content = note.to_markdown()
 
             # ファイル保存
             async with aiofiles.open(note.file_path, "w", encoding="utf-8") as f:
                 await f.write(markdown_content)
+
+            # ローカルデータインデックスの更新
+            if self.local_data_manager:
+                self.local_data_manager.data_index.add_note(note)
+                self.local_data_manager.data_index.save_indexes()
 
             # 操作記録
             operation = FileOperation(
@@ -161,7 +176,7 @@ class ObsidianFileManager(LoggerMixin):
             file_path: ファイルパス
 
         Returns:
-            読み込まれたノート（失敗時はNone）
+            読み込まれたノート（失敗時は None ）
         """
         try:
             if not file_path.exists() or not file_path.is_file():
@@ -180,7 +195,7 @@ class ObsidianFileManager(LoggerMixin):
             created_at = datetime.fromtimestamp(stat.st_ctime)
             modified_at = datetime.fromtimestamp(stat.st_mtime)
 
-            # NoteFrontmatterオブジェクトの作成
+            # NoteFrontmatter オブジェクトの作成
             from .models import NoteFrontmatter
 
             frontmatter = NoteFrontmatter(**frontmatter_data)
@@ -217,7 +232,7 @@ class ObsidianFileManager(LoggerMixin):
             更新成功可否
         """
         try:
-            # modified時刻を更新
+            # modified 時刻を更新
             note.modified_at = datetime.now()
             note.frontmatter.modified = note.modified_at.isoformat()
 
@@ -267,7 +282,7 @@ class ObsidianFileManager(LoggerMixin):
                 )
                 return False
 
-            # 重複するメタデータとURL要約を除去
+            # 重複するメタデータと URL 要約を除去
             cleaned_content = self._clean_duplicate_sections(
                 content_to_append, existing_note.content
             )
@@ -336,7 +351,7 @@ class ObsidianFileManager(LoggerMixin):
             duplicate_patterns = [
                 r"## 📅 メタデータ.*?(?=##|\Z)",  # メタデータセクション
                 r"## 🔗 関連リンク.*?(?=##|\Z)",  # 関連リンクセクション
-                r"---\n\*このノートはDiscord-Obsidian Memo Botによって自動生成されました\*",  # フッター
+                r"---\n\*このノートは Discord-Obsidian Memo Bot によって自動生成されました\*",  # フッター
                 r"# 📝\s*\n*",  # 重複するタイトル
             ]
 
@@ -350,12 +365,12 @@ class ObsidianFileManager(LoggerMixin):
                         pattern, "", cleaned_content, flags=re.DOTALL
                     )
 
-            # URL要約の重複を除去（同じURLの場合）
+            # URL 要約の重複を除去（同じ URL の場合）
             existing_urls = re.findall(r"🔗 (https?://[^\s]+)", existing_content)
             for url in existing_urls:
-                # 同じURLの要約セクションを除去
+                # 同じ URL の要約セクションを除去
                 url_section_pattern = (
-                    rf"## 📎 URL要約.*?### .*?\n🔗 {re.escape(url)}.*?(?=##|\Z)"
+                    rf"## 📎 URL 要約.*?### .*?\n 🔗 {re.escape(url)}.*?(?=##|\Z)"
                 )
                 cleaned_content = re.sub(
                     url_section_pattern, "", cleaned_content, flags=re.DOTALL
@@ -487,7 +502,7 @@ class ObsidianFileManager(LoggerMixin):
                 r"(## 🔗 関連リンク.*?)(?=##|---|\Z)", content, re.DOTALL
             )
             footer_match = re.search(
-                r"(---\n\*このノートはDiscord-Obsidian Memo Bot.*?(?=##|\Z))",
+                r"(---\n\*このノートは Discord-Obsidian Memo Bot.*?(?=##|\Z))",
                 content,
                 re.DOTALL,
             )
@@ -714,7 +729,7 @@ class ObsidianFileManager(LoggerMixin):
                 if not search_path.exists():
                     return []
 
-            # .mdファイルを再帰的に検索
+            # .md ファイルを再帰的に検索
             for md_file in search_path.rglob("*.md"):
                 if len(results) >= limit:
                     break
@@ -757,16 +772,16 @@ class ObsidianFileManager(LoggerMixin):
 
     async def get_vault_stats(self, force_refresh: bool = False) -> VaultStats:
         """
-        Vault統計情報を取得
+        Vault 統計情報を取得
 
         Args:
             force_refresh: 強制リフレッシュ
 
         Returns:
-            Vault統計情報
+            Vault 統計情報
         """
         try:
-            # キャッシュチェック（5分間有効）
+            # キャッシュチェック（ 5 分間有効）
             if (
                 not force_refresh
                 and self._stats_cache
@@ -777,7 +792,7 @@ class ObsidianFileManager(LoggerMixin):
 
             stats = VaultStats()
 
-            # .mdファイルを再帰的に検索
+            # .md ファイルを再帰的に検索
             for md_file in self.vault_path.rglob("*.md"):
                 # テンプレートフォルダは除外
                 if VaultFolder.TEMPLATES.value in str(
@@ -832,7 +847,7 @@ class ObsidianFileManager(LoggerMixin):
                         stats.notes_by_category.get(category, 0) + 1
                     )
 
-                # AI処理統計
+                # AI 処理統計
                 if note.frontmatter.ai_processed:
                     stats.ai_processed_notes += 1
                     if note.frontmatter.ai_processing_time:
@@ -847,13 +862,13 @@ class ObsidianFileManager(LoggerMixin):
                         stats.most_common_tags.get(clean_tag, 0) + 1
                     )
 
-            # 平均AI処理時間
+            # 平均 AI 処理時間
             if stats.ai_processed_notes > 0:
                 stats.average_ai_processing_time = (
                     stats.total_ai_processing_time / stats.ai_processed_notes
                 )
 
-            # タグを頻度順にソート（上位20個）
+            # タグを頻度順にソート（上位 20 個）
             sorted_tags = sorted(
                 stats.most_common_tags.items(), key=lambda x: x[1], reverse=True
             )[:20]
@@ -882,7 +897,7 @@ class ObsidianFileManager(LoggerMixin):
 
     async def backup_vault(self, backup_path: Path) -> bool:
         """
-        Vaultのバックアップを作成
+        Vault のバックアップを作成
 
         Args:
             backup_path: バックアップ先パス
@@ -924,7 +939,7 @@ class ObsidianFileManager(LoggerMixin):
         self.logger.info("Operation history cleared")
 
     async def _ensure_vault_structure(self) -> None:
-        """Vault構造を確保"""
+        """Vault 構造を確保"""
         folders_to_create = [
             VaultFolder.INBOX,
             VaultFolder.PROJECTS,
@@ -950,7 +965,7 @@ class ObsidianFileManager(LoggerMixin):
             folder_path.mkdir(parents=True, exist_ok=True)
             self._folder_cache.add(folder_path)
 
-        # 年月フォルダの作成（現在年の前後1年）
+        # 年月フォルダの作成（現在年の前後 1 年）
         current_year = datetime.now().year
         for year in range(current_year - 1, current_year + 2):
             year_folder = self.vault_path / VaultFolder.DAILY_NOTES.value / str(year)
@@ -994,10 +1009,10 @@ class ObsidianFileManager(LoggerMixin):
 ## 📊 メタデータ
 - **作成者**: {{author_name}}
 - **作成日時**: {{created_time}}
-- **AI処理時間**: {{processing_time}}ms
+- **AI 処理時間**: {{processing_time}}ms
 
 ---
-*このノートはDiscord-Obsidian Memo Botによって自動生成されました*"""
+*このノートは Discord-Obsidian Memo Bot によって自動生成されました*"""
 
         message_template_path = templates_dir / "message_note_template.md"
         if not message_template_path.exists():
@@ -1009,7 +1024,7 @@ class ObsidianFileManager(LoggerMixin):
 
 ## 📊 今日の統計
 - **総メッセージ数**: {{total_messages}}
-- **AI処理済み**: {{processed_messages}}
+- **AI 処理済み**: {{processed_messages}}
 - **処理時間合計**: {{ai_time_total}}ms
 
 ## 📝 今日のメモ
@@ -1041,7 +1056,7 @@ class ObsidianFileManager(LoggerMixin):
                 await f.write(daily_template_content)
 
     def _parse_markdown_file(self, content: str) -> tuple[dict[str, Any], str]:
-        """Markdownファイルからフロントマターとコンテンツを分離"""
+        """Markdown ファイルからフロントマターとコンテンツを分離"""
 
         frontmatter_data: dict[str, Any] = {}
         markdown_content = content
@@ -1113,3 +1128,134 @@ class ObsidianFileManager(LoggerMixin):
         """統計キャッシュを無効化"""
         self._stats_cache = None
         self._stats_cache_time = None
+
+    # ローカルデータ管理メソッド
+
+    async def initialize_local_data(self) -> bool:
+        """ローカルデータ管理システムを初期化"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return False
+
+        return await self.local_data_manager.initialize()
+
+    async def create_vault_snapshot(self, name: str | None = None) -> Path | None:
+        """Vault のスナップショットを作成"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return None
+
+        return await self.local_data_manager.create_snapshot(name)
+
+    async def restore_vault_snapshot(self, snapshot_file: Path) -> bool:
+        """スナップショットから Vault を復元"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return False
+
+        success = await self.local_data_manager.restore_snapshot(snapshot_file)
+        if success:
+            # キャッシュをクリア
+            self._invalidate_stats_cache()
+
+        return success
+
+    async def export_vault_data(self, format: str = "json") -> Path | None:
+        """Vault データをエクスポート"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return None
+
+        return await self.local_data_manager.export_vault_data(format)
+
+    async def sync_with_remote(
+        self, remote_path: Path, direction: str = "both"
+    ) -> bool:
+        """リモートと同期"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return False
+
+        success = await self.local_data_manager.sync_with_remote(remote_path, direction)
+        if success:
+            # キャッシュをクリア
+            self._invalidate_stats_cache()
+
+        return success
+
+    async def rebuild_local_index(self) -> bool:
+        """ローカルインデックスを再構築"""
+        if not self.local_data_manager:
+            self.logger.warning("Local data manager not enabled")
+            return False
+
+        return await self.local_data_manager.rebuild_index()
+
+    def search_notes_fast(
+        self,
+        query: str | None = None,
+        tags: list[str] | None = None,
+        status: str | None = None,
+        category: str | None = None,
+        limit: int = 50,
+    ) -> list[Path]:
+        """高速ノート検索（ローカルインデックス使用）"""
+        if not self.local_data_manager:
+            self.logger.warning(
+                "Local data manager not enabled, falling back to regular search"
+            )
+            return []
+
+        # インデックスベースの検索
+        file_keys = self.local_data_manager.data_index.search_notes(
+            query=query, tags=tags, status=status, category=category, limit=limit
+        )
+
+        # 相対パスを絶対パスに変換
+        return [self.vault_path / file_key for file_key in file_keys]
+
+    async def get_local_data_stats(self) -> dict:
+        """ローカルデータ管理の統計情報を取得"""
+        if not self.local_data_manager:
+            return {"local_data_enabled": False}
+
+        stats = await self.local_data_manager.get_local_stats()
+        stats["local_data_enabled"] = True
+        return stats
+
+    async def auto_backup_if_needed(self) -> bool:
+        """必要に応じて自動バックアップを実行"""
+        if not self.local_data_manager:
+            return False
+
+        try:
+            # 最後のスナップショット時刻をチェック
+            snapshots_dir = self.local_data_manager.snapshots_dir
+            if not snapshots_dir.exists():
+                # 初回バックアップ
+                snapshot = await self.create_vault_snapshot("auto_backup_initial")
+                return snapshot is not None
+
+            # 最新のスナップショットを確認
+            snapshots = list(snapshots_dir.glob("*.tar.gz"))
+            if not snapshots:
+                # スナップショットが存在しない
+                snapshot = await self.create_vault_snapshot("auto_backup")
+                return snapshot is not None
+
+            # 最新のスナップショット時刻
+            latest_snapshot = max(snapshots, key=lambda f: f.stat().st_mtime)
+            last_backup_time = datetime.fromtimestamp(latest_snapshot.stat().st_mtime)
+
+            # 24 時間以上経過していれば自動バックアップ
+            if (datetime.now() - last_backup_time).total_seconds() > 24 * 3600:
+                snapshot = await self.create_vault_snapshot("auto_backup_daily")
+                return snapshot is not None
+
+            return True
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to perform auto backup", error=str(e), exc_info=True
+            )
+            return False

@@ -2,6 +2,7 @@
 Obsidian vault data models
 """
 
+import json
 import re
 from datetime import datetime
 from enum import Enum
@@ -31,9 +32,9 @@ class NoteStatus(Enum):
 
 
 class VaultFolder(Enum):
-    """Vault内のフォルダ構造"""
+    """Vault 内のフォルダ構造"""
 
-    # 基本フォルダ（CLAUDE.md + docs/user/examples.md に基づく）
+    # 基本フォルダ（ CLAUDE.md + docs/user/examples.md に基づく）
     INBOX = "00_Inbox"
     PROJECTS = "01_Projects"
     DAILY_NOTES = "02_DailyNotes"
@@ -89,7 +90,7 @@ class VaultFolder(Enum):
     HEALTH_MEDICAL = "08_Health/medical"
     HEALTH_ANALYTICS = "08_Health/analytics"
 
-    # Knowledge subfolders（team-knowledge対応）
+    # Knowledge subfolders （ team-knowledge 対応）
     KNOWLEDGE_TECHNICAL = "09_Knowledge/technical"
     KNOWLEDGE_PROCESSES = "09_Knowledge/processes"
     KNOWLEDGE_TOOLS = "09_Knowledge/tools"
@@ -97,9 +98,9 @@ class VaultFolder(Enum):
 
 
 class NoteFrontmatter(BaseModel):
-    """Obsidianノートのフロントマター"""
+    """Obsidian ノートのフロントマター"""
 
-    # Discord関連情報
+    # Discord 関連情報
     discord_message_id: int | None = None
     discord_channel: str | None = None
     discord_channel_id: int | None = None
@@ -108,7 +109,7 @@ class NoteFrontmatter(BaseModel):
     discord_timestamp: str | None = None
     discord_guild: str | None = None
 
-    # AI処理結果
+    # AI 処理結果
     ai_processed: bool = False
     ai_processing_time: int | None = None
     ai_summary: str | None = None
@@ -117,7 +118,7 @@ class NoteFrontmatter(BaseModel):
     ai_subcategory: str | None = None
     ai_confidence: float | None = None
 
-    # Obsidian管理情報
+    # Obsidian 管理情報
     created: str = Field(default_factory=lambda: datetime.now().isoformat())
     modified: str = Field(default_factory=lambda: datetime.now().isoformat())
     status: NoteStatus = NoteStatus.ACTIVE
@@ -144,7 +145,7 @@ class NoteFrontmatter(BaseModel):
     @field_validator("ai_tags")
     @classmethod
     def validate_ai_tags(cls, v: list[str]) -> list[str]:
-        """AIタグの正規化"""
+        """AI タグの正規化"""
         validated_tags = []
         for tag in v:
             if tag and isinstance(tag, str):
@@ -169,7 +170,7 @@ class NoteFrontmatter(BaseModel):
 
 
 class ObsidianNote(BaseModel):
-    """Obsidianノートの完全な表現"""
+    """Obsidian ノートの完全な表現"""
 
     filename: str
     file_path: Path
@@ -217,7 +218,7 @@ class ObsidianNote(BaseModel):
         return None
 
     def to_markdown(self) -> str:
-        """完全なMarkdownファイル内容を生成"""
+        """完全な Markdown ファイル内容を生成"""
         frontmatter_yaml = self._frontmatter_to_yaml()
 
         return f"""---
@@ -226,13 +227,13 @@ class ObsidianNote(BaseModel):
 {self.content}"""
 
     def _frontmatter_to_yaml(self) -> str:
-        """フロントマターをYAML形式に変換"""
+        """フロントマターを YAML 形式に変換"""
         import yaml
 
-        # Pydanticモデルを辞書に変換
+        # Pydantic モデルを辞書に変換
         data = self.frontmatter.model_dump(exclude_none=True)
 
-        # EnumをValueに変換
+        # Enum を Value に変換
         if "status" in data:
             data["status"] = (
                 data["status"].value
@@ -259,7 +260,7 @@ class FileOperation(BaseModel):
 
 
 class VaultStats(BaseModel):
-    """Vault統計情報"""
+    """Vault 統計情報"""
 
     total_notes: int = 0
     total_size_bytes: int = 0
@@ -272,7 +273,7 @@ class VaultStats(BaseModel):
     notes_created_this_week: int = 0
     notes_created_this_month: int = 0
 
-    # AI処理統計
+    # AI 処理統計
     ai_processed_notes: int = 0
     total_ai_processing_time: int = 0
     average_ai_processing_time: float = 0.0
@@ -353,7 +354,7 @@ class FolderMapping:
         "wellness": VaultFolder.HEALTH_WELLNESS,
         "medical": VaultFolder.HEALTH_MEDICAL,
         "health_analytics": VaultFolder.HEALTH_ANALYTICS,
-        # Knowledge subcategories（LEARNING → KNOWLEDGE に変更）
+        # Knowledge subcategories （ LEARNING → KNOWLEDGE に変更）
         "technical": VaultFolder.KNOWLEDGE_TECHNICAL,
         "processes": VaultFolder.KNOWLEDGE_PROCESSES,
         "tools": VaultFolder.KNOWLEDGE_TOOLS,
@@ -434,7 +435,7 @@ class FolderMapping:
 
     @classmethod
     def get_all_knowledge_folders(cls) -> list[VaultFolder]:
-        """すべてのナレッジ関連フォルダを取得（LEARNING → KNOWLEDGE に変更）"""
+        """すべてのナレッジ関連フォルダを取得（ LEARNING → KNOWLEDGE に変更）"""
         return [
             VaultFolder.KNOWLEDGE,
             VaultFolder.KNOWLEDGE_TECHNICAL,
@@ -500,7 +501,7 @@ class NoteFilename:
         if not filename.endswith(".md"):
             return {"timestamp": None, "category": None, "title": None}
 
-        basename = filename[:-3]  # .mdを除去
+        basename = filename[:-3]  # .md を除去
 
         # パターンマッチング: YYYYMMDDHHMM_[category]_[title]
         pattern = r"^(\d{12})(?:_([^_]+))?(?:_(.+))?$"
@@ -511,3 +512,215 @@ class NoteFilename:
             return {"timestamp": timestamp_str, "category": category, "title": title}
 
         return {"timestamp": None, "category": None, "title": None}
+
+
+# ローカルデータ管理システム（ファイルベース）
+
+
+class LocalDataIndex:
+    """JSON ベースのローカルデータインデックス"""
+
+    def __init__(self, vault_path: Path):
+        self.vault_path = vault_path
+        self.index_file = vault_path / ".obsidian_local_index.json"
+        self.metadata_file = vault_path / ".obsidian_metadata.json"
+        self.search_cache_file = vault_path / ".obsidian_search_cache.json"
+
+        # インデックスデータ
+        self.notes_index: dict[str, dict] = {}
+        self.tags_index: dict[str, set[str]] = {}
+        self.links_index: dict[str, set[str]] = {}
+        self.content_index: dict[str, list[str]] = {}
+
+        self._load_indexes()
+
+    def _load_indexes(self) -> None:
+        """インデックスファイルを読み込み"""
+        try:
+            if self.index_file.exists():
+                with open(self.index_file, encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.notes_index = data.get("notes", {})
+                    # Set 型は JSON でシリアライズできないので変換
+                    self.tags_index = {
+                        k: set(v) for k, v in data.get("tags", {}).items()
+                    }
+                    self.links_index = {
+                        k: set(v) for k, v in data.get("links", {}).items()
+                    }
+                    self.content_index = data.get("content", {})
+        except Exception:
+            self.notes_index = {}
+            self.tags_index = {}
+            self.links_index = {}
+            self.content_index = {}
+
+    def save_indexes(self) -> bool:
+        """インデックスファイルを保存"""
+        try:
+            data = {
+                "notes": self.notes_index,
+                # Set 型をリストに変換
+                "tags": {k: list(v) for k, v in self.tags_index.items()},
+                "links": {k: list(v) for k, v in self.links_index.items()},
+                "content": self.content_index,
+                "last_updated": datetime.now().isoformat(),
+            }
+
+            with open(self.index_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            return True
+        except Exception:
+            return False
+
+    def add_note(self, note: ObsidianNote) -> bool:
+        """ノートをインデックスに追加"""
+        try:
+            file_key = str(note.file_path.relative_to(self.vault_path))
+
+            # ノート基本情報
+            self.notes_index[file_key] = {
+                "title": note.title,
+                "created_at": note.created_at.isoformat(),
+                "modified_at": note.modified_at.isoformat(),
+                "status": note.frontmatter.status.value,
+                "category": note.frontmatter.ai_category,
+                "file_size": len(note.content.encode()),
+                "word_count": len(note.content.split()),
+                "ai_processed": note.frontmatter.ai_processed,
+                "ai_summary": note.frontmatter.ai_summary,
+            }
+
+            # タグインデックス
+            all_tags = note.frontmatter.tags + note.frontmatter.ai_tags
+            for tag in all_tags:
+                clean_tag = tag.lstrip("#")
+                if clean_tag not in self.tags_index:
+                    self.tags_index[clean_tag] = set()
+                self.tags_index[clean_tag].add(file_key)
+
+            # コンテンツインデックス（検索用キーワード）
+            words = note.content.lower().split()
+            self.content_index[file_key] = list(set(words))
+
+            return True
+        except Exception:
+            return False
+
+    def remove_note(self, file_path: Path) -> bool:
+        """ノートをインデックスから削除"""
+        try:
+            file_key = str(file_path.relative_to(self.vault_path))
+
+            # ノート情報削除
+            if file_key in self.notes_index:
+                del self.notes_index[file_key]
+
+            # タグインデックスから削除
+            for tag_files in self.tags_index.values():
+                tag_files.discard(file_key)
+
+            # リンクインデックスから削除
+            if file_key in self.links_index:
+                del self.links_index[file_key]
+
+            # コンテンツインデックスから削除
+            if file_key in self.content_index:
+                del self.content_index[file_key]
+
+            return True
+        except Exception:
+            return False
+
+    def search_notes(
+        self,
+        query: str | None = None,
+        tags: list[str] | None = None,
+        status: str | None = None,
+        category: str | None = None,
+        limit: int = 50,
+    ) -> list[str]:
+        """ノートを検索してファイルパスのリストを返す"""
+        results = set(self.notes_index.keys())
+
+        # クエリ検索
+        if query:
+            query_words = query.lower().split()
+            matching_files = set()
+
+            for file_key, words in self.content_index.items():
+                if any(word in words for word in query_words):
+                    matching_files.add(file_key)
+
+            results &= matching_files
+
+        # タグフィルター
+        if tags:
+            for tag in tags:
+                clean_tag = tag.lstrip("#")
+                if clean_tag in self.tags_index:
+                    results &= self.tags_index[clean_tag]
+                else:
+                    results = set()  # タグが存在しない場合は空結果
+                    break
+
+        # ステータスフィルター
+        if status:
+            status_files = {
+                k for k, v in self.notes_index.items() if v.get("status") == status
+            }
+            results &= status_files
+
+        # カテゴリフィルター
+        if category:
+            category_files = {
+                k for k, v in self.notes_index.items() if v.get("category") == category
+            }
+            results &= category_files
+
+        # 結果を作成日時でソート
+        sorted_results = sorted(
+            results,
+            key=lambda x: self.notes_index[x].get("created_at", ""),
+            reverse=True,
+        )
+
+        return sorted_results[:limit]
+
+    def get_stats(self) -> dict:
+        """統計情報を取得"""
+        total_notes = len(self.notes_index)
+        total_tags = len(self.tags_index)
+
+        # ステータス別統計
+        status_counts: dict[str, int] = {}
+        category_counts: dict[str, int] = {}
+        total_words = 0
+
+        for note_data in self.notes_index.values():
+            status = note_data.get("status", "unknown")
+            status_counts[status] = status_counts.get(status, 0) + 1
+
+            category = note_data.get("category")
+            if category:
+                category_counts[category] = category_counts.get(category, 0) + 1
+
+            total_words += note_data.get("word_count", 0)
+
+        # 人気タグ（上位 10 個）
+        popular_tags = sorted(
+            [(tag, len(files)) for tag, files in self.tags_index.items()],
+            key=lambda x: x[1],
+            reverse=True,
+        )[:10]
+
+        return {
+            "total_notes": total_notes,
+            "total_tags": total_tags,
+            "total_words": total_words,
+            "status_distribution": status_counts,
+            "category_distribution": category_counts,
+            "popular_tags": dict(popular_tags),
+            "last_updated": datetime.now().isoformat(),
+        }
