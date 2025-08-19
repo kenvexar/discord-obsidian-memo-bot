@@ -66,7 +66,6 @@ class NotificationSystem(LoggerMixin):
         title: str,
         message: str,
         details: dict[str, Any] | None = None,
-        channel_id: int | None = None,
         user_mention: str | None = None,
         embed_fields: list[dict[str, str]] | None = None,
     ) -> bool:
@@ -79,21 +78,15 @@ class NotificationSystem(LoggerMixin):
             title: 通知タイトル
             message: メッセージ本文
             details: 追加詳細情報
-            channel_id: 送信先チャンネルID（None の場合デフォルト）
             user_mention: メンション対象ユーザー
             embed_fields: 埋め込みフィールド
         """
         try:
-            # 通知先チャンネル決定
-            if channel_id:
-                channel = self.bot.get_channel(channel_id)
-            else:
-                channel = self.channel_config.get_channel("notifications")
+            # 通知先チャンネル決定（デフォルトチャンネルのみ使用）
+            channel = self.channel_config.get_channel("notifications")
 
             if not channel:
-                self.logger.warning(
-                    "Notification channel not found", channel_id=channel_id
-                )
+                self.logger.warning("Notification channel not found")
                 return False
 
             # 埋め込み作成
@@ -229,7 +222,6 @@ class NotificationSystem(LoggerMixin):
         self,
         reminder_type: str,
         items: list[dict[str, Any]],
-        channel_id: int | None = None,
     ) -> None:
         """リマインダー通知"""
         if not items:
@@ -271,7 +263,6 @@ class NotificationSystem(LoggerMixin):
             category=NotificationCategory.REMINDERS,
             title=title,
             message=message,
-            channel_id=channel_id,
             embed_fields=fields,
         )
 
