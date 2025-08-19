@@ -122,43 +122,102 @@ claude --mcp-server discord add-reaction <channel_id> <message_id> "✅"
 The application follows a **layered architecture**:
 1. **Bot Layer** (`src/bot/`): Discord interface and command handling
 2. **Processing Layer** (`src/ai/`): AI analysis and content processing
-3. **Integration Layer** (`src/obsidian/`, `src/garmin/`, `src/audio/`): External service integrations
-4. **Storage Layer**: File system operations and data persistence
+3. **Business Logic Layer** (`src/tasks/`, `src/finance/`): Domain-specific functionality
+4. **Integration Layer** (`src/obsidian/`, `src/garmin/`, `src/audio/`): External service integrations
+5. **Security Layer** (`src/security/`): Authentication and access control
+6. **Monitoring Layer** (`src/monitoring/`): Health checks and observability
+7. **Storage Layer**: File system operations and data persistence
 
 ### Key Architectural Patterns
 - **Dependency Injection**: Constructor-based dependency management
 - **Factory Pattern**: Client creation and configuration
 - **Strategy Pattern**: Pluggable processing methods
 - **Template Method Pattern**: Common processing workflows
+- **Repository Pattern**: Data access abstraction
+- **Observer Pattern**: Event-driven notifications
 
 ### Module Structure
 ```
 src/
 ├── config/              # Settings and configuration management
 ├── utils/               # Shared utilities and logging
+├── security/            # Security and authentication
+│   ├── secret_manager.py   # Secret management
+│   └── access_logger.py    # Access logging
 ├── bot/                 # Discord bot implementation
-│   ├── client.py        # Main Discord client
-│   ├── handlers.py      # Message event handlers
-│   ├── commands.py      # Slash commands
-│   └── message_processor.py # Message processing logic
+│   ├── client.py           # Main Discord client
+│   ├── handlers.py         # Message event handlers
+│   ├── commands/           # Command modules
+│   │   ├── basic_commands.py   # Basic bot commands
+│   │   ├── config_commands.py  # Configuration commands
+│   │   └── stats_commands.py   # Statistics commands
+│   ├── mixins/             # Reusable bot mixins
+│   ├── message_processor.py # Message processing logic
+│   ├── notification_system.py # Notification management
+│   ├── review_system.py    # Review and feedback system
+│   ├── channel_config.py   # Channel configuration
+│   ├── backup_system.py    # Backup management
+│   └── mock_client.py      # Mock client for testing
 ├── ai/                  # AI processing and analysis
-│   ├── processor.py     # Main AI processor
-│   ├── gemini_client.py # Google Gemini API client
-│   ├── note_analyzer.py # Note analysis and categorization
-│   └── vector_store.py  # Vector storage for similarity
+│   ├── processor.py        # Main AI processor
+│   ├── gemini_client.py    # Google Gemini API client
+│   ├── note_analyzer.py    # Note analysis and categorization
+│   ├── vector_store.py     # Vector storage for similarity
+│   ├── url_processor.py    # URL content processing
+│   └── mock_processor.py   # Mock processor for testing
 ├── obsidian/            # Obsidian vault integration
-│   ├── file_manager.py  # File operations
-│   ├── template_system.py # Advanced templating
+│   ├── core/               # Core vault operations
+│   │   ├── vault_manager.py    # Vault management
+│   │   └── file_operations.py  # File operations
+│   ├── search/             # Search functionality
+│   │   ├── note_search.py      # Note search engine
+│   │   └── search_models.py    # Search data models
+│   ├── backup/             # Backup management
+│   │   ├── backup_manager.py   # Backup operations
+│   │   └── backup_models.py    # Backup data models
+│   ├── analytics/          # Vault analytics
+│   │   ├── vault_statistics.py # Vault stats
+│   │   └── stats_models.py     # Statistics models
+│   ├── file_manager.py     # Legacy file operations
+│   ├── local_data_manager.py # Local data management
+│   ├── refactored_file_manager.py # Refactored file operations
+│   ├── template_system.py  # Advanced templating
 │   ├── daily_integration.py # Daily note features
-│   └── organizer.py     # Vault organization
+│   ├── organizer.py        # Vault organization
+│   ├── github_sync.py      # GitHub synchronization
+│   └── metadata.py         # Metadata management
+├── tasks/               # Task management system
+│   ├── task_manager.py     # Task management
+│   ├── schedule_manager.py # Schedule management
+│   ├── report_generator.py # Task reports
+│   ├── reminder_system.py  # Task reminders
+│   ├── commands.py         # Task commands
+│   └── models.py           # Task data models
+├── finance/             # Financial management
+│   ├── expense_manager.py  # Expense tracking
+│   ├── budget_manager.py   # Budget management
+│   ├── subscription_manager.py # Subscription tracking
+│   ├── report_generator.py # Financial reports
+│   ├── reminder_system.py  # Financial reminders
+│   ├── message_handler.py  # Finance message processing
+│   ├── commands.py         # Finance commands
+│   └── models.py           # Finance data models
 ├── audio/               # Voice processing
-│   └── speech_processor.py # Speech-to-text conversion
+│   ├── speech_processor.py # Speech-to-text conversion
+│   └── models.py           # Audio data models
 ├── garmin/              # Garmin Connect integration
-│   ├── client.py        # Garmin API client
-│   └── cache.py         # Data caching
-└── health_analysis/     # Health data processing
-    ├── analyzer.py      # Health data analysis
-    └── integrator.py    # Data integration
+│   ├── client.py           # Garmin API client
+│   ├── cache.py            # Data caching
+│   ├── formatter.py        # Data formatting
+│   └── models.py           # Garmin data models
+├── health_analysis/     # Health data processing
+│   ├── analyzer.py         # Health data analysis
+│   ├── integrator.py       # Data integration
+│   ├── scheduler.py        # Health data scheduling
+│   └── models.py           # Health data models
+├── monitoring/          # Application monitoring
+│   └── health_server.py    # Health check server
+└── main.py              # Application entry point
 ```
 
 ## Technology Stack
@@ -167,9 +226,16 @@ src/
 - **Discord.py**: Discord API integration
 - **Google Generative AI**: Gemini API for AI processing
 - **Google Cloud Speech**: Speech-to-text processing
+- **Google Cloud Secret Manager**: Secure credential storage
+- **Garmin Connect**: Fitness and health data integration
 - **Pydantic**: Data validation and settings management
 - **aiofiles/aiohttp**: Async file and HTTP operations
 - **structlog + rich**: Structured logging with rich output
+- **scikit-learn + numpy**: Machine learning for content analysis
+- **beautifulsoup4 + requests**: Web scraping and URL processing
+- **python-dateutil**: Advanced date/time handling
+- **tenacity**: Retry logic for external APIs
+- **asyncio-throttle**: Rate limiting for API calls
 
 ### Development Tools
 - **uv**: Fast Python package manager
@@ -182,7 +248,7 @@ src/
 
 ### Formatting (Ruff Configuration)
 - Line length: 88 characters (Black compatible)
-- Python 3.10+ target
+- Python 3.13+ target
 - Double quotes for strings
 - 4-space indentation
 - Enabled rules: pyupgrade, flake8-bugbear, flake8-simplify, isort

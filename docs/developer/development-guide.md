@@ -1,6 +1,6 @@
 # 🛠️ 開発ガイド
 
-Discord-Obsidian Memo Botの開発環境構築から実装まで、開発者向けの包括的なガイドです。
+Discord-Obsidian Memo Bot の開発環境構築から実装まで、開発者向けの包括的なガイドです。
 
 ## 📋 目次
 
@@ -19,10 +19,10 @@ Discord-Obsidian Memo Botの開発環境構築から実装まで、開発者向�
 
 ```bash
 # 必須ツール
-python --version          # 3.13以上
+python --version          # 3.13 以上
 uv --version              # 最新版
-git --version             # 2.20以上
-docker --version          # 20.10以上（オプション）
+git --version             # 2.20 以上
+docker --version          # 20.10 以上（オプション）
 
 # 推奨ツール
 code --version            # VS Code
@@ -40,14 +40,14 @@ cd discord-obsidian-memo-bot
 # 2. 開発用依存関係のインストール
 uv sync --dev
 
-# 3. pre-commitフックの設定
+# 3. pre-commit フックの設定
 uv run pre-commit install
 
 # 4. 環境変数の設定
 cp .env.example .env.development
 ```
 
-### VS Code設定
+### VS Code 設定
 
 `.vscode/settings.json`:
 ```json
@@ -89,17 +89,17 @@ ENVIRONMENT=development
 LOG_LEVEL=DEBUG
 LOG_FORMAT=pretty
 
-# モックモード（APIキー不要でテスト可能）
+# モックモード（ API キー不要でテスト可能）
 ENABLE_MOCK_MODE=true
 MOCK_DISCORD_ENABLED=true
 MOCK_GEMINI_ENABLED=true
 MOCK_GARMIN_ENABLED=true
 MOCK_SPEECH_ENABLED=true
 
-# テスト用Obsidianボルト
+# テスト用 Obsidian ボルト
 OBSIDIAN_VAULT_PATH=./test_vault
 
-# テスト用チャンネルID（任意の値でOK）
+# テスト用チャンネル ID （任意の値で OK ）
 CHANNEL_INBOX=123456789012345678
 CHANNEL_VOICE=123456789012345679
 CHANNEL_TASKS=123456789012345680
@@ -112,15 +112,38 @@ CHANNEL_TASKS=123456789012345680
 ```
 src/
 ├── bot/           # Discord インターフェース層
-│   ├── client.py     # メインBotクライアント
-│   ├── handlers.py   # イベント処理
-│   └── commands.py   # スラッシュコマンド
-├── ai/            # AI処理層
-│   ├── processor.py  # AI分析エンジン
-│   └── models.py     # データモデル
-├── obsidian/      # Obsidian統合層
-│   ├── file_manager.py    # ファイル操作
+│   ├── client.py         # メイン Bot クライアント
+│   ├── handlers.py       # イベント処理
+│   ├── commands/         # コマンドモジュール
+│   ├── mixins/           # 再利用可能なミックスイン
+│   ├── message_processor.py # メッセージ処理
+│   ├── notification_system.py # 通知システム
+│   └── review_system.py  # レビューシステム
+├── ai/            # AI 処理層
+│   ├── processor.py      # AI 分析エンジン
+│   ├── gemini_client.py  # Gemini API クライアント
+│   ├── url_processor.py  # URL 処理
+│   └── models.py         # データモデル
+├── obsidian/      # Obsidian 統合層
+│   ├── core/             # コア機能
+│   ├── search/           # 検索機能
+│   ├── backup/           # バックアップ機能
+│   ├── analytics/        # 分析機能
+│   ├── file_manager.py   # ファイル操作
 │   └── template_system.py # テンプレート
+├── tasks/         # タスク管理システム
+│   ├── task_manager.py   # タスク管理
+│   ├── schedule_manager.py # スケジュール管理
+│   └── reminder_system.py # リマインダーシステム
+├── finance/       # 財務管理システム
+│   ├── expense_manager.py # 支出管理
+│   ├── budget_manager.py # 予算管理
+│   └── subscription_manager.py # サブスクリプション管理
+├── security/      # セキュリティ層
+│   ├── secret_manager.py # シークレット管理
+│   └── access_logger.py  # アクセスログ
+├── monitoring/    # 監視層
+│   └── health_server.py  # ヘルスチェック
 ├── config/        # 設定管理
 ├── utils/         # 共通ユーティリティ
 └── main.py        # エントリーポイント
@@ -143,7 +166,7 @@ docs/              # ドキュメント
 | `src/main.py` | アプリケーションエントリーポイント | ⭐⭐⭐ |
 | `src/config/settings.py` | 設定管理 | ⭐⭐⭐ |
 | `src/bot/client.py` | Discord Bot メイン | ⭐⭐⭐ |
-| `src/ai/processor.py` | AI処理エンジン | ⭐⭐⭐ |
+| `src/ai/processor.py` | AI 処理エンジン | ⭐⭐⭐ |
 | `src/obsidian/file_manager.py` | ファイル管理 | ⭐⭐⭐ |
 | `pyproject.toml` | プロジェクト設定 | ⭐⭐ |
 | `.env.example` | 環境変数テンプレート | ⭐⭐ |
@@ -178,7 +201,7 @@ git push origin feature/new-amazing-feature
 
 ### コミットメッセージ規約
 
-[Conventional Commits](https://www.conventionalcommits.org/)に従います：
+[Conventional Commits](https://www.conventionalcommits.org/) に従います：
 
 ```bash
 # 機能追加
@@ -223,27 +246,27 @@ async def process_message(
     channel_id: int,
     user_id: Optional[int] = None
 ) -> ProcessingResult:
-    """メッセージを処理してObsidianに保存する."""
+    """メッセージを処理して Obsidian に保存する."""
     pass
 
 # 2. docstring の記述
 class AIProcessor:
-    """AI分析エンジン.
+    """AI 分析エンジン.
 
-    Gemini APIを使用してメッセージの分析・分類・要約を行う。
+    Gemini API を使用してメッセージの分析・分類・要約を行う。
     キャッシュ機能とレート制限を内蔵。
 
     Attributes:
-        api_key: Gemini APIキー
+        api_key: Gemini API キー
         cache: 処理結果のキャッシュ
-        rate_limiter: API呼び出し制限管理
+        rate_limiter: API 呼び出し制限管理
     """
 
     def __init__(self, api_key: str, cache_size: int = 1000):
-        """AIProcessorを初期化する.
+        """AIProcessor を初期化する.
 
         Args:
-            api_key: Gemini APIキー
+            api_key: Gemini API キー
             cache_size: キャッシュサイズ上限
         """
         pass
@@ -269,7 +292,7 @@ logger.info(
 
 ### 設計原則
 
-1. **Single Responsibility**: 1つのクラス・関数は1つの責任のみ
+1. **Single Responsibility**: 1 つのクラス・関数は 1 つの責任のみ
 2. **Dependency Injection**: 依存性は外部から注入
 3. **Interface Segregation**: 小さく特化したインターフェース
 4. **Don't Repeat Yourself**: コードの重複を避ける
@@ -410,14 +433,14 @@ async def debug_message_processing(self, message: str):
     logger.debug("Starting message processing", message_length=len(message))
 
     try:
-        # AI分析
+        # AI 分析
         logger.debug("Calling AI analysis")
         analysis = await self.ai_processor.analyze(message)
         logger.info("AI analysis completed",
                    tags=analysis.tags,
                    category=analysis.category)
 
-        # Obsidian保存
+        # Obsidian 保存
         logger.debug("Saving to Obsidian", folder=analysis.category)
         result = await self.obsidian_manager.save(analysis)
         logger.info("Save completed", file_path=result.file_path)
@@ -502,7 +525,7 @@ VS Code launch.json:
 ## 実装計画
 1. データ収集機能の実装
 2. 機械学習モデルの訓練
-3. 予測APIの実装
+3. 予測 API の実装
 4. フィードバック機能の実装
 """
 ```
@@ -621,7 +644,7 @@ class TestTagLearner:
                 'scores': {'programming': 0.9, 'study': 0.8}
             }
 
-            content = "Pythonの勉強をした"
+            content = "Python の勉強をした"
             prediction = await learner.predict_tags(content)
 
             assert prediction.predicted_tags == ['programming', 'study']
@@ -674,7 +697,7 @@ def profile_performance(func):
             # 結果の分析
             stats = pstats.Stats(profiler)
             stats.sort_stats('cumulative')
-            stats.print_stats(10)  # トップ10を表示
+            stats.print_stats(10)  # トップ 10 を表示
 
         return result
     return wrapper
@@ -702,7 +725,7 @@ async def process_large_dataset(self, data_source: AsyncIterator[str]):
             await self._process_batch(batch)
             batch.clear()  # メモリ解放
 
-            # GC強制実行（必要に応じて）
+            # GC 強制実行（必要に応じて）
             import gc
             gc.collect()
 
@@ -800,13 +823,13 @@ python_classes = "Test*"
 python_functions = "test_*"
 ```
 
-### 推奨VS Code拡張機能
+### 推奨 VS Code 拡張機能
 
-1. **Python** - Python言語サポート
+1. **Python** - Python 言語サポート
 2. **Ruff** - リンタ・フォーマッタ
 3. **mypy Type Checker** - 型チェック
 4. **Python Test Explorer** - テスト実行
-5. **GitLens** - Git統合
+5. **GitLens** - Git 統合
 6. **Thunder Client** - API テスト
 7. **YAML** - YAML ファイルサポート
 
@@ -821,21 +844,21 @@ python_functions = "test_*"
 ### 継続的学習
 
 1. **Python 非同期プログラミング**
-   - asyncio公式ドキュメント
+   - asyncio 公式ドキュメント
    - "Using Asyncio in Python" by Caleb Hattingh
 
-2. **Discord Bot開発**
-   - discord.py公式ドキュメント
+2. **Discord Bot 開発**
+   - discord.py 公式ドキュメント
    - Discord Developer Portal
 
-3. **AI/ML統合**
+3. **AI/ML 統合**
    - Google AI Platform ドキュメント
    - Hugging Face Transformers
 
 4. **テストベストプラクティス**
-   - pytest公式ドキュメント
+   - pytest 公式ドキュメント
    - "Test-Driven Development with Python" by Harry Percival
 
 ---
 
-このガイドを参考に、効率的で保守性の高いコードの開発を進めてください。質問や改善提案があれば、遠慮なくGitHub Discussionsで相談してください。
+このガイドを参考に、効率的で保守性の高いコードの開発を進めてください。質問や改善提案があれば、遠慮なく GitHub Discussions で相談してください。

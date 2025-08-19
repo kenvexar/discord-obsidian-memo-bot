@@ -1,6 +1,6 @@
 # 🏗️ システムアーキテクチャ
 
-Discord-Obsidian Memo Botのシステム設計思想、アーキテクチャパターン、モジュール構成について詳細に説明します。
+Discord-Obsidian Memo Bot のシステム設計思想、アーキテクチャパターン、モジュール構成について詳細に説明します。
 
 ## 📋 目次
 
@@ -17,8 +17,8 @@ Discord-Obsidian Memo Botのシステム設計思想、アーキテクチャパ�
 
 ### 核心原則
 
-1. **非同期ファースト**: 全I/O操作を非同期で実装し、高いスループットを実現
-2. **型安全性**: 完全な型ヒントによる安全性とIDEサポート
+1. **非同期ファースト**: 全 I/O 操作を非同期で実装し、高いスループットを実現
+2. **型安全性**: 完全な型ヒントによる安全性と IDE サポート
 3. **単一責任**: 各モジュールは明確に定義された単一の責任を持つ
 4. **疎結合**: 依存性注入による疎結合設計
 5. **拡張性**: 新機能の追加が既存コードに影響しない設計
@@ -100,15 +100,15 @@ Discord-Obsidian Memo Botのシステム設計思想、アーキテクチャパ�
 
 ```python
 # src/bot/
-├── client.py          # メインDiscordクライアント
+├── client.py          # メイン Discord クライアント
 ├── handlers.py        # イベントハンドラー
 ├── commands.py        # スラッシュコマンド
 ├── message_processor.py # メッセージ処理ロジック
-└── models.py          # Discordデータモデル
+└── models.py          # Discord データモデル
 ```
 
 **特徴:**
-- Discord APIとの直接やり取り
+- Discord API との直接やり取り
 - ユーザー入力の検証
 - レスポンスフォーマット
 - エラーハンドリング
@@ -136,7 +136,7 @@ class NoteGenerationUseCase:
 ```python
 # src/ai/, src/finance/, src/tasks/
 ├── ai/
-│   ├── processor.py       # AIエンジン
+│   ├── processor.py       # AI エンジン
 │   ├── note_analyzer.py   # ノート分析
 │   └── vector_store.py    # ベクトル検索
 ├── finance/
@@ -153,8 +153,8 @@ class NoteGenerationUseCase:
 
 ```python
 # src/obsidian/, src/garmin/, src/audio/, src/security/
-├── obsidian/              # Obsidian統合
-├── garmin/                # 外部API統合
+├── obsidian/              # Obsidian 統合
+├── garmin/                # 外部 API 統合
 ├── audio/                 # 音声処理
 ├── security/              # セキュリティ
 └── monitoring/            # 監視・ログ
@@ -167,30 +167,56 @@ class NoteGenerationUseCase:
 ```
 src/
 ├── bot/                    # Discord Bot レイヤー
-│   ├── client.py          # 🤖 メインDiscordクライアント
+│   ├── client.py          # 🤖 メイン Discord クライアント
 │   ├── handlers.py        # 📨 イベントハンドラー
-│   ├── commands.py        # ⚡ スラッシュコマンド
+│   ├── commands/          # ⚡ コマンドモジュール
+│   │   ├── basic_commands.py   # 基本コマンド
+│   │   ├── config_commands.py  # 設定コマンド
+│   │   └── stats_commands.py   # 統計コマンド
+│   ├── mixins/            # 🔄 再利用可能なミックスイン
+│   │   └── command_base.py     # コマンドベースクラス
 │   ├── message_processor.py # 🔄 メッセージ処理ロジック
+│   ├── notification_system.py # 🔔 通知システム
+│   ├── review_system.py   # 📝 レビューシステム
 │   ├── channel_config.py  # 📺 チャンネル設定管理
-│   ├── models.py          # 📋 Discordデータモデル
+│   ├── backup_system.py   # 💾 バックアップシステム
+│   ├── config_manager.py  # ⚙️ 設定管理
+│   ├── mock_client.py     # 🧪 モッククライアント
+│   ├── models.py          # 📋 Discord データモデル
 │   └── __init__.py
 │
-├── ai/                     # AI処理レイヤー
-│   ├── processor.py       # 🧠 メインAIプロセッサー
-│   ├── gemini_client.py   # 🔮 Gemini APIクライアント
+├── ai/                     # AI 処理レイヤー
+│   ├── processor.py       # 🧠 メイン AI プロセッサー
+│   ├── gemini_client.py   # 🔮 Gemini API クライアント
 │   ├── note_analyzer.py   # 📝 ノート分析エンジン
-│   ├── url_processor.py   # 🌐 URL内容処理
+│   ├── url_processor.py   # 🌐 URL 内容処理
 │   ├── vector_store.py    # 🔍 ベクトル検索
-│   ├── models.py          # 📊 AIデータモデル
+│   ├── mock_processor.py  # 🧪 モックプロセッサー
+│   ├── models.py          # 📊 AI データモデル
 │   └── __init__.py
 │
-├── obsidian/              # Obsidian統合レイヤー
-│   ├── file_manager.py    # 📁 ファイル操作管理
+├── obsidian/              # Obsidian 統合レイヤー
+│   ├── core/              # 🏗️ コア機能
+│   │   ├── vault_manager.py    # ボルト管理
+│   │   └── file_operations.py  # ファイル操作
+│   ├── search/            # 🔍 検索機能
+│   │   ├── note_search.py      # ノート検索
+│   │   └── search_models.py    # 検索データモデル
+│   ├── backup/            # 💾 バックアップ機能
+│   │   ├── backup_manager.py   # バックアップ管理
+│   │   └── backup_models.py    # バックアップデータモデル
+│   ├── analytics/         # 📊 分析機能
+│   │   ├── vault_statistics.py # ボルト統計
+│   │   └── stats_models.py     # 統計データモデル
+│   ├── file_manager.py    # 📁 ファイル操作管理（レガシー）
+│   ├── local_data_manager.py # 💾 ローカルデータ管理
+│   ├── refactored_file_manager.py # 🔄 リファクタリング済みファイル管理
 │   ├── template_system.py # 📄 テンプレートエンジン
 │   ├── daily_integration.py # 📅 デイリーノート統合
 │   ├── organizer.py       # 🗂️ ボルト組織化
+│   ├── github_sync.py     # 🔗 GitHub 同期
 │   ├── metadata.py        # 🏷️ メタデータ管理
-│   ├── models.py          # 📋 Obsidianデータモデル
+│   ├── models.py          # 📋 Obsidian データモデル
 │   └── __init__.py
 │
 ├── finance/               # ファイナンス管理
@@ -199,6 +225,8 @@ src/
 │   ├── budget_manager.py  # 📊 予算管理
 │   ├── report_generator.py # 📈 レポート生成
 │   ├── reminder_system.py # ⏰ リマインダー
+│   ├── message_handler.py # 📨 メッセージハンドラー
+│   ├── commands.py        # ⚡ ファイナンスコマンド
 │   ├── models.py          # 💳 金融データモデル
 │   └── __init__.py
 │
@@ -207,6 +235,7 @@ src/
 │   ├── schedule_manager.py # 📅 スケジュール管理
 │   ├── reminder_system.py # 🔔 リマインダー
 │   ├── report_generator.py # 📊 生産性レポート
+│   ├── commands.py        # ⚡ タスクコマンド
 │   ├── models.py          # 📝 タスクデータモデル
 │   └── __init__.py
 │
@@ -217,11 +246,11 @@ src/
 │   ├── models.py          # 🏃 健康データモデル
 │   └── __init__.py
 │
-├── garmin/                # Garmin Connect統合
-│   ├── client.py          # 🏃 Garmin APIクライアント
+├── garmin/                # Garmin Connect 統合
+│   ├── client.py          # 🏃 Garmin API クライアント
 │   ├── cache.py           # 💾 データキャッシュ
 │   ├── formatter.py       # 📋 データフォーマット
-│   ├── models.py          # 📊 Garminデータモデル
+│   ├── models.py          # 📊 Garmin データモデル
 │   └── __init__.py
 │
 ├── audio/                 # 音声処理
@@ -365,7 +394,7 @@ class TextProcessingStrategy(ProcessingStrategy):
 
 class URLProcessingStrategy(ProcessingStrategy):
     async def process(self, content: str) -> ProcessingResult:
-        # URL専用処理
+        # URL 専用処理
         pass
 
 class MessageProcessor:
@@ -433,7 +462,7 @@ class BaseProcessor(ABC):
 
 ## ⚡ 非同期処理アーキテクチャ
 
-### asyncio基盤設計
+### asyncio 基盤設計
 
 ```python
 # メインイベントループ
@@ -599,7 +628,7 @@ class DataEncryption:
 ### キャッシュ戦略
 
 ```python
-# LRUキャッシュによる最適化
+# LRU キャッシュによる最適化
 class CacheManager:
     def __init__(self, max_size: int = 1000):
         self.cache: OrderedDict = OrderedDict()
@@ -615,7 +644,7 @@ class CacheManager:
         if key in self.cache:
             entry = self.cache[key]
             if entry['expires'] > time.time():
-                self.cache.move_to_end(key)  # LRU更新
+                self.cache.move_to_end(key)  # LRU 更新
                 return entry['value']
             else:
                 del self.cache[key]  # 期限切れエントリ削除
@@ -687,4 +716,4 @@ class CustomProcessorPlugin(Plugin):
         pass
 ```
 
-この包括的なアーキテクチャにより、Discord-Obsidian Memo Botは高い保守性、拡張性、信頼性を実現しています。各レイヤーの明確な責任分離により、新機能の追加や既存機能の修正が容易になっています。
+この包括的なアーキテクチャにより、 Discord-Obsidian Memo Bot は高い保守性、拡張性、信頼性を実現しています。各レイヤーの明確な責任分離により、新機能の追加や既存機能の修正が容易になっています。
