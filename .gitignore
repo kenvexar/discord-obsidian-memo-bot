@@ -198,6 +198,25 @@ backups/
 vault_backups/
 audio_cache/
 
+# Test vault directories (multiple naming patterns)
+test_vault/
+test_vault_*/
+*_test_vault/
+test-vault*/
+*-test-vault/
+
+# Temporary test files
+test_*.py
+*_test.py
+*test*.md
+temp_*.py
+*_temp.py
+
+# Environment backups
+.env.*.backup
+.env.backup*
+*.env.backup
+
 # MCP Servers cache
 .serena/
 .context7/
