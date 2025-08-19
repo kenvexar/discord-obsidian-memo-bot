@@ -322,3 +322,54 @@ All tests use `pytest-asyncio` with `asyncio_mode = "auto"` for seamless async t
 - **Security**: Uses `SecretStr` for sensitive data, gitleaks pre-commit hook for secret detection
 - **Voice Processing**: Optional feature with 60-minute monthly limit (Google Cloud Speech-to-Text free tier)
 - **Channel Management**: Bot automatically discovers channels by name - no channel ID configuration required
+
+## Git Branch Strategy
+
+This project follows **GitHub Flow + Development Branch** strategy for optimal development workflow:
+
+### Branch Structure
+- **`main`**: Production-ready stable code (protected, auto-deploy)
+- **`develop`**: Development integration branch (protected, CI/CD)
+- **`feature/*`**: Feature development branches
+- **`bugfix/*`**: Bug fix branches
+- **`hotfix/*`**: Emergency production fixes
+- **`release/*`**: Release preparation branches (optional)
+
+### Development Workflow
+```bash
+# Feature development
+git switch develop
+git pull origin develop
+git switch -c feature/new-feature-name
+
+# Development work
+# ... make changes ...
+
+# Commit and push
+git add .
+git commit -m "feat: implement new feature"
+git push -u origin feature/new-feature-name
+
+# Create PR to develop branch
+# After merge, cleanup
+git switch develop
+git pull origin develop
+git branch -d feature/new-feature-name
+```
+
+### Commit Message Convention
+Following [Conventional Commits](https://www.conventionalcommits.org/):
+- `feat:` - New features
+- `fix:` - Bug fixes
+- `docs:` - Documentation updates
+- `refactor:` - Code refactoring
+- `test:` - Test additions/modifications
+- `chore:` - Build/tool changes
+
+### Branch Protection Rules
+- **main**: Requires PR, review, and CI success
+- **develop**: Requires PR and CI success
+- **Squash merge only**: Maintains clean git history
+- **Auto-delete**: Head branches deleted after merge
+
+For detailed guidelines, see [docs/BRANCH_STRATEGY.md](docs/BRANCH_STRATEGY.md)
