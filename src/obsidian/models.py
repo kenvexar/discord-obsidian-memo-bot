@@ -103,7 +103,6 @@ class NoteFrontmatter(BaseModel):
     # Discord 関連情報
     discord_message_id: int | None = None
     discord_channel: str | None = None
-    discord_channel_id: int | None = None
     discord_author: str | None = None
     discord_author_id: int | None = None
     discord_timestamp: str | None = None
