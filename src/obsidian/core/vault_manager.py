@@ -54,27 +54,35 @@ class VaultManager:
 
     async def _ensure_vault_structure(self) -> None:
         """Create essential vault directories."""
+        from ..models import VaultFolder
+
         essential_folders = [
-            "Daily Notes",
-            "Templates",
-            "Inbox",
-            "Projects",
-            "Areas",
-            "Resources",
-            "Archive",
-            "Attachments",
-            ".trash",
+            VaultFolder.INBOX.value,
+            VaultFolder.PROJECTS.value,
+            VaultFolder.DAILY_NOTES.value,
+            VaultFolder.IDEAS.value,
+            VaultFolder.ARCHIVE.value,
+            VaultFolder.RESOURCES.value,
+            VaultFolder.FINANCE.value,
+            VaultFolder.TASKS.value,
+            VaultFolder.HEALTH.value,
+            VaultFolder.KNOWLEDGE.value,
+            VaultFolder.ATTACHMENTS.value,
+            VaultFolder.META.value,
+            VaultFolder.TEMPLATES.value,
         ]
 
-        for folder in essential_folders:
-            folder_path = self.vault_path / folder
-            folder_path.mkdir(exist_ok=True)
-            self._folder_cache[folder] = folder_path
+        for folder_enum_value in essential_folders:
+            folder_path = self.vault_path / folder_enum_value
+            folder_path.mkdir(parents=True, exist_ok=True)
+            self._folder_cache[folder_enum_value] = folder_path
 
         logger.info("Vault structure ensured", folders=essential_folders)
 
     async def _create_template_files(self) -> None:
         """Create default template files."""
+        from ..models import VaultFolder
+
         templates = {
             "Daily Note.md": self._get_daily_note_template(),
             "Meeting Note.md": self._get_meeting_note_template(),
@@ -82,7 +90,7 @@ class VaultManager:
             "Inbox Item.md": self._get_inbox_template(),
         }
 
-        template_dir = self.vault_path / "Templates"
+        template_dir = self.vault_path / VaultFolder.TEMPLATES.value
 
         for filename, content in templates.items():
             template_path = template_dir / filename

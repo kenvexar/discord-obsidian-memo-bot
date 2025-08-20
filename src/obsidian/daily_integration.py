@@ -7,8 +7,8 @@ from datetime import date, datetime
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
-from .file_manager import ObsidianFileManager
 from .models import ObsidianNote, VaultFolder
+from .refactored_file_manager import ObsidianFileManager
 
 # 旧テンプレートシステムは削除済み
 # from .templates import DailyNoteTemplate
@@ -25,7 +25,7 @@ class DailyNoteIntegration(LoggerMixin):
             file_manager: ObsidianFileManager instance
         """
         self.file_manager = file_manager
-        # TemplateEngineを使用するように変更
+        # TemplateEngine を使用するように変更
         from .template_system import TemplateEngine
 
         self.template_engine = TemplateEngine(file_manager.vault_path)
@@ -35,7 +35,7 @@ class DailyNoteIntegration(LoggerMixin):
         self, message_data: dict[str, Any], date: datetime | None = None
     ) -> bool:
         """
-        activity logエントリをデイリーノートに追加
+        activity log エントリをデイリーノートに追加
 
         Args:
             message_data: メッセージデータ
@@ -63,7 +63,7 @@ class DailyNoteIntegration(LoggerMixin):
             if not daily_note:
                 return False
 
-            # Activity Logセクションにエントリを追加
+            # Activity Log セクションにエントリを追加
             timestamp = timing_info.get("created_at", {}).get(
                 "iso", datetime.now().isoformat()
             )
@@ -82,7 +82,9 @@ class DailyNoteIntegration(LoggerMixin):
             daily_note.modified_at = datetime.now()
 
             # ノートを保存
-            success = await self.file_manager.update_note(daily_note)
+            success = await self.file_manager.update_note(
+                daily_note.file_path, daily_note
+            )
 
             if success:
                 self.logger.info(
@@ -106,7 +108,7 @@ class DailyNoteIntegration(LoggerMixin):
         self, message_data: dict[str, Any], date: datetime | None = None
     ) -> bool:
         """
-        daily taskエントリをデイリーノートに追加
+        daily task エントリをデイリーノートに追加
 
         Args:
             message_data: メッセージデータ
@@ -139,7 +141,7 @@ class DailyNoteIntegration(LoggerMixin):
                 # タスク形式でない場合は通常のエントリとして追加
                 task_entries = [f"- [ ] {raw_content}"]
 
-            # Daily Tasksセクションにエントリを追加
+            # Daily Tasks セクションにエントリを追加
             updated_content = daily_note.content
             for task_entry in task_entries:
                 updated_content = self._add_to_section(
@@ -150,7 +152,9 @@ class DailyNoteIntegration(LoggerMixin):
             daily_note.modified_at = datetime.now()
 
             # ノートを保存
-            success = await self.file_manager.update_note(daily_note)
+            success = await self.file_manager.update_note(
+                daily_note.file_path, daily_note
+            )
 
             if success:
                 self.logger.info(
@@ -203,7 +207,7 @@ class DailyNoteIntegration(LoggerMixin):
             # ベースセクションを追加
             new_note.content = self._ensure_base_sections(new_note.content)
 
-            # Vaultの初期化
+            # Vault の初期化
             await self.file_manager.initialize_vault()
 
             # ノートを保存
@@ -256,7 +260,7 @@ class DailyNoteIntegration(LoggerMixin):
             content: 既存のノート内容
             section_identifier: セクション識別子（ヘッダー文字列またはセクション名）
             new_content: 追加/置換するコンテンツ
-            replace_content: True=セクション内容を置換、False=セクションに追加
+            replace_content: True=セクション内容を置換、 False=セクションに追加
 
         Returns:
             更新されたコンテンツ
@@ -347,7 +351,7 @@ class DailyNoteIntegration(LoggerMixin):
             r"^[-*+]\s+(.+)$",  # リスト形式
             r"^(\d+\.)\s+(.+)$",  # 番号付きリスト
             r"^[-*+]\s*\[[ x]\]\s+(.+)$",  # チェックボックス付き
-            r"^TODO:\s*(.+)$",  # TODO形式
+            r"^TODO:\s*(.+)$",  # TODO 形式
             r"^タスク[:：]\s*(.+)$",  # 日本語タスク形式
         ]
 
@@ -376,7 +380,7 @@ class DailyNoteIntegration(LoggerMixin):
                         tasks.append(f"- {task_content}")
                     break
             else:
-                # パターンにマッチしない場合、複数行の場合は全体を1つのタスクとして扱う
+                # パターンにマッチしない場合、複数行の場合は全体を 1 つのタスクとして扱う
                 if len(lines) == 1:
                     tasks.append(f"- [ ] {line}")
 
@@ -390,7 +394,7 @@ class DailyNoteIntegration(LoggerMixin):
 
         Args:
             target_date: 対象日付
-            health_data_markdown: 健康データのMarkdown形式
+            health_data_markdown: 健康データの Markdown 形式
 
         Returns:
             bool: 更新成功フラグ
@@ -413,7 +417,7 @@ class DailyNoteIntegration(LoggerMixin):
             # 既存のコンテンツを読み込み
             content = daily_note.content
 
-            # Health Dataセクションを更新
+            # Health Data セクションを更新
             content = self._update_health_data_section(content, health_data_markdown)
 
             # ノートを更新
@@ -450,7 +454,7 @@ class DailyNoteIntegration(LoggerMixin):
     def _update_health_data_section(
         self, content: str, health_data_markdown: str
     ) -> str:
-        """Health Dataセクションを更新"""
+        """Health Data セクションを更新"""
         return self._update_section(
             content, "Health Data", health_data_markdown, replace_content=True
         )
@@ -463,7 +467,7 @@ class DailyNoteIntegration(LoggerMixin):
 
         Args:
             target_date: 対象日付
-            analysis_markdown: 健康分析のMarkdown形式
+            analysis_markdown: 健康分析の Markdown 形式
 
         Returns:
             bool: 更新成功フラグ
@@ -486,7 +490,7 @@ class DailyNoteIntegration(LoggerMixin):
             # 既存のコンテンツを読み込み
             content = daily_note.content
 
-            # Health Analysisセクションを更新
+            # Health Analysis セクションを更新
             content = self._update_health_analysis_section(content, analysis_markdown)
 
             # ノートを更新
@@ -523,20 +527,20 @@ class DailyNoteIntegration(LoggerMixin):
     def _update_health_analysis_section(
         self, content: str, analysis_markdown: str
     ) -> str:
-        """Health Analysisセクションを更新"""
+        """Health Analysis セクションを更新"""
         return self._update_section(
             content, "Health Analysis", analysis_markdown, replace_content=True
         )
 
     async def get_health_data_for_date(self, target_date: date) -> str | None:
         """
-        指定日のデイリーノートからHealth Dataセクションを抽出
+        指定日のデイリーノートから Health Data セクションを抽出
 
         Args:
             target_date: 対象日付
 
         Returns:
-            Health Dataセクションの内容（存在しない場合はNone）
+            Health Data セクションの内容（存在しない場合は None ）
         """
         try:
             daily_note = await self._get_or_create_daily_note(
@@ -549,7 +553,7 @@ class DailyNoteIntegration(LoggerMixin):
             health_section_start = None
             health_section_end = len(lines)
 
-            # Health Dataセクションを検索
+            # Health Data セクションを検索
             for i, line in enumerate(lines):
                 if line.strip().startswith("## ") and "Health Data" in line:
                     health_section_start = i
@@ -584,7 +588,9 @@ class DailyNoteIntegration(LoggerMixin):
 
             # その日のノートを検索
             daily_notes = await self.file_manager.search_notes(
-                date_from=start_date, date_to=end_date, limit=1000
+                date_from=start_date.isoformat(),
+                date_to=end_date.isoformat(),
+                limit=1000,
             )
 
             stats = {
@@ -595,38 +601,31 @@ class DailyNoteIntegration(LoggerMixin):
                 "tags": {},
             }
 
-            for note in daily_notes:
-                # AI処理済みノートの統計
-                if (
-                    hasattr(note.frontmatter, "ai_processed")
-                    and note.frontmatter.ai_processed
-                ):
+            for note_dict in daily_notes:
+                # AI 処理済みノートの統計
+                ai_processed = note_dict.get("ai_processed", False)
+                if ai_processed:
                     if isinstance(stats["processed_messages"], int):
                         stats["processed_messages"] += 1
 
-                    if (
-                        hasattr(note.frontmatter, "ai_processing_time")
-                        and note.frontmatter.ai_processing_time
-                        and isinstance(stats["ai_processing_time_total"], int)
+                    ai_processing_time = note_dict.get("ai_processing_time")
+                    if ai_processing_time and isinstance(
+                        stats["ai_processing_time_total"], int
                     ):
-                        stats["ai_processing_time_total"] += int(
-                            note.frontmatter.ai_processing_time
-                        )
+                        stats["ai_processing_time_total"] += int(ai_processing_time)
 
                 # カテゴリ統計
-                if (
-                    hasattr(note.frontmatter, "ai_category")
-                    and note.frontmatter.ai_category
-                ):
-                    category = str(note.frontmatter.ai_category)
+                ai_category = note_dict.get("ai_category")
+                if ai_category:
+                    category = str(ai_category)
                     if isinstance(stats["categories"], dict):
                         stats["categories"][category] = (
                             stats["categories"].get(category, 0) + 1
                         )
 
                 # タグ統計
-                ai_tags = getattr(note.frontmatter, "ai_tags", []) or []
-                tags = getattr(note.frontmatter, "tags", []) or []
+                ai_tags = note_dict.get("ai_tags", []) or []
+                tags = note_dict.get("tags", []) or []
                 for tag in ai_tags + tags:
                     clean_tag = str(tag).lstrip("#")
                     if isinstance(stats["tags"], dict):

@@ -29,7 +29,7 @@ class TemplateLoader:
     def __init__(self, template_path: Path, logger):
         self.template_path = template_path
         self.cached_templates: dict[str, dict[str, Any]] = {}
-        self.template_inheritance_cache: dict[str, list[str]] = {}
+        self.template_inheritance_cache: dict[str, str] = {}
         self.logger = logger
 
     async def load_template(self, template_name: str) -> str | None:
@@ -98,8 +98,71 @@ class TemplateLoader:
         self, content: str, template_name: str
     ) -> str:
         """Process template inheritance chain - extracted from TemplateEngine."""
-        # Inheritance processing logic will be moved here
-        return content  # Simplified for now
+        try:
+            # extends 構文の検出: {{extends "parent_template"}}
+            extends_pattern = r'\{\{extends\s+["\']([^"\']+)["\']\s*\}\}'
+            extends_match = re.search(extends_pattern, content)
+
+            if not extends_match:
+                return content
+
+            parent_template_name = extends_match.group(1)
+
+            # 循環参照チェック
+            inheritance_chain = [template_name]
+            current_template = parent_template_name
+            while current_template in self.template_inheritance_cache:
+                if current_template in inheritance_chain:
+                    raise ValueError(
+                        f"Circular template inheritance detected: {' -> '.join(inheritance_chain + [current_template])}"
+                    )
+                inheritance_chain.append(current_template)
+                current_template = self.template_inheritance_cache.get(current_template)
+
+            # 親テンプレートを読み込み
+            parent_content = await self.load_template(parent_template_name)
+            if not parent_content:
+                raise ValueError(f"Parent template not found: {parent_template_name}")
+
+            # 継承関係をキャッシュ
+            self.template_inheritance_cache[template_name] = parent_template_name
+
+            # extends ディレクティブを削除
+            content = re.sub(extends_pattern, "", content, flags=re.MULTILINE)
+
+            # ブロック置換の処理
+            content = self._process_template_blocks(parent_content, content)
+
+            return content
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to process template inheritance",
+                template=template_name,
+                error=str(e),
+                exc_info=True,
+            )
+            return content  # エラー時は元のテンプレートを返す  # Simplified for now
+
+    def _process_template_blocks(self, parent_content: str, child_content: str) -> str:
+        """親テンプレートのブロックを子テンプレートの内容で置換"""
+        # 子テンプレートからブロックを抽出: {{block "block_name"}}content{{/block}}
+        child_blocks = {}
+        block_pattern = r'\{\{block\s+["\']([^"\']+)["\']\s*\}\}(.*?)\{\{/block\s*\}\}'
+
+        for match in re.finditer(block_pattern, child_content, re.DOTALL):
+            block_name = match.group(1)
+            block_content = match.group(2).strip()
+            child_blocks[block_name] = block_content
+
+        # 親テンプレートのブロックを子テンプレートの内容で置換
+        def replace_block(match):
+            block_name = match.group(1)
+            default_content = match.group(2).strip()
+            return child_blocks.get(block_name, default_content)
+
+        result = re.sub(block_pattern, replace_block, parent_content, flags=re.DOTALL)
+        return result
 
 
 class ConditionalProcessor:
@@ -122,19 +185,19 @@ class ConditionalProcessor:
         # 複数回処理してネストした条件にも対応
         processed = content
         for _ in range(5):  # 最大 5 回の繰り返し処理
+            # 複雑な if-elif-else 構造を処理（全体的なパターン）
+            complex_if_pattern = r"\{\{\s*#if\s+([^}]+)\s*\}\}(.*?)\{\{\s*/if\s*\}\}"
+            new_processed = re.sub(
+                complex_if_pattern, replace_conditional, processed, flags=re.DOTALL
+            )
+
             # シンプルな if 文から処理
             simple_if_pattern = r"\{\{\s*#if\s+(\w+)\s*\}\}((?:(?!\{\{\s*(?:#elif|#else|/if)\s*\}\}).)*?)\{\{\s*/if\s*\}\}"
             new_processed = re.sub(
                 simple_if_pattern,
                 lambda m: self._process_simple_if(m, context),
-                processed,
+                new_processed,
                 flags=re.DOTALL,
-            )
-
-            # 複雑な if-elif-else 構造を処理
-            complex_if_pattern = r"\{\{\s*#if\s+([^}]+)\s*\}\}(.*?)\{\{\s*/if\s*\}\}"
-            new_processed = re.sub(
-                complex_if_pattern, replace_conditional, new_processed, flags=re.DOTALL
             )
 
             if new_processed == processed:
@@ -155,14 +218,226 @@ class ConditionalProcessor:
     def _parse_complex_conditional(
         self, full_match: str, context: dict[str, Any]
     ) -> str:
-        """Complex conditional parsing - placeholder for extracted logic"""
-        # Complex parsing logic will be moved here
-        return ""
+        """Complex conditional parsing - extracted from TemplateEngine"""
+        try:
+            # if 文の解析
+            if_match = re.search(r"\{\{\s*#if\s+([^}]+)\s*\}\}", full_match)
+            if not if_match:
+                return ""
+
+            # 条件とコンテンツブロックを順次解析
+            remaining_content = full_match[if_match.end() :]
+            conditions_and_content = []
+
+            # if 条件
+            if_condition = if_match.group(1).strip()
+            conditions_and_content.append(("if", if_condition, ""))
+
+            # elif 条件を検索
+            elif_pattern = r"\{\{\s*#elif\s+([^}]+)\s*\}\}"
+            else_pattern = r"\{\{\s*#else\s*\}\}"
+            endif_pattern = r"\{\{\s*/if\s*\}\}"
+
+            current_pos = 0
+
+            while current_pos < len(remaining_content):
+                elif_match = re.search(elif_pattern, remaining_content[current_pos:])
+                else_match = re.search(else_pattern, remaining_content[current_pos:])
+                endif_match = re.search(endif_pattern, remaining_content[current_pos:])
+
+                # 次に現れるタグを特定
+                next_matches = []
+                if elif_match:
+                    next_matches.append(
+                        (elif_match.start() + current_pos, "elif", elif_match)
+                    )
+                if else_match:
+                    next_matches.append(
+                        (else_match.start() + current_pos, "else", else_match)
+                    )
+                if endif_match:
+                    next_matches.append(
+                        (endif_match.start() + current_pos, "endif", endif_match)
+                    )
+
+                if not next_matches:
+                    break
+
+                # 最も近いタグを選択
+                next_matches.sort()
+                next_pos, next_type, next_match = next_matches[0]
+
+                # 現在のブロックのコンテンツを抽出
+                block_content = remaining_content[current_pos:next_pos].strip()
+
+                # 前の条件にコンテンツを設定
+                if conditions_and_content:
+                    conditions_and_content[-1] = (
+                        conditions_and_content[-1][0],
+                        conditions_and_content[-1][1],
+                        block_content,
+                    )
+
+                if next_type == "elif":
+                    elif_condition = next_match.group(1).strip()
+                    conditions_and_content.append(("elif", elif_condition, ""))
+                    current_pos = next_pos + len(next_match.group(0))
+                elif next_type == "else":
+                    conditions_and_content.append(("else", "", ""))
+                    current_pos = next_pos + len(next_match.group(0))
+                elif next_type == "endif":
+                    if (
+                        len(conditions_and_content) > 0
+                        and conditions_and_content[-1][2] == ""
+                    ):
+                        # 最後のブロックのコンテンツを設定
+                        final_content = remaining_content[current_pos:next_pos].strip()
+                        conditions_and_content[-1] = (
+                            conditions_and_content[-1][0],
+                            conditions_and_content[-1][1],
+                            final_content,
+                        )
+                    break
+
+            # 条件を順次評価
+            for cond_type, condition, content in conditions_and_content:
+                if cond_type == "else":
+                    return content  # else 句は無条件で実行
+
+                if self._evaluate_condition(condition, context):
+                    return content
+
+            return ""  # どの条件も満たされない場合
+
+        except Exception as e:
+            self.logger.error("Failed to parse complex conditional", error=str(e))
+            return ""
 
     def _evaluate_condition(self, condition: str, context: dict[str, Any]) -> bool:
-        """Evaluate conditional expression - placeholder for extracted logic"""
-        # Condition evaluation logic will be moved here
-        return context.get(condition, False)
+        """Evaluate conditional expression - extracted from TemplateEngine"""
+        try:
+            condition = condition.strip()
+
+            # NOT 演算子を最初に処理
+            if condition.startswith("not "):
+                return not self._evaluate_condition(condition[4:].strip(), context)
+
+            # AND/OR 演算子を優先的に処理（複合条件）
+            if " and " in condition:
+                conditions = condition.split(" and ")
+                return all(
+                    self._evaluate_condition(cond.strip(), context)
+                    for cond in conditions
+                )
+
+            if " or " in condition:
+                conditions = condition.split(" or ")
+                return any(
+                    self._evaluate_condition(cond.strip(), context)
+                    for cond in conditions
+                )
+
+            # 比較演算子をサポート
+            if " == " in condition:
+                left, right = condition.split(" == ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                return str(left_val) == str(right_val)
+
+            if " != " in condition:
+                left, right = condition.split(" != ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                return str(left_val) != str(right_val)
+
+            if " >= " in condition:
+                left, right = condition.split(" >= ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) >= float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " <= " in condition:
+                left, right = condition.split(" <= ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) <= float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " > " in condition:
+                left, right = condition.split(" > ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) > float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            if " < " in condition:
+                left, right = condition.split(" < ", 1)
+                left_val = self._get_condition_value(left.strip(), context)
+                right_val = self._get_condition_value(right.strip(), context)
+                try:
+                    return float(left_val) < float(right_val)
+                except (ValueError, TypeError):
+                    return False
+
+            # シンプルな真偽値評価
+            condition_value = context.get(condition, False)
+            return self._is_truthy(condition_value)
+
+        except Exception as e:
+            self.logger.error(
+                "Failed to evaluate condition", condition=condition, error=str(e)
+            )
+            return False
+
+    def _get_condition_value(self, value_str: str, context: dict[str, Any]) -> Any:
+        """Get value for condition evaluation"""
+        value_str = value_str.strip()
+
+        # String literals
+        if (value_str.startswith('"') and value_str.endswith('"')) or (
+            value_str.startswith("'") and value_str.endswith("'")
+        ):
+            return value_str[1:-1]
+
+        # Number literals
+        try:
+            if "." in value_str:
+                return float(value_str)
+            else:
+                return int(value_str)
+        except ValueError:
+            pass
+
+        # Boolean literals
+        if value_str.lower() == "true":
+            return True
+        elif value_str.lower() == "false":
+            return False
+
+        # Context variables
+        return context.get(value_str, "")
+
+    def _is_truthy(self, value: Any) -> bool:
+        """Check if value is truthy"""
+        if isinstance(value, bool):
+            return value
+        elif isinstance(value, str):
+            return value.strip() != ""
+        elif isinstance(value, int | float):
+            return value != 0
+        elif isinstance(value, list | dict):
+            return len(value) > 0
+        elif value is None:
+            return False
+        else:
+            return bool(value)
 
 
 class CustomFunctionProcessor:
@@ -176,7 +451,27 @@ class CustomFunctionProcessor:
         """Process custom functions - migrated from TemplateEngine.
         Implements ICustomFunctionProcessor interface."""
 
-        # Include処理は一旦スキップ（循環依存回避のため）
+        # Include 処理は一旦スキップ（循環依存回避のため）
+
+        # 文字数制限: {{truncate(text, length)}}
+        def truncate_func(match: re.Match[str]) -> str:
+            args_str = match.group(1)
+            args = [arg.strip() for arg in args_str.split(",")]
+            if len(args) >= 2:
+                text_key = args[0].strip()
+                try:
+                    length = int(args[1].strip())
+
+                    if text_key in context:
+                        text = str(context[text_key])
+                        return text[:length] + "..." if len(text) > length else text
+                    else:
+                        self.logger.debug(f"Text key '{text_key}' not found in context")
+                except ValueError:
+                    self.logger.debug(f"Invalid length parameter: {args[1]}")
+            return ""
+
+        content = re.sub(r"\{\{truncate\((.*?)\)\}\}", truncate_func, content)
 
         # 日付フォーマット: {{date_format(date, format)}}
         def date_format_func(match: re.Match[str]) -> str:
@@ -241,6 +536,26 @@ class CustomFunctionProcessor:
             return ""
 
         content = re.sub(r"\{\{number_format\((.*?)\)\}\}", number_format_func, content)
+
+        # 条件式 {{conditional(condition, true_value, false_value)}}
+        def conditional_func(match: re.Match[str]) -> str:
+            args_str = match.group(1)
+            args = [arg.strip().strip("\"'") for arg in args_str.split(",")]
+            if len(args) >= 3:
+                condition = args[0]
+                true_val = args[1]
+                false_val = args[2]
+
+                condition_result = context.get(condition, False)
+                if isinstance(condition_result, bool):
+                    return true_val if condition_result else false_val
+                elif isinstance(condition_result, str):
+                    return true_val if condition_result.strip() != "" else false_val
+                else:
+                    return true_val if condition_result else false_val
+            return ""
+
+        content = re.sub(r"\{\{conditional\((.*?)\)\}\}", conditional_func, content)
 
         # 配列の長さ {{length(array)}}
         def length_func(match: re.Match[str]) -> str:
@@ -325,7 +640,15 @@ class TemplateEngine(LoggerMixin):
             テンプレート内容、見つからない場合は None
         """
         # Delegate to the specialized template loader component
-        return await self.template_loader.load_template(template_name)
+        result = await self.template_loader.load_template(template_name)
+
+        # Keep legacy cached_templates in sync for backward compatibility
+        if result and template_name in self.template_loader.cached_templates:
+            self.cached_templates[template_name] = (
+                self.template_loader.cached_templates[template_name]
+            )
+
+        return result
 
     async def _process_template_inheritance(
         self, content: str, template_name: str
@@ -460,6 +783,9 @@ class TemplateEngine(LoggerMixin):
         try:
             rendered = template_content
 
+            # Include 処理を先に実行
+            rendered = await self._process_includes(rendered, context)
+
             # Component-based processing
             # 条件付きセクション: {{#if condition}}content{{/if}}
             rendered = await self.conditional_processor.process(rendered, context)
@@ -470,7 +796,7 @@ class TemplateEngine(LoggerMixin):
             # カスタム関数: {{function_name(args)}}
             rendered = await self.custom_function_processor.process(rendered, context)
 
-            # 最後に基本的なプレースホルダーの置換
+            # 基本的なプレースホルダーの置換
             for placeholder, value in context.items():
                 # 基本的なプレースホルダー: {{placeholder}}
                 pattern = r"\{\{\s*" + re.escape(placeholder) + r"\s*\}\}"
@@ -485,7 +811,7 @@ class TemplateEngine(LoggerMixin):
 
         except Exception as e:
             self.logger.error("Failed to render template", error=str(e), exc_info=True)
-            return template_content  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す
+            return template_content  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す  # 失敗した場合は元のテンプレートを返す
 
     def _format_value(self, value: Any) -> str:
         """値をフォーマット"""
@@ -1297,7 +1623,7 @@ class TemplateEngine(LoggerMixin):
                 "current_time": current_time,
                 "date_iso": current_time.isoformat(),
                 "date_ymd": current_time.strftime("%Y-%m-%d"),
-                "date_japanese": current_time.strftime("%Y年%m月%d日"),
+                "date_japanese": current_time.strftime("%Y 年%m 月%d 日"),
                 "time_hm": current_time.strftime("%H:%M"),
             }
         )
@@ -1503,7 +1829,11 @@ class TemplateEngine(LoggerMixin):
             if not filename.endswith(".md"):
                 filename += ".md"
 
-            file_path = self.vault_path / VaultFolder.INBOX.value / filename
+            # カスタムファイルパスが指定されている場合はそれを使用、そうでなければ INBOX
+            if additional_context and "file_path" in additional_context:
+                file_path = additional_context["file_path"]
+            else:
+                file_path = self.vault_path / VaultFolder.INBOX.value / filename
 
             # ObsidianNote オブジェクトを作成
             note = ObsidianNote(
@@ -1659,6 +1989,7 @@ class TemplateEngine(LoggerMixin):
             # 追加コンテキスト
             additional_context = {
                 "filename": filename,
+                "file_path": file_path,  # 正しいパスを明示的に指定
                 "vault_folder": VaultFolder.DAILY_NOTES.value,
                 "target_date": date,
                 "daily_stats": daily_stats or {},
@@ -1693,7 +2024,7 @@ class TemplateEngine(LoggerMixin):
             )
 
             if note:
-                # ファイルパスを正しく設定
+                # ファイルパスが正しく設定されていることを確認
                 note.file_path = file_path
                 note.filename = filename
                 note.created_at = date

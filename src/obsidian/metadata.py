@@ -3,11 +3,12 @@ Obsidian metadata management
 """
 
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
-from .file_manager import ObsidianFileManager
-from .models import ObsidianNote, VaultStats
+from .models import ObsidianNote
+from .refactored_file_manager import ObsidianFileManager
 
 
 class MetadataManager(LoggerMixin):
@@ -53,7 +54,7 @@ class MetadataManager(LoggerMixin):
             note.modified_at = datetime.now()
 
             # ファイル保存
-            success = await self.file_manager.update_note(note)
+            success = await self.file_manager.update_note(note.file_path, note)
 
             if success:
                 self.logger.info(
@@ -113,22 +114,28 @@ class MetadataManager(LoggerMixin):
                 limit=limit,
             )
 
-            for note in notes:
+            for note_dict in notes:
                 results["processed"] += 1
 
                 try:
+                    # Load the actual note object for metadata update
+                    from pathlib import Path
+
+                    note_path = Path(note_dict["file_path"])
+                    note = await self.file_manager.load_note(note_path)
+
+                    if note is None:
+                        results["errors"] += 1
+                        continue
+
                     success = await self.update_note_metadata(note, updates)
 
                     if success:
                         results["updated"] += 1
                         results["updated_notes"].append(
                             {
-                                "title": note.title,
-                                "path": str(
-                                    note.file_path.relative_to(
-                                        self.file_manager.vault_path
-                                    )
-                                ),
+                                "title": note_dict["title"],
+                                "path": str(note_path),
                             }
                         )
                     else:
@@ -138,7 +145,7 @@ class MetadataManager(LoggerMixin):
                     results["errors"] += 1
                     self.logger.error(
                         "Error in bulk update",
-                        note_path=str(note.file_path),
+                        note_path=note_dict.get("file_path", "unknown"),
                         error=str(e),
                         exc_info=True,
                     )
@@ -188,14 +195,20 @@ class MetadataManager(LoggerMixin):
                 "tag_trends": {},
             }
 
-            for note in notes:
+            for note_dict in notes:
                 # タグを持つノートの数
-                all_tags = note.frontmatter.ai_tags + note.frontmatter.tags
+                ai_tags = note_dict.get("tags", []) if "tags" in note_dict else []
+                manual_tags = (
+                    note_dict.get("tags", [])
+                    if isinstance(note_dict.get("tags"), list)
+                    else []
+                )
+                all_tags = ai_tags + manual_tags
                 if all_tags:
                     analysis["notes_with_tags"] += 1
 
-                # AIタグの分析
-                for tag in note.frontmatter.ai_tags:
+                # AI タグの分析
+                for tag in ai_tags:
                     clean_tag = tag.lstrip("#")
                     analysis["unique_tags"].add(clean_tag)
                     analysis["tag_frequency"][clean_tag] = (
@@ -207,7 +220,7 @@ class MetadataManager(LoggerMixin):
                     analysis["total_tags"] += 1
 
                 # 手動タグの分析
-                for tag in note.frontmatter.tags:
+                for tag in manual_tags:
                     clean_tag = tag.lstrip("#")
                     analysis["unique_tags"].add(clean_tag)
                     analysis["tag_frequency"][clean_tag] = (
@@ -228,7 +241,7 @@ class MetadataManager(LoggerMixin):
                                 analysis["co_occurrence"].get(pair, 0) + 1
                             )
 
-            # 人気タグの抽出（上位20個）
+            # 人気タグの抽出（上位 20 個）
             sorted_tags = sorted(
                 analysis["tag_frequency"].items(), key=lambda x: x[1], reverse=True
             )[:20]
@@ -241,7 +254,7 @@ class MetadataManager(LoggerMixin):
                 for tag, count in sorted_tags
             ]
 
-            # 孤立タグの特定（使用回数が1回のみ）
+            # 孤立タグの特定（使用回数が 1 回のみ）
             analysis["orphaned_tags"] = {
                 tag for tag, count in analysis["tag_frequency"].items() if count == 1
             }
@@ -255,7 +268,7 @@ class MetadataManager(LoggerMixin):
                 analysis["notes_with_tags"] / max(analysis["total_notes"], 1)
             ) * 100
 
-            # セットをリストに変換（JSON化のため）
+            # セットをリストに変換（ JSON 化のため）
             analysis["unique_tags"] = list(analysis["unique_tags"])
             analysis["orphaned_tags"] = list(analysis["orphaned_tags"])
 
@@ -292,10 +305,10 @@ class MetadataManager(LoggerMixin):
         try:
             self.logger.info("Starting content pattern analysis", limit=limit)
 
-            notes = await self.file_manager.search_notes(limit=limit)
+            search_results = await self.file_manager.search_notes(limit=limit)
 
             analysis: dict[str, Any] = {
-                "total_notes": len(notes),
+                "total_notes": len(search_results),
                 "content_length_stats": {
                     "min": float("inf"),
                     "max": 0,
@@ -318,7 +331,11 @@ class MetadataManager(LoggerMixin):
             content_lengths = []
             processing_times = []
 
-            for note in notes:
+            for result in search_results:
+                # Load the actual note object
+                note = await self.file_manager.load_note(Path(result["file_path"]))
+                if not note:
+                    continue
                 # コンテンツ長統計
                 content_length = len(note.content)
                 content_lengths.append(content_length)
@@ -330,7 +347,7 @@ class MetadataManager(LoggerMixin):
                     analysis["content_length_stats"]["max"], content_length
                 )
 
-                # AI処理統計
+                # AI 処理統計
                 if note.frontmatter.ai_processed:
                     analysis["ai_processing_stats"]["processed_notes"] += 1
 
@@ -377,7 +394,7 @@ class MetadataManager(LoggerMixin):
                 # 単語頻度分析（簡易版）
                 words = note.content.lower().split()
                 for word in words:
-                    if len(word) > 3:  # 3文字以上の単語のみ
+                    if len(word) > 3:  # 3 文字以上の単語のみ
                         clean_word = "".join(c for c in word if c.isalnum())
                         if clean_word:
                             analysis["word_frequency"][clean_word] = (
@@ -400,7 +417,7 @@ class MetadataManager(LoggerMixin):
                     processing_times
                 ) / len(processing_times)
 
-            # 頻出単語（上位20個）
+            # 頻出単語（上位 20 個）
             sorted_words = sorted(
                 analysis["word_frequency"].items(), key=lambda x: x[1], reverse=True
             )[:20]
@@ -408,7 +425,7 @@ class MetadataManager(LoggerMixin):
                 {"word": word, "count": count} for word, count in sorted_words
             ]
 
-            # inf値の処理
+            # inf 値の処理
             if analysis["content_length_stats"]["min"] == float("inf"):
                 analysis["content_length_stats"]["min"] = 0
 
@@ -437,8 +454,8 @@ class MetadataManager(LoggerMixin):
         try:
             self.logger.info("Generating comprehensive metadata report")
 
-            # 基本統計
-            vault_stats = await self.file_manager.get_vault_stats()
+            # 基本統計 (dict 形式で取得)
+            vault_stats_dict = await self.file_manager.get_vault_stats()
 
             # タグ分析
             tag_analysis = await self.analyze_tag_usage(limit=1000)
@@ -450,20 +467,28 @@ class MetadataManager(LoggerMixin):
             report = {
                 "generated_at": datetime.now().isoformat(),
                 "vault_overview": {
-                    "total_notes": vault_stats.total_notes,
+                    "total_notes": vault_stats_dict.get("total_notes", 0),
                     "total_size_mb": round(
-                        vault_stats.total_size_bytes / (1024 * 1024), 2
+                        vault_stats_dict.get("total_characters", 0) / 1000,
+                        2,  # 概算
                     ),
-                    "ai_processed_notes": vault_stats.ai_processed_notes,
-                    "average_ai_processing_time": vault_stats.average_ai_processing_time,
+                    "ai_processed_notes": 0,  # 新しい統計には含まれていない
+                    "average_ai_processing_time": 0,  # 新しい統計には含まれていない
                 },
-                "folder_distribution": vault_stats.notes_by_folder,
-                "category_distribution": vault_stats.notes_by_category,
-                "status_distribution": vault_stats.notes_by_status,
+                "folder_distribution": {},  # 新しい統計には含まれていない
+                "category_distribution": {
+                    cat["category"]: cat["note_count"]
+                    for cat in vault_stats_dict.get("category_stats", [])
+                },
+                "status_distribution": {},  # 新しい統計には含まれていない
                 "creation_trends": {
-                    "notes_created_today": vault_stats.notes_created_today,
-                    "notes_created_this_week": vault_stats.notes_created_this_week,
-                    "notes_created_this_month": vault_stats.notes_created_this_month,
+                    "notes_created_today": vault_stats_dict.get("notes_today", 0),
+                    "notes_created_this_week": vault_stats_dict.get(
+                        "notes_this_week", 0
+                    ),
+                    "notes_created_this_month": vault_stats_dict.get(
+                        "notes_this_month", 0
+                    ),
                 },
                 "tag_insights": {
                     "total_tags": tag_analysis.get("total_tags", 0),
@@ -482,7 +507,7 @@ class MetadataManager(LoggerMixin):
                     ),
                 },
                 "recommendations": self._generate_recommendations(
-                    vault_stats, tag_analysis, content_analysis
+                    vault_stats_dict, tag_analysis, content_analysis
                 ),
             }
 
@@ -497,21 +522,22 @@ class MetadataManager(LoggerMixin):
 
     def _generate_recommendations(
         self,
-        vault_stats: VaultStats,
+        vault_stats: dict[str, Any],
         tag_analysis: dict[str, Any],
         content_analysis: dict[str, Any],
     ) -> list[dict[str, str]]:
         """レコメンデーションを生成"""
         recommendations = []
 
-        # Vaultサイズの推奨
-        size_mb = vault_stats.total_size_bytes / (1024 * 1024)
-        if size_mb > 1000:  # 1GB以上
+        # Vault サイズの推奨
+        size_chars = vault_stats.get("total_characters", 0)
+        size_mb = size_chars / 1000000  # 概算
+        if size_mb > 100:  # 100MB 以上（文字数ベース）
             recommendations.append(
                 {
                     "type": "storage",
                     "priority": "medium",
-                    "message": f"Vaultサイズが{size_mb:.1f}MBと大きくなっています。古いノートのアーカイブを検討してください。",
+                    "message": f"Vault サイズが{size_mb:.1f}MB （文字数ベース）と大きくなっています。古いノートのアーカイブを検討してください。",
                 }
             )
 
@@ -522,7 +548,7 @@ class MetadataManager(LoggerMixin):
                 {
                     "type": "tagging",
                     "priority": "low",
-                    "message": f"タグ付けされたノートが{tag_coverage:.1f}%です。タグ付けを増やすとノートが見つけやすくなります。",
+                    "message": f"タグ付けされたノートが{tag_coverage:.1f}% です。タグ付けを増やすとノートが見つけやすくなります。",
                 }
             )
 
@@ -532,25 +558,13 @@ class MetadataManager(LoggerMixin):
                 {
                     "type": "tagging",
                     "priority": "low",
-                    "message": f"使用回数が1回のみのタグが{orphaned_tags}個あります。タグの整理を検討してください。",
-                }
-            )
-
-        # AI処理の推奨
-        ai_coverage = (
-            vault_stats.ai_processed_notes / max(vault_stats.total_notes, 1)
-        ) * 100
-        if ai_coverage < 80:
-            recommendations.append(
-                {
-                    "type": "ai_processing",
-                    "priority": "medium",
-                    "message": f"AI処理済みノートが{ai_coverage:.1f}%です。未処理のノートがあれば処理を検討してください。",
+                    "message": f"使用回数が 1 回のみのタグが{orphaned_tags}個あります。タグの整理を検討してください。",
                 }
             )
 
         # 日次ノートの推奨
-        if vault_stats.notes_created_today == 0:
+        notes_today = vault_stats.get("notes_today", 0)
+        if notes_today == 0:
             recommendations.append(
                 {
                     "type": "daily_notes",

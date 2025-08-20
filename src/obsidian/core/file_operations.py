@@ -23,18 +23,24 @@ class FileOperations:
     async def save_note(self, note: ObsidianNote, subfolder: str | None = None) -> Path:
         """Save a note to the vault."""
         try:
-            # Determine the file path
-            folder_path = self.vault_path
-            if subfolder:
-                folder_path = folder_path / subfolder
-                folder_path.mkdir(parents=True, exist_ok=True)
+            # If the note already has a specific file_path set, use it
+            if note.file_path and note.file_path != Path():
+                file_path = note.file_path
+                # Ensure the parent directory exists
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+            else:
+                # Fallback to original logic for backward compatibility
+                folder_path = self.vault_path
+                if subfolder:
+                    folder_path = folder_path / subfolder
+                    folder_path.mkdir(parents=True, exist_ok=True)
 
-            # Create filename from title
-            safe_filename = self._sanitize_filename(note.title)
-            file_path = folder_path / f"{safe_filename}.md"
+                # Create filename from title
+                safe_filename = self._sanitize_filename(note.title)
+                file_path = folder_path / f"{safe_filename}.md"
 
-            # Ensure unique filename
-            file_path = await self._ensure_unique_filename(file_path)
+                # Ensure unique filename
+                file_path = await self._ensure_unique_filename(file_path)
 
             # Prepare content
             content = self._format_note_content(note)
@@ -232,93 +238,151 @@ class FileOperations:
         """Format note content for markdown file."""
         content_parts = []
 
-        # Add title
-        content_parts.append(f"# {note.title}")
+        # Add frontmatter section
+        content_parts.append("---")
 
-        # Add metadata from frontmatter
-        if (
-            note.frontmatter.created
-            or note.frontmatter.tags
-            or note.frontmatter.ai_category
-        ):
+        # Add all frontmatter fields that have values
+        frontmatter_dict = note.frontmatter.model_dump(
+            exclude_none=True, exclude_unset=True
+        )
+
+        for key, value in frontmatter_dict.items():
+            if value is not None:
+                if isinstance(value, list):
+                    if value:  # Only add non-empty lists
+                        content_parts.append(
+                            f"{key}: [{', '.join(str(v) for v in value)}]"
+                        )
+                elif isinstance(value, str) and value.strip():
+                    content_parts.append(f"{key}: {value}")
+                elif isinstance(value, int | float | bool):
+                    content_parts.append(f"{key}: {value}")
+
+        content_parts.append("---")
+        content_parts.append("")
+
+        # Add title if not in content already
+        title_line = f"# {note.title}"
+        if not note.content.startswith("# "):
+            content_parts.append(title_line)
             content_parts.append("")
-            content_parts.append("---")
-            if note.frontmatter.created:
-                content_parts.append(f"created: {note.frontmatter.created}")
-            if note.frontmatter.tags:
-                content_parts.append(f"tags: [{', '.join(note.frontmatter.tags)}]")
-            if note.frontmatter.ai_category:
-                content_parts.append(f"category: {note.frontmatter.ai_category}")
-            content_parts.append("---")
 
         # Add content
         if note.content:
-            content_parts.append("")
             content_parts.append(note.content)
 
         return "\n".join(content_parts)
 
     async def _parse_note_content(self, content: str, file_path: Path) -> ObsidianNote:
         """Parse note content from markdown file."""
+        from datetime import datetime
+
+        from ..models import NoteFrontmatter, ObsidianNote, VaultFolder
+
         lines = content.split("\n")
-        note_data: dict[str, Any] = {
-            "title": file_path.stem,
-            "content": "",
-            "created_date": None,
-            "tags": [],
-            "category": None,
-        }
 
-        # Extract title from first h1 if present
-        for line in lines:
-            if line.startswith("# "):
-                note_data["title"] = line[2:].strip()
-                break
+        # Extract frontmatter and content
+        frontmatter_data: dict[str, Any] = {}
+        content_start = 0
 
-        # Extract metadata
-        in_metadata = False
-        metadata_end = 0
-        for i, line in enumerate(lines):
-            if line.strip() == "---":
-                if not in_metadata:
-                    in_metadata = True
-                else:
-                    metadata_end = i + 1
+        if lines and lines[0].strip() == "---":
+            # Parse frontmatter
+            for i, line in enumerate(lines[1:], 1):
+                if line.strip() == "---":
+                    content_start = i + 1
                     break
-            elif in_metadata:
-                if ":" in line:
+                elif ":" in line:
                     key, value = line.split(":", 1)
                     key = key.strip()
                     value = value.strip()
 
-                    if key == "created":
-                        note_data["created_date"] = value
+                    # Parse different types of values
+                    if key == "discord_message_id":
+                        frontmatter_data[key] = int(value) if value.isdigit() else None
+                    elif key == "discord_author_id":
+                        frontmatter_data[key] = int(value) if value.isdigit() else None
+                    elif key == "ai_processed":
+                        frontmatter_data[key] = value.lower() in ("true", "yes", "1")
+                    elif key == "ai_processing_time":
+                        frontmatter_data[key] = int(value) if value.isdigit() else None
+                    elif key == "ai_confidence":
+                        try:
+                            frontmatter_data[key] = float(value)
+                        except ValueError:
+                            frontmatter_data[key] = None
                     elif key == "tags":
                         # Parse tags list
-                        tags_str = value.strip("[]")
-                        note_data["tags"] = [
-                            tag.strip().strip("\"'")
-                            for tag in tags_str.split(",")
-                            if tag.strip()
-                        ]
-                    elif key == "category":
-                        note_data["category"] = value
+                        if value.startswith("[") and value.endswith("]"):
+                            tags_str = value.strip("[]")
+                            frontmatter_data[key] = [
+                                tag.strip().strip("\"'")
+                                for tag in tags_str.split(",")
+                                if tag.strip()
+                            ]
+                        else:
+                            frontmatter_data[key] = []
+                    elif key in ("ai_tags", "aliases"):
+                        # Parse list fields
+                        if value.startswith("[") and value.endswith("]"):
+                            tags_str = value.strip("[]")
+                            frontmatter_data[key] = [
+                                tag.strip().strip("\"'")
+                                for tag in tags_str.split(",")
+                                if tag.strip()
+                            ]
+                        else:
+                            frontmatter_data[key] = []
+                    else:
+                        # String values
+                        frontmatter_data[key] = value
 
-        # Extract content (everything after metadata and title)
-        content_lines = []
-        skip_title = False
-        for line in lines[metadata_end:]:
-            if not skip_title and line.startswith("# "):
-                skip_title = True
-                continue
-            if skip_title or metadata_end > 0:
-                content_lines.append(line)
+        # Extract title from first h1 if present, otherwise use filename
+        title = file_path.stem
+        content_lines = lines[content_start:]
 
-        note_data["content"] = "\n".join(content_lines).strip()
+        for i, line in enumerate(content_lines):
+            if line.startswith("# "):
+                title = line[2:].strip()
+                # Remove title line from content
+                content_lines = content_lines[i + 1 :]
+                break
 
-        # Temporarily return None for type safety - full implementation needed
-        # return ObsidianNote(**note_data)
-        return None  # type: ignore[return-value]
+        # Prepare content
+        note_content = "\n".join(content_lines).strip()
+
+        # Determine obsidian_folder from file path if not in frontmatter
+        if not frontmatter_data.get("obsidian_folder"):
+            # Try to determine folder based on file path
+            relative_path = file_path.relative_to(self.vault_path)
+            if len(relative_path.parts) > 1:
+                # Use the first part of the path as folder
+                frontmatter_data["obsidian_folder"] = relative_path.parts[0]
+            else:
+                # Default to INBOX if at root level
+                frontmatter_data["obsidian_folder"] = VaultFolder.INBOX.value
+
+        # Create frontmatter with defaults for required fields
+        if not frontmatter_data.get("tags"):
+            frontmatter_data["tags"] = []
+        if not frontmatter_data.get("ai_tags"):
+            frontmatter_data["ai_tags"] = []
+        if not frontmatter_data.get("aliases"):
+            frontmatter_data["aliases"] = []
+
+        frontmatter = NoteFrontmatter(**frontmatter_data)
+
+        # Create ObsidianNote
+        note = ObsidianNote(
+            filename=file_path.name,
+            file_path=file_path,
+            title=title,
+            frontmatter=frontmatter,
+            content=note_content,
+            created_at=datetime.now(),
+            modified_at=datetime.now(),
+        )
+
+        return note  # type: ignore[return-value]
 
     def _clean_duplicate_sections(self, content: str, section_header: str) -> str:
         """Remove duplicate sections with the same header."""

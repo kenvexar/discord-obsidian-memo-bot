@@ -7,13 +7,13 @@ from pathlib import Path
 from typing import Any
 
 from ..utils.mixins import LoggerMixin
-from .file_manager import ObsidianFileManager
 from .models import (
     FolderMapping,
     NoteStatus,
     ObsidianNote,
     VaultFolder,
 )
+from .refactored_file_manager import ObsidianFileManager
 
 # 旧テンプレートシステムは削除済み
 # from .templates import DailyNoteTemplate
@@ -72,16 +72,22 @@ class VaultOrganizer(LoggerMixin):
             for folder in folders_to_process:
                 try:
                     folder_notes = await self.file_manager.search_notes(
-                        folder=folder, limit=1000
+                        folder=folder.value, limit=1000
                     )
                 except Exception:
                     # フォルダが存在しない場合はスキップ
                     continue
 
-                for note in folder_notes:
+                for note_result in folder_notes:
                     results["processed"] += 1
 
                     try:
+                        # Load the actual note object
+                        note = await self.file_manager.load_note(
+                            Path(note_result["file_path"])
+                        )
+                        if not note:
+                            continue
                         # AI 分類結果に基づいて移動先を決定（改善版）
                         target_folder = None
                         subcategory = None
@@ -173,7 +179,7 @@ class VaultOrganizer(LoggerMixin):
                         results["errors"] += 1
                         self.logger.error(
                             "Error processing note for organization",
-                            note_path=str(note.file_path),
+                            note_path=str(note.file_path) if note else "Unknown",
                             error=str(e),
                             exc_info=True,
                         )
@@ -254,7 +260,9 @@ class VaultOrganizer(LoggerMixin):
                 )
                 existing_note.frontmatter.categories = daily_stats.get("categories", {})
 
-                success = await self.file_manager.update_note(existing_note)
+                success = await self.file_manager.update_note(
+                    existing_note.file_path, existing_note
+                )
                 if success:
                     self.logger.info(
                         "Daily note updated", date=date.strftime("%Y-%m-%d")
@@ -262,8 +270,8 @@ class VaultOrganizer(LoggerMixin):
                     return existing_note
             else:
                 # 新規作成
-                success = await self.file_manager.save_note(daily_note)
-                if success:
+                saved_path = await self.file_manager.save_note(daily_note)
+                if saved_path:
                     self.logger.info(
                         "Daily note created", date=date.strftime("%Y-%m-%d")
                     )
@@ -320,13 +328,19 @@ class VaultOrganizer(LoggerMixin):
                 VaultFolder.HEALTH,
             ]:
                 notes = await self.file_manager.search_notes(
-                    folder=folder, date_to=cutoff_date, limit=1000
+                    folder=folder.value, date_to=cutoff_date.isoformat(), limit=1000
                 )
 
-                for note in notes:
+                for note_result in notes:
                     results["processed"] += 1
 
                     try:
+                        # Load the actual note object
+                        note = await self.file_manager.load_note(
+                            Path(note_result["file_path"])
+                        )
+                        if not note:
+                            continue
                         # アクティブなノートのみアーカイブ対象
                         if note.frontmatter.status == NoteStatus.ACTIVE:
                             archive_info = {
@@ -348,7 +362,7 @@ class VaultOrganizer(LoggerMixin):
 
                                 # アーカイブフォルダに移動
                                 success = await self.file_manager.delete_note(
-                                    note.file_path, to_archive=True
+                                    note.file_path, backup=True
                                 )
 
                                 if success:
@@ -362,7 +376,7 @@ class VaultOrganizer(LoggerMixin):
                         results["errors"] += 1
                         self.logger.error(
                             "Error processing note for archival",
-                            note_path=str(note.file_path),
+                            note_path=str(note.file_path) if note else "Unknown",
                             error=str(e),
                             exc_info=True,
                         )
@@ -639,7 +653,7 @@ class VaultOrganizer(LoggerMixin):
             note.frontmatter.modified = datetime.now().isoformat()
 
             # フロントマターの更新
-            await self.file_manager.update_note(note)
+            await self.file_manager.update_note(note.file_path, note)
 
             self.logger.debug(
                 "Note moved successfully",
@@ -687,7 +701,7 @@ class VaultOrganizer(LoggerMixin):
                 note.frontmatter.organization_level = "category"
 
             # フロントマターの更新
-            await self.file_manager.update_note(note)
+            await self.file_manager.update_note(note.file_path, note)
 
             self.logger.debug(
                 "Note moved successfully with enhanced structure",
@@ -715,7 +729,9 @@ class VaultOrganizer(LoggerMixin):
 
             # その日のノートを検索
             daily_notes = await self.file_manager.search_notes(
-                date_from=start_date, date_to=end_date, limit=1000
+                date_from=start_date.isoformat(),
+                date_to=end_date.isoformat(),
+                limit=1000,
             )
 
             stats = {
@@ -727,7 +743,11 @@ class VaultOrganizer(LoggerMixin):
                 "attachments": [],
             }
 
-            for note in daily_notes:
+            for note_result in daily_notes:
+                # Load the actual note object
+                note = await self.file_manager.load_note(Path(note_result["file_path"]))
+                if not note:
+                    continue
                 # AI 処理済みノートの統計
                 if (
                     hasattr(note.frontmatter, "ai_processed")

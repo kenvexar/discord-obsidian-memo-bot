@@ -28,7 +28,6 @@ os.environ.update(
 )
 
 from src.ai.models import AIProcessingResult
-from src.obsidian.file_manager import ObsidianFileManager
 from src.obsidian.models import (
     FolderMapping,
     NoteFilename,
@@ -36,6 +35,7 @@ from src.obsidian.models import (
     ObsidianNote,
     VaultFolder,
 )
+from src.obsidian.refactored_file_manager import ObsidianFileManager
 from src.obsidian.template_system import TemplateEngine
 
 
@@ -198,7 +198,8 @@ AI Summary: {{ai_summary}}
         assert daily_note is not None
         assert daily_note.filename == "2024-01-15.md"
         assert (
-            "2024年01月15日" in daily_note.content or "2024-01-15" in daily_note.content
+            "2024 年 01 月 15 日" in daily_note.content
+            or "2024-01-15" in daily_note.content
         )
 
 
@@ -317,12 +318,12 @@ class TestObsidianFileManager:
             await self.file_manager.save_note(note)
 
         # Get stats
-        stats = await self.file_manager.get_vault_stats()
+        stats = await self.file_manager.statistics.get_vault_stats()
 
         assert stats.total_notes >= 5
-        assert stats.ai_processed_notes >= 5
-        assert stats.total_ai_processing_time > 0
-        assert stats.average_ai_processing_time > 0
+        assert stats.total_characters > 0
+        assert stats.total_words > 0
+        # 新しい統計モデルには AI 処理関連の属性がないため削除
 
 
 @pytest.mark.asyncio

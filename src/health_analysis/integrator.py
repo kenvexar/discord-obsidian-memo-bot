@@ -5,23 +5,24 @@ Health data and Discord activity integrator
 import statistics
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from ..garmin.models import HealthData
-from ..obsidian.file_manager import ObsidianFileManager
+from ..obsidian.refactored_file_manager import ObsidianFileManager
 from ..utils.mixins import LoggerMixin
 from .models import ActivityCorrelation
 
 
 class HealthActivityIntegrator(LoggerMixin):
-    """健康データとDiscord活動の時系列統合システム"""
+    """健康データと Discord 活動の時系列統合システム"""
 
     def __init__(self, file_manager: ObsidianFileManager) -> None:
         """
         初期化処理
 
         Args:
-            file_manager: ObsidianFileManagerインスタンス
+            file_manager: ObsidianFileManager インスタンス
         """
         self.file_manager = file_manager
         self.logger.info("Health-Activity integrator initialized")
@@ -30,7 +31,7 @@ class HealthActivityIntegrator(LoggerMixin):
         self, health_data_list: list[HealthData], start_date: date, end_date: date
     ) -> ActivityCorrelation:
         """
-        健康データとDiscord活動の相関分析
+        健康データと Discord 活動の相関分析
 
         Args:
             health_data_list: 健康データリスト
@@ -48,7 +49,7 @@ class HealthActivityIntegrator(LoggerMixin):
                 health_data_count=len(health_data_list),
             )
 
-            # Discord活動データを収集
+            # Discord 活動データを収集
             discord_activity = await self._collect_discord_activity_data(
                 start_date, end_date
             )
@@ -112,7 +113,7 @@ class HealthActivityIntegrator(LoggerMixin):
     async def _collect_discord_activity_data(
         self, start_date: date, end_date: date
     ) -> dict[date, dict[str, Any]]:
-        """Discord活動データを収集"""
+        """Discord 活動データを収集"""
 
         activity_data: dict[date, dict[str, Any]] = {}
 
@@ -135,13 +136,15 @@ class HealthActivityIntegrator(LoggerMixin):
         return activity_data
 
     async def _extract_daily_activity(self, target_date: date) -> dict[str, Any] | None:
-        """指定日のDiscord活動を抽出"""
+        """指定日の Discord 活動を抽出"""
 
         try:
             # デイリーノートの検索
             daily_notes = await self.file_manager.search_notes(
-                date_from=datetime.combine(target_date, datetime.min.time()),
-                date_to=datetime.combine(target_date, datetime.max.time()),
+                date_from=datetime.combine(
+                    target_date, datetime.min.time()
+                ).isoformat(),
+                date_to=datetime.combine(target_date, datetime.max.time()).isoformat(),
                 limit=100,
             )
 
@@ -158,7 +161,11 @@ class HealthActivityIntegrator(LoggerMixin):
                 "tags": set(),
             }
 
-            for note in daily_notes:
+            for note_result in daily_notes:
+                # Load the actual note object
+                note = await self.file_manager.load_note(Path(note_result["file_path"]))
+                if not note:
+                    continue
                 # メッセージ時間の抽出
                 if (
                     hasattr(note.frontmatter, "created")
@@ -178,7 +185,7 @@ class HealthActivityIntegrator(LoggerMixin):
                     char_count = getattr(note.frontmatter, "character_count", 0)
                     activity_summary["content_length_total"] += char_count
 
-                # AI処理済み
+                # AI 処理済み
                 if (
                     hasattr(note.frontmatter, "ai_processed")
                     and note.frontmatter.ai_processed
@@ -235,11 +242,11 @@ class HealthActivityIntegrator(LoggerMixin):
             # 共通の日付でデータをペアリング
             common_dates = set(health_by_date.keys()) & set(discord_activity.keys())
 
-            if len(common_dates) < 3:  # 最低3日のデータが必要
+            if len(common_dates) < 3:  # 最低 3 日のデータが必要
                 self.logger.warning("Insufficient data for correlation analysis")
                 return correlations
 
-            # Discord活動指標を抽出
+            # Discord 活動指標を抽出
             discord_metrics = self._extract_discord_metrics(
                 discord_activity, common_dates
             )
@@ -247,7 +254,7 @@ class HealthActivityIntegrator(LoggerMixin):
             # 健康指標を抽出
             health_metrics = self._extract_health_metrics(health_by_date, common_dates)
 
-            # Discord活動と健康データの相関
+            # Discord 活動と健康データの相関
             for discord_metric, discord_values in discord_metrics.items():
                 for health_metric, health_values in health_metrics.items():
                     if (
@@ -286,7 +293,7 @@ class HealthActivityIntegrator(LoggerMixin):
     def _extract_discord_metrics(
         self, discord_activity: dict[date, dict[str, Any]], common_dates: set[date]
     ) -> dict[str, list[float]]:
-        """Discord活動指標を抽出"""
+        """Discord 活動指標を抽出"""
 
         metrics: dict[str, list[float]] = {
             "message_count": [],
@@ -310,7 +317,7 @@ class HealthActivityIntegrator(LoggerMixin):
             else:
                 metrics["content_length_avg"].append(0.0)
 
-            # AI処理率
+            # AI 処理率
             if activity["message_count"] > 0:
                 ai_ratio = activity["ai_processed_count"] / activity["message_count"]
                 metrics["ai_processing_ratio"].append(ai_ratio)
@@ -432,7 +439,7 @@ class HealthActivityIntegrator(LoggerMixin):
                     hour_activity[hour] += 1
 
             if hour_activity:
-                # ピーク時間（上位25%）
+                # ピーク時間（上位 25% ）
                 sorted_hours = sorted(
                     hour_activity.items(), key=lambda x: x[1], reverse=True
                 )
@@ -440,7 +447,7 @@ class HealthActivityIntegrator(LoggerMixin):
                 peak_count = max(1, total_hours // 4)
                 patterns["peak_hours"] = [hour for hour, _ in sorted_hours[:peak_count]]
 
-                # 低活動時間（下位25%）
+                # 低活動時間（下位 25% ）
                 low_count = max(1, total_hours // 4)
                 patterns["low_hours"] = [hour for hour, _ in sorted_hours[-low_count:]]
 
@@ -469,7 +476,7 @@ class HealthActivityIntegrator(LoggerMixin):
         try:
             common_dates = set(health_by_date.keys()) & set(discord_activity.keys())
 
-            if len(common_dates) < 5:  # 最低5日のデータが必要
+            if len(common_dates) < 5:  # 最低 5 日のデータが必要
                 return patterns
 
             # 高活動日と低活動日の健康データ比較
@@ -482,7 +489,7 @@ class HealthActivityIntegrator(LoggerMixin):
             activity_levels.sort(key=lambda x: x[1])
             n = len(activity_levels)
 
-            # 高活動日（上位1/3）と低活動日（下位1/3）を比較
+            # 高活動日（上位 1/3 ）と低活動日（下位 1/3 ）を比較
             low_activity_dates = [date for date, _ in activity_levels[: n // 3]]
             high_activity_dates = [date for date, _ in activity_levels[-n // 3 :]]
 
@@ -514,15 +521,15 @@ class HealthActivityIntegrator(LoggerMixin):
                     low_avg = statistics.mean(filtered_low)
                     high_avg = statistics.mean(filtered_high)
 
-                    if abs(high_avg - low_avg) > 0.5:  # 30分以上の差
+                    if abs(high_avg - low_avg) > 0.5:  # 30 分以上の差
                         if high_avg > low_avg:
                             patterns.append(
-                                f"Discord活動が活発な日は睡眠時間が長い傾向があります "
+                                f"Discord 活動が活発な日は睡眠時間が長い傾向があります "
                                 f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
                             )
                         else:
                             patterns.append(
-                                f"Discord活動が活発な日は睡眠不足の傾向があります "
+                                f"Discord 活動が活発な日は睡眠不足の傾向があります "
                                 f"(高活動日: {high_avg:.1f}h, 低活動日: {low_avg:.1f}h)"
                             )
 
@@ -554,15 +561,15 @@ class HealthActivityIntegrator(LoggerMixin):
                     low_avg_steps = statistics.mean(filtered_low_steps)
                     high_avg_steps = statistics.mean(filtered_high_steps)
 
-                    if abs(high_avg_steps - low_avg_steps) > 1000:  # 1000歩以上の差
+                    if abs(high_avg_steps - low_avg_steps) > 1000:  # 1000 歩以上の差
                         if high_avg_steps > low_avg_steps:
                             patterns.append(
-                                f"Discord活動が活発な日は歩数も多い傾向があります "
+                                f"Discord 活動が活発な日は歩数も多い傾向があります "
                                 f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
                             )
                         else:
                             patterns.append(
-                                f"Discord活動が活発な日は歩数が少ない傾向があります "
+                                f"Discord 活動が活発な日は歩数が少ない傾向があります "
                                 f"(高活動日: {high_avg_steps:.0f}歩, 低活動日: {low_avg_steps:.0f}歩)"
                             )
 
@@ -580,7 +587,7 @@ class HealthActivityIntegrator(LoggerMixin):
         recommendations = []
 
         try:
-            # Discord活動との相関に基づく推奨事項
+            # Discord 活動との相関に基づく推奨事項
             discord_corr = correlations["discord_correlations"]
 
             for correlation_key, value in discord_corr.items():
@@ -591,12 +598,12 @@ class HealthActivityIntegrator(LoggerMixin):
                 ):
                     if value > 0:
                         recommendations.append(
-                            "Discord活動と睡眠時間に正の相関があります。"
+                            "Discord 活動と睡眠時間に正の相関があります。"
                             "適度な活動は良い睡眠につながっているようです。"
                         )
                     else:
                         recommendations.append(
-                            "Discord活動が多い日は睡眠不足になりがちです。"
+                            "Discord 活動が多い日は睡眠不足になりがちです。"
                             "活動時間と就寝時間のバランスを見直しましょう。"
                         )
 
@@ -625,7 +632,7 @@ class HealthActivityIntegrator(LoggerMixin):
             # デフォルト推奨事項
             if not recommendations:
                 recommendations.append(
-                    "健康データとDiscord活動の継続的なモニタリングを行い、"
+                    "健康データと Discord 活動の継続的なモニタリングを行い、"
                     "自分なりの最適なバランスを見つけましょう。"
                 )
 

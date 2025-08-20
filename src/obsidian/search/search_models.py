@@ -13,11 +13,13 @@ class SearchCriteria:
     query: str | None = None
     tags: list[str] | None = None
     category: str | None = None
-    date_from: date | None = None
-    date_to: date | None = None
+    date_from: date | str | None = None
+    date_to: date | str | None = None
     content_type: str | None = None  # "markdown", "link", etc.
     exclude_folders: list[str] | None = None
     max_results: int = 100
+    folder: str | None = None
+    status: str | None = None
 
 
 @dataclass

@@ -1,7 +1,7 @@
 """Advanced note search functionality."""
 
 import re
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -108,9 +108,18 @@ class NoteSearch:
             # Date filtering
             if criteria.date_from or criteria.date_to:
                 file_date = parsed_data.get("created_date")
-                if not self._matches_date_range(
-                    file_date, criteria.date_from, criteria.date_to
-                ):
+                # Convert string dates to date objects if needed
+                date_from = (
+                    datetime.fromisoformat(criteria.date_from).date()
+                    if isinstance(criteria.date_from, str)
+                    else criteria.date_from
+                )
+                date_to = (
+                    datetime.fromisoformat(criteria.date_to).date()
+                    if isinstance(criteria.date_to, str)
+                    else criteria.date_to
+                )
+                if not self._matches_date_range(file_date, date_from, date_to):
                     return None
 
             # Create search result

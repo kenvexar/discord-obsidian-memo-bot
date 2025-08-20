@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from typing import Any, Union
 
-from ..obsidian.file_manager import ObsidianFileManager
+from ..obsidian.refactored_file_manager import ObsidianFileManager
 from ..utils.mixins import LoggerMixin
 from .mock_processor import MockAIProcessor
 from .processor import AIProcessor
@@ -28,8 +28,8 @@ class AdvancedNoteAnalyzer(LoggerMixin):
         初期化
 
         Args:
-            obsidian_file_manager: Obsidianファイルマネージャー
-            ai_processor: AI処理システム
+            obsidian_file_manager: Obsidian ファイルマネージャー
+            ai_processor: AI 処理システム
         """
         self.file_manager = obsidian_file_manager
         self.ai_processor = ai_processor
@@ -62,7 +62,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             content: ノート内容
             title: ノートタイトル
             file_path: ファイルパス（オプション）
-            include_url_processing: URL処理を含むかどうか
+            include_url_processing: URL 処理を含むかどうか
             include_related_notes: 関連ノート分析を含むかどうか
 
         Returns:
@@ -78,12 +78,12 @@ class AdvancedNoteAnalyzer(LoggerMixin):
 
             analysis_results = {}
 
-            # 1. URL内容処理と要約
+            # 1. URL 内容処理と要約
             if include_url_processing:
                 url_results = await self._process_urls_in_content(content)
                 analysis_results["url_processing"] = url_results
 
-                # URL要約をコンテンツに統合
+                # URL 要約をコンテンツに統合
                 if url_results.get("summaries"):
                     content = await self._integrate_url_summaries(
                         content, url_results["summaries"]
@@ -241,9 +241,9 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             }
 
     async def _process_urls_in_content(self, content: str) -> dict[str, Any]:
-        """コンテンツ内のURLを処理"""
+        """コンテンツ内の URL を処理"""
         try:
-            # URLを抽出・処理
+            # URL を抽出・処理
             url_results = await self.url_extractor.process_urls_in_text(
                 content, max_urls=3
             )
@@ -251,7 +251,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             if not url_results.get("processed_urls"):
                 return url_results
 
-            # 各URLの内容を要約
+            # 各 URL の内容を要約
             summaries = []
             for url_data in url_results["processed_urls"]:
                 try:
@@ -286,14 +286,16 @@ class AdvancedNoteAnalyzer(LoggerMixin):
     async def _integrate_url_summaries(
         self, content: str, summaries: list[dict[str, Any]]
     ) -> str:
-        """URL要約をコンテンツに統合（有効なURLがない場合はスキップ）"""
+        """URL 要約をコンテンツに統合（有効な URL がない場合はスキップ）"""
         try:
             if not summaries:
                 return content
 
-            # 既存のURL要約セクションをチェックして重複を避ける
-            if "## 📎 URL要約" in content:
-                self.logger.debug("URL要約セクションが既に存在するため、スキップします")
+            # 既存の URL 要約セクションをチェックして重複を避ける
+            if "## 📎 URL 要約" in content:
+                self.logger.debug(
+                    "URL 要約セクションが既に存在するため、スキップします"
+                )
                 return content
 
             # 有効な要約のみをフィルタリング
@@ -302,18 +304,18 @@ class AdvancedNoteAnalyzer(LoggerMixin):
                 summary_text = summary_data.get("summary", "").strip()
                 url = summary_data.get("url", "").strip()
 
-                # 有効なURLかチェック（Discord無効リンクなどを除外）
+                # 有効な URL かチェック（ Discord 無効リンクなどを除外）
                 is_valid_url = (
                     url
-                    and not url.endswith("/channels/")  # Discord無効リンク
-                    and "discord.com/channels/" not in url  # Discord不完全リンク
+                    and not url.endswith("/channels/")  # Discord 無効リンク
+                    and "discord.com/channels/" not in url  # Discord 不完全リンク
                     and summary_text
                     and not summary_text.startswith(
-                        "Discordの会話の要約が提供されていません"
+                        "Discord の会話の要約が提供されていません"
                     )
-                    and "URLへのアクセス権限がない" not in summary_text
-                    and "箇条書き3点による要約を作成できません" not in summary_text
-                    and "URLから情報を取得して要約することはできません"
+                    and "URL へのアクセス権限がない" not in summary_text
+                    and "箇条書き 3 点による要約を作成できません" not in summary_text
+                    and "URL から情報を取得して要約することはできません"
                     not in summary_text
                     and "提供されたテキストからは" not in summary_text
                     and "不足しているため、正確な要約はできません" not in summary_text
@@ -324,11 +326,11 @@ class AdvancedNoteAnalyzer(LoggerMixin):
 
             # 有効な要約がない場合はセクションを追加しない
             if not valid_summaries:
-                self.logger.debug("有効なURL要約がないため、セクションを追加しません")
+                self.logger.debug("有効な URL 要約がないため、セクションを追加しません")
                 return content
 
-            # コンテンツの末尾にURL要約セクションを追加
-            url_section_parts = ["\n\n## 📎 URL要約\n"]
+            # コンテンツの末尾に URL 要約セクションを追加
+            url_section_parts = ["\n\n## 📎 URL 要約\n"]
 
             for summary_data in valid_summaries:
                 url_section_parts.append(
@@ -371,7 +373,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             if not related_notes:
                 return []
 
-            # SemanticSearchResultを辞書形式に変換
+            # SemanticSearchResult を辞書形式に変換
             related_notes_dict = [
                 {
                     "title": note.title,
@@ -402,7 +404,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
         try:
             enhanced_content = content
 
-            # URL要約が既に追加されているかチェック
+            # URL 要約が既に追加されているかチェック
             if url_processing_results.get("summaries"):
                 url_summaries = url_processing_results["summaries"]
                 enhanced_content = await self._integrate_url_summaries(
