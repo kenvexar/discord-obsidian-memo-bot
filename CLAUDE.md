@@ -347,38 +347,16 @@ All tests use `pytest-asyncio` with `asyncio_mode = "auto"` for seamless async t
 - **Content Organization**: Obsidian-first approach with AI-powered folder assignment
 - **Backward Compatibility**: All legacy channel APIs removed for simplified architecture
 
-## Git Branch Strategy
+## Git Workflow
 
-This project follows **GitHub Flow + Development Branch** strategy for optimal development workflow:
+This project uses a simplified **main-only workflow** for direct development:
 
-### Branch Structure
-- **`main`**: Production-ready stable code (protected, auto-deploy)
-- **`develop`**: Development integration branch (protected, CI/CD)
-- **`feature/*`**: Feature development branches
-- **`bugfix/*`**: Bug fix branches
-- **`hotfix/*`**: Emergency production fixes
-- **`release/*`**: Release preparation branches (optional)
-
-### Development Workflow
+### Simple Development Workflow
 ```bash
-# Feature development
-git switch develop
-git pull origin develop
-git switch -c feature/new-feature-name
-
-# Development work
-# ... make changes ...
-
-# Commit and push
+# Direct development on main branch
 git add .
 git commit -m "feat: implement new feature"
-git push -u origin feature/new-feature-name
-
-# Create PR to develop branch
-# After merge, cleanup
-git switch develop
-git pull origin develop
-git branch -d feature/new-feature-name
+git push origin main
 ```
 
 ### Commit Message Convention
@@ -389,11 +367,3 @@ Following [Conventional Commits](https://www.conventionalcommits.org/):
 - `refactor:` - Code refactoring
 - `test:` - Test additions/modifications
 - `chore:` - Build/tool changes
-
-### Branch Protection Rules
-- **main**: Requires PR, review, and CI success
-- **develop**: Requires PR and CI success
-- **Squash merge only**: Maintains clean git history
-- **Auto-delete**: Head branches deleted after merge
-
-For detailed guidelines, see [docs/BRANCH_STRATEGY.md](docs/BRANCH_STRATEGY.md)
