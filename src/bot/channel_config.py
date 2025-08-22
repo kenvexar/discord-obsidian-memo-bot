@@ -14,14 +14,10 @@ from ..utils.mixins import LoggerMixin
 
 
 class ChannelCategory(Enum):
-    """Channel categories for organizing different types of content"""
+    """Simplified channel categories"""
 
-    CAPTURE = "capture"
-    FINANCE = "finance"
-    PRODUCTIVITY = "productivity"
-    HEALTH = "health"
-    SYSTEM = "system"
-    UNKNOWN = "unknown"
+    CAPTURE = "capture"  # memo, voice, files
+    SYSTEM = "system"  # notifications, commands
 
 
 @dataclass
@@ -75,13 +71,13 @@ class ChannelConfig(LoggerMixin):
             return False
 
         discovered_channels = {}
-        required_channels = ["memo", "notifications", "commands"]  # 最小必須チャンネル
+        required_channels = ["memo", "notifications", "commands"]
         found_required = 0
 
         for channel in self.guild.text_channels:
             channel_name = channel.name.lower().replace("-", "").replace("_", "")
 
-            # Check for exact matches first
+            # Check for exact matches only
             if channel_name in self.standard_channel_names:
                 category = self.standard_channel_names[channel_name]
                 discovered_channels[channel.id] = ChannelInfo(
@@ -96,20 +92,6 @@ class ChannelConfig(LoggerMixin):
 
                 if channel_name in required_channels:
                     found_required += 1
-
-            # 後方互換性：既存のチャンネルも #memo として扱う
-            elif channel_name in ["inbox"]:  # 旧 inbox チャンネル
-                category = ChannelCategory.CAPTURE
-                discovered_channels[channel.id] = ChannelInfo(
-                    id=channel.id,
-                    name=channel.name,
-                    category=category,
-                    description="Legacy channel (treated as memo)",
-                )
-                self.logger.info(
-                    f"Discovered legacy channel: #{channel.name} -> treated as memo (ID: {channel.id})"
-                )
-                found_required += 1
 
         # Update the channels dict
         self.channels.update(discovered_channels)
@@ -136,7 +118,7 @@ class ChannelConfig(LoggerMixin):
             ChannelInfo(
                 id=channel_id,
                 name="unknown",
-                category=ChannelCategory.UNKNOWN,
+                category=ChannelCategory.CAPTURE,  # Default to CAPTURE
                 description="Unknown channel",
             ),
         )
@@ -171,34 +153,17 @@ class ChannelConfig(LoggerMixin):
         info = self.get_channel_info(channel_id)
         return f"{info.category.value.title()}: {info.description}"
 
-    # Legacy API compatibility methods
-    def get_channel(self, channel_id: int) -> int | None:
-        """Legacy method for compatibility - returns channel ID if it exists"""
-        return channel_id if channel_id in self.channels else None
+    def get_memo_channel(self) -> int | None:
+        """Get unified memo channel ID"""
+        return self.get_channel_by_name("memo")
 
     def get_capture_channels(self) -> set[int]:
         """Get capture category channel IDs"""
         return self.get_channels_by_category(ChannelCategory.CAPTURE)
 
-    def get_finance_channels(self) -> set[int]:
-        """Get finance category channel IDs"""
-        return self.get_channels_by_category(ChannelCategory.FINANCE)
-
-    def get_productivity_channels(self) -> set[int]:
-        """Get productivity category channel IDs"""
-        return self.get_channels_by_category(ChannelCategory.PRODUCTIVITY)
-
-    def get_finance_expenses_channel(self) -> int | None:
-        """Get expenses channel ID (now unified in memo channel)"""
-        return self.get_channel_by_name("memo")
-
-    def get_finance_money_channel(self) -> int | None:
-        """Get money channel ID (now unified in memo channel)"""
-        return self.get_channel_by_name("memo")
-
-    def get_finance_income_channel(self) -> int | None:
-        """Get income channel ID (now unified in memo channel)"""
-        return self.get_channel_by_name("memo")
+    def get_system_channels(self) -> set[int]:
+        """Get system category channel IDs"""
+        return self.get_channels_by_category(ChannelCategory.SYSTEM)
 
     def __str__(self) -> str:
         """String representation of channel configuration"""

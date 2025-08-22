@@ -251,10 +251,6 @@ class MessageHandler(LoggerMixin):
 
         if category == ChannelCategory.CAPTURE:
             await self._handle_capture_message(message_data, original_message)
-        elif category == ChannelCategory.FINANCE:
-            await self._handle_finance_message(message_data)
-        elif category == ChannelCategory.PRODUCTIVITY:
-            await self._handle_productivity_message(message_data)
         elif category == ChannelCategory.SYSTEM:
             await self._handle_system_message(message_data)
         else:
@@ -781,85 +777,6 @@ class MessageHandler(LoggerMixin):
             self.logger.error(
                 "Error integrating audio transcription", error=str(e), exc_info=True
             )
-
-    async def _handle_finance_message(self, message_data: dict[str, Any]) -> None:
-        """Handle messages from finance channels"""
-        self.logger.info(
-            "Handling finance message",
-            channel_name=message_data["channel_info"]["name"],
-        )
-
-        # Process finance-related messages
-        try:
-            # Check if finance handler is available
-            if hasattr(self, "finance_handler"):
-                await self.finance_handler.process_message(message_data)
-            else:
-                # Basic expense detection for future implementation
-                content = message_data.get("content", "").lower()
-                if any(
-                    keyword in content
-                    for keyword in ["￥", "円", "expense", "cost", "paid", "買い物"]
-                ):
-                    self.logger.info(
-                        "Finance-related content detected", content=content[:50]
-                    )
-                    # Add finance tag for future processing
-                    if "tags" not in message_data["metadata"]:
-                        message_data["metadata"]["tags"] = []
-                    message_data["metadata"]["tags"].append("finance")
-
-        except ImportError:
-            self.logger.debug("Finance message handler not available")
-
-    async def _handle_productivity_message(self, message_data: dict[str, Any]) -> None:
-        """Handle messages from productivity channels"""
-        self.logger.info(
-            "Handling productivity message",
-            channel_name=message_data["channel_info"]["name"],
-        )
-
-        # Process productivity-related messages
-        try:
-            content = message_data.get("content", "").lower()
-
-            # Detect task-related content
-            task_keywords = [
-                "todo",
-                "task",
-                "タスク",
-                "完了",
-                "done",
-                "deadline",
-                "期限",
-            ]
-            if any(keyword in content for keyword in task_keywords):
-                self.logger.info("Task-related content detected", content=content[:50])
-                # Add task tag for future processing
-                if "tags" not in message_data["metadata"]:
-                    message_data["metadata"]["tags"] = []
-                message_data["metadata"]["tags"].append("task")
-
-            # Detect schedule-related content
-            schedule_keywords = [
-                "schedule",
-                "meeting",
-                "appointment",
-                "予定",
-                "ミーティング",
-                "会議",
-            ]
-            if any(keyword in content for keyword in schedule_keywords):
-                self.logger.info(
-                    "Schedule-related content detected", content=content[:50]
-                )
-                # Add schedule tag for future processing
-                if "tags" not in message_data["metadata"]:
-                    message_data["metadata"]["tags"] = []
-                message_data["metadata"]["tags"].append("schedule")
-
-        except Exception as e:
-            self.logger.error("Error processing productivity message", error=str(e))
 
     async def _handle_system_message(self, message_data: dict[str, Any]) -> None:
         """Handle messages from system channels"""

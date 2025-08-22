@@ -120,7 +120,7 @@ class FinanceReminderSystem:
             # Send notifications
             await self._send_payment_reminders(today_payments, "今日", "🔔")
             await self._send_payment_reminders(tomorrow_payments, "明日", "📅")
-            await self._send_payment_reminders(soon_payments, "3日以内", "⏰")
+            await self._send_payment_reminders(soon_payments, "3 日以内", "⏰")
 
         except Exception as e:
             logger.error("Error checking upcoming payments", error=str(e))
@@ -166,7 +166,7 @@ class FinanceReminderSystem:
             return
 
         try:
-            money_channel_id = self.channel_config.get_finance_money_channel()
+            money_channel_id = self.channel_config.get_memo_channel()
             if not money_channel_id:
                 logger.warning("Finance money channel not configured")
                 return
@@ -193,13 +193,13 @@ class FinanceReminderSystem:
 
             for sub in subscriptions:
                 days_info = ""
-                if time_description == "3日以内":
+                if time_description == "3 日以内":
                     days_until = (sub.next_payment_date - date.today()).days
                     days_info = f" ({days_until}日後)"
 
                 embed.add_field(
                     name=f"{sub.name}{days_info}",
-                    value=f"¥{sub.amount:,}\n支払い日: {sub.next_payment_date}",
+                    value=f"¥{sub.amount:,}\n 支払い日: {sub.next_payment_date}",
                     inline=True,
                 )
 
@@ -225,7 +225,7 @@ class FinanceReminderSystem:
     ) -> None:
         """Send overdue payment notifications."""
         try:
-            money_channel_id = self.channel_config.get_finance_money_channel()
+            money_channel_id = self.channel_config.get_memo_channel()
             if not money_channel_id:
                 logger.warning("Finance money channel not configured")
                 return
@@ -255,7 +255,7 @@ class FinanceReminderSystem:
                 days_overdue = (date.today() - sub.next_payment_date).days
                 embed.add_field(
                     name=f"🔴 {sub.name}",
-                    value=f"¥{sub.amount:,}\n予定日: {sub.next_payment_date}\n遅延: {days_overdue}日",
+                    value=f"¥{sub.amount:,}\n 予定日: {sub.next_payment_date}\n 遅延: {days_overdue}日",
                     inline=True,
                 )
 
@@ -282,7 +282,7 @@ class FinanceReminderSystem:
     ) -> None:
         """Send budget alert notifications."""
         try:
-            money_channel_id = self.channel_config.get_finance_money_channel()
+            money_channel_id = self.channel_config.get_memo_channel()
             if not money_channel_id:
                 logger.warning("Finance money channel not configured")
                 return
@@ -319,7 +319,7 @@ class FinanceReminderSystem:
 
                 if near_limit_text:
                     embed.add_field(
-                        name="🟠 予算80%到達",
+                        name="🟠 予算 80% 到達",
                         value=near_limit_text,
                         inline=False,
                     )
