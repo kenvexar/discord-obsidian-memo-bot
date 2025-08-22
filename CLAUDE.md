@@ -276,27 +276,36 @@ DISCORD_GUILD_ID=your_guild_id
 GEMINI_API_KEY=your_gemini_api_key
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 
-# Simplified Channel Configuration (only 5 channels needed)
-# The bot automatically discovers channels by name - no IDs needed!
-# Create Discord channels with these exact names:
+# ✅ SIMPLIFIED CHANNEL ARCHITECTURE (2025 年更新)
+# Discord チャンネル数を 5 チャンネルまで削減し、 AI によるコンテンツ自動分類を実現
 #
-# Required channels:
-# - #memo            (Unified input for all content types - replaces inbox, money, tasks, etc.)
-# - #notifications   (System notifications)
-# - #commands        (Bot commands)
+# 必須チャンネル (3 つ):
+# - #memo            (統合入力チャンネル - 全てのコンテンツはここから)
+# - #notifications   (システム通知)
+# - #commands        (ボットコマンド)
 #
-# Optional channels:
-# - #voice           (Voice memos)
-# - #files           (File uploads)
+# オプションチャンネル (2 つ):
+# - #voice           (音声メモ専用)
+# - #files           (ファイル共有専用)
 #
-# ✅ MAJOR SIMPLIFICATION:
-# All content now goes to #memo and gets automatically categorized by AI:
-# • Financial content → 💰 Finance folder
-# • Task content → ✅ Tasks folder
-# • Health content → 🏃 Health folder
-# • Learning content → 📚 Learning folder
-# • Quick notes → 📝 Quick Notes folder
-# • Everything else → 📋 Memos folder
+# 🎯 MAJOR ARCHITECTURAL CHANGE:
+# • 旧システム: 17+ の専用チャンネル (inbox, money, tasks, health, etc.)
+# • 新システム: 最大 5 チャンネル + AI 自動分類
+#
+# 🤖 AI CONTENT CLASSIFICATION:
+# #memo チャンネルに投稿された全てのコンテンツは AI により自動分類され、
+# Obsidian の適切なフォルダに保存されます:
+# • 💰 Finance → "1500 ランチ", "¥3000 本" → 💰 Finance フォルダ
+# • ✅ Tasks → "TODO: 資料作成", "期限: 明日まで" → ✅ Tasks フォルダ
+# • 🏃 Health → "体重 70kg", "ランニング 5km" → 🏃 Health フォルダ
+# • 📚 Learning → "Python 学習", "読書メモ" → 📚 Learning フォルダ
+# • 📝 Quick Notes → 短いメモ → 📝 Quick Notes フォルダ
+# • 📋 Memos → その他全般 → 📋 Memos フォルダ
+#
+# 🔧 BACKWARD COMPATIBILITY REMOVED:
+# • 全ての旧チャンネル ID 設定を削除
+# • レガシー API メソッドを削除
+# • シンプルな 2 カテゴリ構造 (CAPTURE/SYSTEM) に統一
 
 # Optional: Voice Recognition
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
@@ -325,8 +334,9 @@ All tests use `pytest-asyncio` with `asyncio_mode = "auto"` for seamless async t
 - **API Limits**: Respects Google Gemini free tier limits (1500/day, 15/minute)
 - **Security**: Uses `SecretStr` for sensitive data, gitleaks pre-commit hook for secret detection
 - **Voice Processing**: Optional feature with 60-minute monthly limit (Google Cloud Speech-to-Text free tier)
-- **Channel Management**: Simplified to 5 channels max - AI handles all categorization
+- **Channel Management**: Simplified to 5 channels max (2025 年更新) - AI handles all categorization
 - **Content Organization**: Obsidian-first approach with AI-powered folder assignment
+- **Backward Compatibility**: All legacy channel APIs removed for simplified architecture
 
 ## Git Branch Strategy
 
