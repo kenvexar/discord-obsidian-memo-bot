@@ -54,6 +54,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
         file_path: str | None = None,
         include_url_processing: bool = True,
         include_related_notes: bool = True,
+        discord_metadata: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
         ノート内容の包括的な分析
@@ -64,6 +65,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
             file_path: ファイルパス（オプション）
             include_url_processing: URL 処理を含むかどうか
             include_related_notes: 関連ノート分析を含むかどうか
+            discord_metadata: Discord由来のメタデータ（チャンネル情報など）
 
         Returns:
             分析結果
@@ -74,9 +76,17 @@ class AdvancedNoteAnalyzer(LoggerMixin):
                 title=title,
                 content_length=len(content),
                 file_path=file_path,
+                has_discord_metadata=bool(discord_metadata),
             )
 
             analysis_results = {}
+
+            # 0. Discord メタデータを活用した分類分析
+            if discord_metadata:
+                discord_analysis = await self._analyze_discord_context(
+                    content, discord_metadata
+                )
+                analysis_results["discord_analysis"] = discord_analysis
 
             # 1. URL 内容処理と要約
             if include_url_processing:
@@ -117,7 +127,10 @@ class AdvancedNoteAnalyzer(LoggerMixin):
 
             # 4. コンテンツの最終統合
             enhanced_content = await self._enhance_content_with_links(
-                content, internal_links, analysis_results.get("url_processing", {})
+                content,
+                internal_links,
+                analysis_results.get("url_processing", {}),
+                discord_metadata,
             )
             analysis_results["enhanced_content"] = {"content": enhanced_content}
 
@@ -143,6 +156,7 @@ class AdvancedNoteAnalyzer(LoggerMixin):
                 urls_processed=len(
                     analysis_results.get("url_processing", {}).get("processed_urls", [])
                 ),
+                has_discord_context=bool(discord_metadata),
             )
 
             return analysis_results
@@ -399,16 +413,25 @@ class AdvancedNoteAnalyzer(LoggerMixin):
         content: str,
         internal_links: list[str],
         url_processing_results: dict[str, Any],
+        discord_metadata: dict[str, Any] | None = None,
     ) -> str:
         """コンテンツにリンクを追加して強化"""
         try:
             enhanced_content = content
 
+            # Discord メタデータからのコンテキスト情報を追加
+            if discord_metadata:
+                discord_section = await self._create_discord_metadata_section(
+                    discord_metadata
+                )
+                if discord_section:
+                    enhanced_content = discord_section + "\n\n" + enhanced_content
+
             # URL 要約が既に追加されているかチェック
             if url_processing_results.get("summaries"):
                 url_summaries = url_processing_results["summaries"]
                 enhanced_content = await self._integrate_url_summaries(
-                    content, url_summaries
+                    enhanced_content, url_summaries
                 )
 
             # 内部リンクセクションを追加
@@ -422,6 +445,213 @@ class AdvancedNoteAnalyzer(LoggerMixin):
         except Exception as e:
             self.logger.warning("Failed to enhance content with links", error=str(e))
             return content
+
+    async def _analyze_discord_context(
+        self, content: str, discord_metadata: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Discord コンテキストを分析してコンテンツ分類を強化"""
+        try:
+            # Discord メタデータから情報を抽出
+            channel_name = discord_metadata.get("channel_name", "unknown")
+            channel_category = discord_metadata.get("channel_category", "unknown")
+            message_timestamp = discord_metadata.get("timestamp")
+            user_id = discord_metadata.get("user_id")
+
+            # コンテンツタイプの推定
+            content_type = await self._infer_content_type_from_context(
+                content, channel_name, channel_category
+            )
+
+            # 適切なフォルダパスの推定
+            suggested_folder = await self._suggest_folder_from_context(
+                content, content_type, channel_category
+            )
+
+            # タグの提案
+            suggested_tags = await self._suggest_tags_from_context(
+                content, channel_category, content_type
+            )
+
+            return {
+                "content_type": content_type,
+                "suggested_folder": suggested_folder,
+                "suggested_tags": suggested_tags,
+                "channel_context": {
+                    "name": channel_name,
+                    "category": channel_category,
+                    "timestamp": message_timestamp,
+                    "user_id": user_id,
+                },
+                "classification_confidence": await self._calculate_classification_confidence(
+                    content, content_type, suggested_folder
+                ),
+            }
+
+        except Exception as e:
+            self.logger.error("Failed to analyze Discord context", error=str(e))
+            return {"error": str(e)}
+
+    async def _infer_content_type_from_context(
+        self, content: str, channel_name: str, channel_category: str
+    ) -> str:
+        """チャンネル名とカテゴリからコンテンツタイプを推定"""
+        # コンテンツの長さと特徴を分析
+        content_lower = content.lower()
+
+        # 金額や金融関連キーワードの検出
+        financial_keywords = [
+            "円",
+            "¥",
+            "$",
+            "支出",
+            "収入",
+            "購入",
+            "支払い",
+            "投資",
+            "貯金",
+        ]
+        is_financial = any(keyword in content_lower for keyword in financial_keywords)
+
+        # タスク関連キーワードの検出
+        task_keywords = [
+            "todo",
+            "タスク",
+            "やること",
+            "完了",
+            "進捗",
+            "deadline",
+            "期限",
+        ]
+        is_task = any(keyword in content_lower for keyword in task_keywords)
+
+        # 健康関連キーワードの検出
+        health_keywords = ["体重", "血圧", "運動", "睡眠", "健康", "workout", "fitness"]
+        is_health = any(keyword in content_lower for keyword in health_keywords)
+
+        # チャンネル情報を優先して判定
+        if channel_category == "finance" or is_financial:
+            return "finance"
+        elif channel_category == "productivity" or is_task:
+            return "task"
+        elif channel_category == "health" or is_health:
+            return "health"
+        elif len(content) < 100:
+            return "quick_note"
+        elif any(
+            keyword in content_lower for keyword in ["学習", "読書", "勉強", "research"]
+        ):
+            return "learning"
+        else:
+            return "memo"
+
+    async def _suggest_folder_from_context(
+        self, content: str, content_type: str, channel_category: str
+    ) -> str:
+        """コンテキストに基づいて適切なフォルダを提案"""
+        # コンテンツタイプに基づくフォルダマッピング
+        type_folder_map = {
+            "finance": "💰 Finance",
+            "task": "✅ Tasks",
+            "health": "🏃 Health",
+            "learning": "📚 Learning",
+            "quick_note": "📝 Quick Notes",
+            "memo": "📋 Memos",
+        }
+
+        return type_folder_map.get(content_type, "📋 Memos")
+
+    async def _suggest_tags_from_context(
+        self, content: str, channel_category: str, content_type: str
+    ) -> list[str]:
+        """コンテキストに基づいてタグを提案"""
+        tags = []
+
+        # コンテンツタイプベースのタグ
+        if content_type == "finance":
+            tags.append("#finance")
+            if "支出" in content.lower() or "購入" in content.lower():
+                tags.append("#expense")
+            if "収入" in content.lower():
+                tags.append("#income")
+        elif content_type == "task":
+            tags.append("#task")
+            if "urgent" in content.lower() or "緊急" in content.lower():
+                tags.append("#urgent")
+        elif content_type == "health":
+            tags.append("#health")
+        elif content_type == "learning":
+            tags.append("#learning")
+
+        # 日付ベースのタグ（今月/今年）
+        now = datetime.now()
+        tags.append(f"#{now.strftime('%Y-%m')}")
+
+        return tags
+
+    async def _calculate_classification_confidence(
+        self, content: str, content_type: str, suggested_folder: str
+    ) -> float:
+        """分類の信頼度を計算"""
+        # 簡単な信頼度計算（実際にはもっと複雑なロジックを実装可能）
+        confidence = 0.5  # ベース信頼度
+
+        # コンテンツの長さに基づく調整
+        if len(content) > 50:
+            confidence += 0.2
+        if len(content) > 200:
+            confidence += 0.1
+
+        # キーワードマッチに基づく調整
+        content_lower = content.lower()
+        type_keywords = {
+            "finance": ["円", "¥", "支出", "収入", "購入"],
+            "task": ["todo", "タスク", "完了", "期限"],
+            "health": ["体重", "運動", "睡眠", "健康"],
+            "learning": ["学習", "読書", "勉強"],
+        }
+
+        if content_type in type_keywords:
+            matches = sum(
+                1 for keyword in type_keywords[content_type] if keyword in content_lower
+            )
+            confidence += min(matches * 0.1, 0.3)
+
+        return min(confidence, 1.0)
+
+    async def _create_discord_metadata_section(
+        self, discord_metadata: dict[str, Any]
+    ) -> str | None:
+        """Discord メタデータセクションを作成"""
+        try:
+            if not discord_metadata:
+                return None
+
+            channel_name = discord_metadata.get("channel_name")
+            timestamp = discord_metadata.get("timestamp")
+
+            if not any([channel_name, timestamp]):
+                return None
+
+            metadata_lines = ["## 📱 Discord Info"]
+
+            if channel_name:
+                metadata_lines.append(f"- **Channel**: #{channel_name}")
+            if timestamp:
+                # タイムスタンプをより読みやすい形式に変換
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    formatted_time = dt.strftime("%Y-%m-%d %H:%M")
+                    metadata_lines.append(f"- **Created**: {formatted_time}")
+                except Exception:
+                    metadata_lines.append(f"- **Created**: {timestamp}")
+
+            return "\n".join(metadata_lines)
+
+        except Exception as e:
+            self.logger.warning(
+                "Failed to create Discord metadata section", error=str(e)
+            )
+            return None
 
     async def _add_to_vector_store(
         self, file_path: str, title: str, content: str

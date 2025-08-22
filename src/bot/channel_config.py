@@ -44,25 +44,13 @@ class ChannelConfig(LoggerMixin):
         self.bot: DiscordBot | None = None
         self.guild: discord.Guild | None = None
 
-        # Standard channel names for auto-discovery
+        # Simplified channel names for auto-discovery (5 channels only)
         self.standard_channel_names = {
-            "inbox": ChannelCategory.CAPTURE,
-            "voice": ChannelCategory.CAPTURE,
-            "files": ChannelCategory.CAPTURE,
-            "money": ChannelCategory.FINANCE,
-            "finance-reports": ChannelCategory.FINANCE,
-            "income": ChannelCategory.FINANCE,
-            "subscriptions": ChannelCategory.FINANCE,
-            "tasks": ChannelCategory.PRODUCTIVITY,
-            "productivity-reviews": ChannelCategory.PRODUCTIVITY,
-            "projects": ChannelCategory.PRODUCTIVITY,
-            "health-activities": ChannelCategory.HEALTH,
-            "health-sleep": ChannelCategory.HEALTH,
-            "health-wellness": ChannelCategory.HEALTH,
-            "health-analytics": ChannelCategory.HEALTH,
-            "notifications": ChannelCategory.SYSTEM,
-            "commands": ChannelCategory.SYSTEM,
-            "logs": ChannelCategory.SYSTEM,
+            "memo": ChannelCategory.CAPTURE,  # 統合メイン入力チャンネル
+            "voice": ChannelCategory.CAPTURE,  # 音声メモ（維持）
+            "files": ChannelCategory.CAPTURE,  # ファイル共有（維持）
+            "notifications": ChannelCategory.SYSTEM,  # システム通知（維持）
+            "commands": ChannelCategory.SYSTEM,  # ボットコマンド（維持）
         }
 
     async def set_bot(self, bot: "DiscordBot") -> None:
@@ -87,7 +75,7 @@ class ChannelConfig(LoggerMixin):
             return False
 
         discovered_channels = {}
-        required_channels = ["inbox", "notifications", "commands"]
+        required_channels = ["memo", "notifications", "commands"]  # 最小必須チャンネル
         found_required = 0
 
         for channel in self.guild.text_channels:
@@ -109,6 +97,20 @@ class ChannelConfig(LoggerMixin):
                 if channel_name in required_channels:
                     found_required += 1
 
+            # 後方互換性：既存のチャンネルも #memo として扱う
+            elif channel_name in ["inbox"]:  # 旧 inbox チャンネル
+                category = ChannelCategory.CAPTURE
+                discovered_channels[channel.id] = ChannelInfo(
+                    id=channel.id,
+                    name=channel.name,
+                    category=category,
+                    description="Legacy channel (treated as memo)",
+                )
+                self.logger.info(
+                    f"Discovered legacy channel: #{channel.name} -> treated as memo (ID: {channel.id})"
+                )
+                found_required += 1
+
         # Update the channels dict
         self.channels.update(discovered_channels)
 
@@ -116,11 +118,13 @@ class ChannelConfig(LoggerMixin):
         success = found_required >= len(required_channels)
         if success:
             self.logger.info(
-                f"Successfully discovered {len(discovered_channels)} channels"
+                f"Successfully discovered {len(discovered_channels)} channels "
+                f"(required: {found_required}/{len(required_channels)})"
             )
         else:
             self.logger.warning(
-                f"Only found {found_required}/{len(required_channels)} required channels"
+                f"Only found {found_required}/{len(required_channels)} required channels. "
+                f"Please create channels: {', '.join(f'#{name}' for name in required_channels)}"
             )
 
         return success
@@ -185,16 +189,16 @@ class ChannelConfig(LoggerMixin):
         return self.get_channels_by_category(ChannelCategory.PRODUCTIVITY)
 
     def get_finance_expenses_channel(self) -> int | None:
-        """Get expenses channel ID"""
-        return self.get_channel_by_name("money")
+        """Get expenses channel ID (now unified in memo channel)"""
+        return self.get_channel_by_name("memo")
 
     def get_finance_money_channel(self) -> int | None:
-        """Get money channel ID"""
-        return self.get_channel_by_name("money")
+        """Get money channel ID (now unified in memo channel)"""
+        return self.get_channel_by_name("memo")
 
     def get_finance_income_channel(self) -> int | None:
-        """Get income channel ID"""
-        return self.get_channel_by_name("income")
+        """Get income channel ID (now unified in memo channel)"""
+        return self.get_channel_by_name("memo")
 
     def __str__(self) -> str:
         """String representation of channel configuration"""
