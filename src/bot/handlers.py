@@ -41,7 +41,7 @@ class MessageHandler(LoggerMixin):
         self.channel_config = channel_config
         self.message_processor = MessageProcessor()
 
-        # AI処理システムの初期化（モック対応）
+        # AI 処理システムの初期化（モック対応）
         processing_settings = ProcessingSettings(
             min_text_length=30,
             max_text_length=4000,
@@ -50,7 +50,7 @@ class MessageHandler(LoggerMixin):
             enable_categorization=True,
         )
 
-        # モードに応じてAIプロセッサーを初期化
+        # モードに応じて AI プロセッサーを初期化
         from ..config import get_settings
 
         settings = get_settings()
@@ -62,7 +62,7 @@ class MessageHandler(LoggerMixin):
             self.logger.info("Initializing AI processor in PRODUCTION mode")
             self.ai_processor = AIProcessor(settings=processing_settings)
 
-        # Obsidianファイル管理システムの初期化
+        # Obsidian ファイル管理システムの初期化
         try:
             self.obsidian_manager = ObsidianFileManager()
             self.note_template = None  # 古いテンプレートシステムは無効化
@@ -152,7 +152,7 @@ class MessageHandler(LoggerMixin):
         # Extract comprehensive metadata using the message processor
         metadata = self.message_processor.extract_metadata(message)
 
-        # AI処理を実行（テキストがある場合のみ）
+        # AI 処理を実行（テキストがある場合のみ）
         ai_result: AIProcessingResult | None = None
         if message.content and len(message.content.strip()) > 20:
             try:
@@ -251,10 +251,6 @@ class MessageHandler(LoggerMixin):
 
         if category == ChannelCategory.CAPTURE:
             await self._handle_capture_message(message_data, original_message)
-        elif category == ChannelCategory.FINANCE:
-            await self._handle_finance_message(message_data)
-        elif category == ChannelCategory.PRODUCTIVITY:
-            await self._handle_productivity_message(message_data)
         elif category == ChannelCategory.SYSTEM:
             await self._handle_system_message(message_data)
         else:
@@ -271,7 +267,7 @@ class MessageHandler(LoggerMixin):
             channel_name=message_data["channel_info"]["name"],
         )
 
-        # AI処理結果を取得
+        # AI 処理結果を取得
         ai_processing = message_data.get("ai_processing")
 
         if ai_processing:
@@ -305,15 +301,15 @@ class MessageHandler(LoggerMixin):
                     "Generated category", category=category, confidence=confidence
                 )
 
-        # Obsidianノートの生成と保存（新しいTemplateEngineを使用）
+        # Obsidian ノートの生成と保存（新しい TemplateEngine を使用）
         if self.obsidian_manager and self.template_engine:
             try:
-                # AI処理結果をAIProcessingResultオブジェクトに変換
+                # AI 処理結果を AIProcessingResult オブジェクトに変換
                 ai_result: AIProcessingResult | None = None
                 if ai_processing:
                     ai_result = AIProcessingResult.model_validate(ai_processing)
 
-                # 新しいTemplateEngineでObsidianノートを生成
+                # 新しい TemplateEngine で Obsidian ノートを生成
                 note = await self.template_engine.generate_note_from_template(
                     template_name="daily_note",
                     message_data=message_data,
@@ -321,10 +317,10 @@ class MessageHandler(LoggerMixin):
                 )
 
                 if note:
-                    # Vaultの初期化（初回のみ）
+                    # Vault の初期化（初回のみ）
                     await self.obsidian_manager.initialize_vault()
 
-                    # 高度なAI分析を実行（ノート分析器が利用可能な場合）
+                    # 高度な AI 分析を実行（ノート分析器が利用可能な場合）
                     enhanced_content = note.content
                     if self.note_analyzer and note.content:
                         try:
@@ -333,159 +329,108 @@ class MessageHandler(LoggerMixin):
                                 note_title=note.title,
                             )
 
+                            # Discord メタデータを構築
+                            discord_metadata = (
+                                {
+                                    "channel_name": message_data["channel_info"][
+                                        "name"
+                                    ],
+                                    "channel_category": message_data["channel_info"][
+                                        "category"
+                                    ],
+                                    "timestamp": message_data["metadata"]["basic"][
+                                        "timestamp"
+                                    ],
+                                    "user_id": message_data["metadata"]["basic"][
+                                        "author"
+                                    ]["id"],
+                                }
+                                if original_message
+                                else None
+                            )
+
                             # 包括的なノート分析を実行
-                            analysis_result = (
-                                await self.note_analyzer.analyze_note_content(
-                                    content=note.content,
-                                    title=note.title,
-                                    file_path=str(
-                                        note.file_path.relative_to(
-                                            self.obsidian_manager.vault_path
-                                        )
-                                    ),
-                                    include_url_processing=True,
-                                    include_related_notes=True,
-                                )
+                            analysis_result = await self.note_analyzer.analyze_note_content(
+                                content=note.content,
+                                title=note.title,
+                                file_path=str(
+                                    note.file_path.relative_to(
+                                        self.obsidian_manager.vault_path
+                                    )
+                                ),
+                                include_url_processing=True,
+                                include_related_notes=True,
+                                discord_metadata=discord_metadata,  # Discord メタデータを渡す
                             )
 
-                            # 分析結果からコンテンツを強化
-                            if (
-                                analysis_result
-                                and "enhanced_content" in analysis_result
+                            # 分析結果から強化されたコンテンツを取得
+                            if analysis_result.get("enhanced_content", {}).get(
+                                "content"
                             ):
-                                enhanced_content_raw = analysis_result[
-                                    "enhanced_content"
+                                enhanced_content = analysis_result["enhanced_content"][
+                                    "content"
                                 ]
-
-                                # enhanced_contentが辞書形式の場合、適切なcontentを抽出
-                                if isinstance(enhanced_content_raw, dict):
-                                    if "content" in enhanced_content_raw:
-                                        enhanced_content = enhanced_content_raw[
-                                            "content"
-                                        ]
-                                    else:
-                                        self.logger.warning(
-                                            "Enhanced content is dict but missing 'content' key",
-                                            keys=list(enhanced_content_raw.keys()),
-                                        )
-                                        enhanced_content = (
-                                            note.content
-                                        )  # 元のコンテンツを維持
-                                else:
-                                    enhanced_content = str(enhanced_content_raw)
-
-                                # dict文字列形式の場合はクリーンアップ
-                                if isinstance(
-                                    enhanced_content, str
-                                ) and enhanced_content.startswith("{'content':"):
-                                    try:
-                                        import ast
-
-                                        dict_obj = ast.literal_eval(enhanced_content)
-                                        if (
-                                            isinstance(dict_obj, dict)
-                                            and "content" in dict_obj
-                                        ):
-                                            enhanced_content = str(dict_obj["content"])
-                                        else:
-                                            self.logger.warning(
-                                                "Could not extract content from dict string"
-                                            )
-                                            enhanced_content = note.content
-                                    except (ValueError, SyntaxError) as e:
-                                        self.logger.warning(
-                                            "Failed to parse enhanced content dict string",
-                                            error=str(e),
-                                        )
-                                        enhanced_content = note.content
-
-                                note.content = enhanced_content
-
                                 self.logger.info(
-                                    "Note content enhanced with AI analysis",
-                                    note_title=note.title,
-                                    related_notes_count=len(
-                                        analysis_result.get("related_notes", [])
-                                    ),
-                                    internal_links_count=len(
-                                        analysis_result.get("internal_links", [])
-                                    ),
-                                    urls_processed=len(
-                                        analysis_result.get("url_processing", {}).get(
-                                            "processed_urls", []
+                                    "Enhanced note content with AI analysis",
+                                    has_related_notes=bool(
+                                        analysis_result.get("related_notes", {}).get(
+                                            "results"
                                         )
+                                    ),
+                                    has_internal_links=bool(
+                                        analysis_result.get("internal_links", {}).get(
+                                            "suggestions"
+                                        )
+                                    ),
+                                    has_discord_analysis=bool(
+                                        analysis_result.get("discord_analysis")
                                     ),
                                 )
 
-                        except Exception as analysis_error:
+                        except Exception as e:
                             self.logger.warning(
-                                "Advanced AI analysis failed, proceeding with basic note",
+                                "Failed to run advanced AI analysis",
                                 note_title=note.title,
-                                error=str(analysis_error),
+                                error=str(e),
                             )
 
-                    # 日別ノートとして保存または追記
-                    success = await self.obsidian_manager.save_or_append_daily_note(
-                        note
+                    # 強化されたコンテンツでノートを更新
+                    if enhanced_content != note.content:
+                        note.content = enhanced_content
+
+                    # ノートを保存
+                    saved_file_path = await self.obsidian_manager.save_note(note)
+                    self.logger.info(
+                        "Note saved successfully",
+                        title=note.title,
+                        file_path=str(saved_file_path),
+                        content_length=len(enhanced_content),
                     )
 
-                    if success:
-                        self.logger.info(
-                            "Enhanced Obsidian note saved or appended successfully",
-                            note_path=str(
-                                note.file_path.relative_to(
-                                    self.obsidian_manager.vault_path
-                                )
-                            ),
-                            note_title=note.title,
-                            enhanced=(
-                                enhanced_content != note.content
-                                if "enhanced_content" in locals()
-                                else False
-                            ),
-                        )
-                    else:
-                        self.logger.warning(
-                            "Failed to save or append Obsidian note",
-                            note_title=note.title,
-                        )
-                else:
-                    self.logger.warning("Failed to generate note from template")
+                    # Daily Integration の実行
+                    if self.daily_integration:
+                        try:
+                            # メモ保存を Activity Log に追加するためのメッセージデータを構築
+                            activity_data = {
+                                "metadata": {
+                                    "content": {
+                                        "raw_content": f"📝 {note.title} - Saved memo from Discord #{message_data['channel_info']['name']}"
+                                    },
+                                    "timing": message_data["metadata"].get(
+                                        "timing", {}
+                                    ),
+                                }
+                            }
+                            await self.daily_integration.add_activity_log_entry(
+                                activity_data
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                "Failed to add daily integration entry", error=str(e)
+                            )
 
             except Exception as e:
-                self.logger.error(
-                    "Error creating Obsidian note",
-                    channel_name=message_data["channel_info"]["name"],
-                    error=str(e),
-                    exc_info=True,
-                )
-        else:
-            self.logger.debug("Obsidian integration not available")
-
-        # デイリーノート統合の処理
-        if self.daily_integration and original_message:
-            # original_messageからチャンネル情報を取得
-            original_channel_info = self.channel_config.get_channel_info(
-                original_message.channel.id
-            )
-            await self._handle_daily_note_integration(
-                message_data, original_channel_info
-            )
-
-        # 音声添付ファイルの処理（元のメッセージを渡す）
-        if self.speech_processor and original_message:
-            # original_messageからチャンネル情報を取得
-            original_channel_info = self.channel_config.get_channel_info(
-                original_message.channel.id
-            )
-            await self._handle_audio_attachments(
-                message_data, original_channel_info, original_message
-            )
-
-        # Process other file attachments (documents, images, etc.)
-        await self._handle_document_attachments(
-            message_data, original_channel_info, original_message
-        )
+                self.logger.error("Failed to create Obsidian note", error=str(e))
 
     async def _handle_daily_note_integration(
         self, message_data: dict[str, Any], channel_info: Any
@@ -498,7 +443,7 @@ class MessageHandler(LoggerMixin):
 
             channel_id = channel_info.id
 
-            # Activity Logチャンネルの処理
+            # Activity Log チャンネルの処理
             if (
                 self.daily_integration
                 and hasattr(settings, "channel_activity_log")
@@ -513,7 +458,7 @@ class MessageHandler(LoggerMixin):
                 else:
                     self.logger.warning("Failed to add activity log entry")
 
-            # Daily Tasksチャンネルの処理
+            # Daily Tasks チャンネルの処理
             elif (
                 self.daily_integration
                 and hasattr(settings, "channel_daily_tasks")
@@ -662,7 +607,7 @@ class MessageHandler(LoggerMixin):
                 )
                 return
 
-            # Discordへのリアルタイムフィードバックを開始
+            # Discord へのリアルタイムフィードバックを開始
             if original_message:
                 try:
                     feedback_message = await original_message.reply(
@@ -706,7 +651,7 @@ class MessageHandler(LoggerMixin):
                     f"✅ 音声文字起こしが完了しました！\n"
                     f"📝 **ファイル**: `{filename}`\n"
                     f"📊 **信頼度**: {audio_result.transcription.confidence:.2f}\n"
-                    f"📄 ノートがObsidianに保存されました。"
+                    f"📄 ノートが Obsidian に保存されました。"
                 )
                 await self._update_feedback_message(feedback_message, success_msg)
 
@@ -728,7 +673,7 @@ class MessageHandler(LoggerMixin):
                         f"⚠️ 音声文字起こしが制限されました\n"
                         f"📝 **ファイル**: `{filename}`\n"
                         f"📊 **理由**: {audio_result.fallback_reason}\n"
-                        f"📁 音声ファイルはObsidianに保存されました。"
+                        f"📁 音声ファイルは Obsidian に保存されました。"
                     )
                     await self._update_feedback_message(feedback_message, fallback_msg)
                 else:
@@ -785,7 +730,7 @@ class MessageHandler(LoggerMixin):
     async def _integrate_audio_transcription(
         self, message_data: dict[str, Any], audio_result: Any, channel_info: Any
     ) -> None:
-        """音声文字起こし結果をObsidianノートに統合"""
+        """音声文字起こし結果を Obsidian ノートに統合"""
         try:
             if not self.obsidian_manager or not self.template_engine:
                 return
@@ -816,9 +761,9 @@ class MessageHandler(LoggerMixin):
             content_info["has_audio_transcription"] = True
             content_info["audio_confidence"] = audio_result.transcription.confidence
 
-            # AIで処理する場合は、音声文字起こし結果も含めて処理
+            # AI で処理する場合は、音声文字起こし結果も含めて処理
             if original_content.strip() or transcription_text.strip():
-                # 通常のAI処理フローに任せる（AIProcessorが音声テキストも処理する）
+                # 通常の AI 処理フローに任せる（ AIProcessor が音声テキストも処理する）
                 pass
 
             self.logger.info(
@@ -832,85 +777,6 @@ class MessageHandler(LoggerMixin):
             self.logger.error(
                 "Error integrating audio transcription", error=str(e), exc_info=True
             )
-
-    async def _handle_finance_message(self, message_data: dict[str, Any]) -> None:
-        """Handle messages from finance channels"""
-        self.logger.info(
-            "Handling finance message",
-            channel_name=message_data["channel_info"]["name"],
-        )
-
-        # Process finance-related messages
-        try:
-            # Check if finance handler is available
-            if hasattr(self, "finance_handler"):
-                await self.finance_handler.process_message(message_data)
-            else:
-                # Basic expense detection for future implementation
-                content = message_data.get("content", "").lower()
-                if any(
-                    keyword in content
-                    for keyword in ["￥", "円", "expense", "cost", "paid", "買い物"]
-                ):
-                    self.logger.info(
-                        "Finance-related content detected", content=content[:50]
-                    )
-                    # Add finance tag for future processing
-                    if "tags" not in message_data["metadata"]:
-                        message_data["metadata"]["tags"] = []
-                    message_data["metadata"]["tags"].append("finance")
-
-        except ImportError:
-            self.logger.debug("Finance message handler not available")
-
-    async def _handle_productivity_message(self, message_data: dict[str, Any]) -> None:
-        """Handle messages from productivity channels"""
-        self.logger.info(
-            "Handling productivity message",
-            channel_name=message_data["channel_info"]["name"],
-        )
-
-        # Process productivity-related messages
-        try:
-            content = message_data.get("content", "").lower()
-
-            # Detect task-related content
-            task_keywords = [
-                "todo",
-                "task",
-                "タスク",
-                "完了",
-                "done",
-                "deadline",
-                "期限",
-            ]
-            if any(keyword in content for keyword in task_keywords):
-                self.logger.info("Task-related content detected", content=content[:50])
-                # Add task tag for future processing
-                if "tags" not in message_data["metadata"]:
-                    message_data["metadata"]["tags"] = []
-                message_data["metadata"]["tags"].append("task")
-
-            # Detect schedule-related content
-            schedule_keywords = [
-                "schedule",
-                "meeting",
-                "appointment",
-                "予定",
-                "ミーティング",
-                "会議",
-            ]
-            if any(keyword in content for keyword in schedule_keywords):
-                self.logger.info(
-                    "Schedule-related content detected", content=content[:50]
-                )
-                # Add schedule tag for future processing
-                if "tags" not in message_data["metadata"]:
-                    message_data["metadata"]["tags"] = []
-                message_data["metadata"]["tags"].append("schedule")
-
-        except Exception as e:
-            self.logger.error("Error processing productivity message", error=str(e))
 
     async def _handle_system_message(self, message_data: dict[str, Any]) -> None:
         """Handle messages from system channels"""

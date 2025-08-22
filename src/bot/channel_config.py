@@ -14,14 +14,10 @@ from ..utils.mixins import LoggerMixin
 
 
 class ChannelCategory(Enum):
-    """Channel categories for organizing different types of content"""
+    """Simplified channel categories"""
 
-    CAPTURE = "capture"
-    FINANCE = "finance"
-    PRODUCTIVITY = "productivity"
-    HEALTH = "health"
-    SYSTEM = "system"
-    UNKNOWN = "unknown"
+    CAPTURE = "capture"  # memo, voice, files
+    SYSTEM = "system"  # notifications, commands
 
 
 @dataclass
@@ -44,25 +40,13 @@ class ChannelConfig(LoggerMixin):
         self.bot: DiscordBot | None = None
         self.guild: discord.Guild | None = None
 
-        # Standard channel names for auto-discovery
+        # Simplified channel names for auto-discovery (5 channels only)
         self.standard_channel_names = {
-            "inbox": ChannelCategory.CAPTURE,
-            "voice": ChannelCategory.CAPTURE,
-            "files": ChannelCategory.CAPTURE,
-            "money": ChannelCategory.FINANCE,
-            "finance-reports": ChannelCategory.FINANCE,
-            "income": ChannelCategory.FINANCE,
-            "subscriptions": ChannelCategory.FINANCE,
-            "tasks": ChannelCategory.PRODUCTIVITY,
-            "productivity-reviews": ChannelCategory.PRODUCTIVITY,
-            "projects": ChannelCategory.PRODUCTIVITY,
-            "health-activities": ChannelCategory.HEALTH,
-            "health-sleep": ChannelCategory.HEALTH,
-            "health-wellness": ChannelCategory.HEALTH,
-            "health-analytics": ChannelCategory.HEALTH,
-            "notifications": ChannelCategory.SYSTEM,
-            "commands": ChannelCategory.SYSTEM,
-            "logs": ChannelCategory.SYSTEM,
+            "memo": ChannelCategory.CAPTURE,  # 統合メイン入力チャンネル
+            "voice": ChannelCategory.CAPTURE,  # 音声メモ（維持）
+            "files": ChannelCategory.CAPTURE,  # ファイル共有（維持）
+            "notifications": ChannelCategory.SYSTEM,  # システム通知（維持）
+            "commands": ChannelCategory.SYSTEM,  # ボットコマンド（維持）
         }
 
     async def set_bot(self, bot: "DiscordBot") -> None:
@@ -87,13 +71,13 @@ class ChannelConfig(LoggerMixin):
             return False
 
         discovered_channels = {}
-        required_channels = ["inbox", "notifications", "commands"]
+        required_channels = ["memo", "notifications", "commands"]
         found_required = 0
 
         for channel in self.guild.text_channels:
             channel_name = channel.name.lower().replace("-", "").replace("_", "")
 
-            # Check for exact matches first
+            # Check for exact matches only
             if channel_name in self.standard_channel_names:
                 category = self.standard_channel_names[channel_name]
                 discovered_channels[channel.id] = ChannelInfo(
@@ -116,11 +100,13 @@ class ChannelConfig(LoggerMixin):
         success = found_required >= len(required_channels)
         if success:
             self.logger.info(
-                f"Successfully discovered {len(discovered_channels)} channels"
+                f"Successfully discovered {len(discovered_channels)} channels "
+                f"(required: {found_required}/{len(required_channels)})"
             )
         else:
             self.logger.warning(
-                f"Only found {found_required}/{len(required_channels)} required channels"
+                f"Only found {found_required}/{len(required_channels)} required channels. "
+                f"Please create channels: {', '.join(f'#{name}' for name in required_channels)}"
             )
 
         return success
@@ -132,7 +118,7 @@ class ChannelConfig(LoggerMixin):
             ChannelInfo(
                 id=channel_id,
                 name="unknown",
-                category=ChannelCategory.UNKNOWN,
+                category=ChannelCategory.CAPTURE,  # Default to CAPTURE
                 description="Unknown channel",
             ),
         )
@@ -167,34 +153,17 @@ class ChannelConfig(LoggerMixin):
         info = self.get_channel_info(channel_id)
         return f"{info.category.value.title()}: {info.description}"
 
-    # Legacy API compatibility methods
-    def get_channel(self, channel_id: int) -> int | None:
-        """Legacy method for compatibility - returns channel ID if it exists"""
-        return channel_id if channel_id in self.channels else None
+    def get_memo_channel(self) -> int | None:
+        """Get unified memo channel ID"""
+        return self.get_channel_by_name("memo")
 
     def get_capture_channels(self) -> set[int]:
         """Get capture category channel IDs"""
         return self.get_channels_by_category(ChannelCategory.CAPTURE)
 
-    def get_finance_channels(self) -> set[int]:
-        """Get finance category channel IDs"""
-        return self.get_channels_by_category(ChannelCategory.FINANCE)
-
-    def get_productivity_channels(self) -> set[int]:
-        """Get productivity category channel IDs"""
-        return self.get_channels_by_category(ChannelCategory.PRODUCTIVITY)
-
-    def get_finance_expenses_channel(self) -> int | None:
-        """Get expenses channel ID"""
-        return self.get_channel_by_name("money")
-
-    def get_finance_money_channel(self) -> int | None:
-        """Get money channel ID"""
-        return self.get_channel_by_name("money")
-
-    def get_finance_income_channel(self) -> int | None:
-        """Get income channel ID"""
-        return self.get_channel_by_name("income")
+    def get_system_channels(self) -> set[int]:
+        """Get system category channel IDs"""
+        return self.get_channels_by_category(ChannelCategory.SYSTEM)
 
     def __str__(self) -> str:
         """String representation of channel configuration"""

@@ -276,23 +276,27 @@ DISCORD_GUILD_ID=your_guild_id
 GEMINI_API_KEY=your_gemini_api_key
 OBSIDIAN_VAULT_PATH=/path/to/your/obsidian/vault
 
-# Channel Configuration (create these channels in Discord)
-# Note: The bot automatically discovers channels by name - no IDs needed!
+# Simplified Channel Configuration (only 5 channels needed)
+# The bot automatically discovers channels by name - no IDs needed!
 # Create Discord channels with these exact names:
 #
 # Required channels:
-# - #inbox           (Main text memos)
+# - #memo            (Unified input for all content types - replaces inbox, money, tasks, etc.)
 # - #notifications   (System notifications)
 # - #commands        (Bot commands)
 #
 # Optional channels:
 # - #voice           (Voice memos)
 # - #files           (File uploads)
-# - #money           (Expense tracking)
-# - #finance-reports (Financial analytics)
-# - #tasks           (Task management)
-# - #productivity-reviews (Daily reviews)
-# ... and many more (see docs/EASY_SETUP.md for full list)
+#
+# ✅ MAJOR SIMPLIFICATION:
+# All content now goes to #memo and gets automatically categorized by AI:
+# • Financial content → 💰 Finance folder
+# • Task content → ✅ Tasks folder
+# • Health content → 🏃 Health folder
+# • Learning content → 📚 Learning folder
+# • Quick notes → 📝 Quick Notes folder
+# • Everything else → 📋 Memos folder
 
 # Optional: Voice Recognition
 GOOGLE_APPLICATION_CREDENTIALS=/path/to/credentials.json
@@ -321,7 +325,8 @@ All tests use `pytest-asyncio` with `asyncio_mode = "auto"` for seamless async t
 - **API Limits**: Respects Google Gemini free tier limits (1500/day, 15/minute)
 - **Security**: Uses `SecretStr` for sensitive data, gitleaks pre-commit hook for secret detection
 - **Voice Processing**: Optional feature with 60-minute monthly limit (Google Cloud Speech-to-Text free tier)
-- **Channel Management**: Bot automatically discovers channels by name - no channel ID configuration required
+- **Channel Management**: Simplified to 5 channels max - AI handles all categorization
+- **Content Organization**: Obsidian-first approach with AI-powered folder assignment
 
 ## Git Branch Strategy
 
