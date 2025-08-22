@@ -1,26 +1,26 @@
 # 簡単セットアップガイド
 
-Discord-Obsidian Memo Botを**チャンネルIDの設定なし**で5分で動かす最短手順です。
+Discord-Obsidian Memo Bot を**チャンネル ID の設定なし**で 5 分で動かす最短手順です。
 
 ## 🚀 クイックスタート
 
 ### 1. 必要なもの
 
-- Discord Botトークン
-- Google Gemini APIキー
-- Obsidianフォルダのパス
+- Discord Bot トークン
+- Google Gemini API キー
+- Obsidian フォルダのパス
 
-### 2. チャンネル作成（3つだけ）
+### 2. チャンネル作成（ 3 つだけ）
 
-Discordサーバーに以下のテキストチャンネルを作成：
+Discord サーバーに以下のテキストチャンネルを作成：
 
 ```
-📝 inbox          ← メモ投稿用（必須）
+📝 memo           ← メモ投稿用（統合チャンネル・必須）
 🔔 notifications  ← ボット通知用（必須）
 🤖 commands       ← ボットコマンド用（必須）
 ```
 
-**これだけです！** チャンネルIDをコピーする必要はありません。
+**これだけです！** チャンネル ID をコピーする必要はありません。
 
 ### 3. 設定ファイル
 
@@ -32,12 +32,12 @@ cp .env.names-only.example .env
 vim .env
 ```
 
-**`.env`ファイルの編集（3つだけ）:**
+**`.env`ファイルの編集（ 3 つだけ）:**
 
 ```env
-DISCORD_BOT_TOKEN=あなたのBotトークン
-DISCORD_GUILD_ID=あなたのDiscordサーバーID
-GEMINI_API_KEY=あなたのGemini APIキー
+DISCORD_BOT_TOKEN=あなたの Bot トークン
+DISCORD_GUILD_ID=あなたの Discord サーバー ID
+GEMINI_API_KEY=あなたの Gemini API キー
 OBSIDIAN_VAULT_PATH=/path/to/obsidian/vault
 
 USE_CHANNEL_NAMES_ONLY=true
@@ -51,8 +51,9 @@ uv run python -m src.main
 
 ### 5. 完了！
 
-- `#inbox`チャンネルにメッセージを投稿
-- ボットが自動的に処理してObsidianに保存
+- `#memo`チャンネルにメッセージを投稿（すべてのタイプのコンテンツ対応）
+- AI が内容を分析して適切なフォルダに自動分類
+- ボットが自動的に処理して Obsidian に保存
 - `#notifications`で処理状況を確認
 
 ## 🔧 追加チャンネル（オプション）
@@ -62,9 +63,10 @@ uv run python -m src.main
 ```
 🎤 voice           ← 音声メモ
 📎 files           ← ファイルアップロード
-💰 money           ← 家計簿・支出管理
-✅ tasks           ← タスク管理
 ```
+
+**注意**: `💰 money`, `✅ tasks` 等の機能は `#memo` チャンネルで統合されました。
+AI が内容を自動分析してフォルダ分類するため、専用チャンネルは不要です。
 
 **ボットを再起動すると自動的に検出されます。**
 
@@ -73,24 +75,21 @@ uv run python -m src.main
 カテゴリで整理すると見やすくなります：
 
 ```
-📝 MEMO SYSTEM
-  ├── inbox
+📝 MEMO SYSTEM (統合)
+  ├── memo     ← 🆕 統合入力チャンネル（ Finance, Tasks, Health 等すべて）
   ├── voice
   └── files
-
-💼 PRODUCTIVITY
-  ├── tasks
-  └── projects
-
-💰 FINANCE
-  ├── money
-  └── finance-reports
 
 🔧 SYSTEM
   ├── notifications
   ├── commands
   └── logs
 ```
+
+**🆕 大幅な簡素化**:
+- `memo` チャンネル 1 つですべてのコンテンツタイプを受信
+- AI が自動分類: 💰 Finance, ✅ Tasks, 🏃 Health, 📚 Learning
+- 専用チャンネル（ money, tasks 等）は不要
 
 ## ⚡ メリット
 
@@ -101,7 +100,7 @@ CHANNEL_INBOX=123456789012345678
 CHANNEL_VOICE=987654321098765432
 CHANNEL_TASKS=456789123456789123
 CHANNEL_NOTIFICATIONS=789123456789123456
-# ... 10個以上のチャンネルID
+# ... 10 個以上のチャンネル ID
 ```
 
 ### 新しい方式
@@ -118,7 +117,7 @@ USE_CHANNEL_NAMES_ONLY=true
 **症状:** `Required channel not found` エラー
 
 **解決方法:**
-1. チャンネル名が正確か確認（`inbox`, `notifications`, `commands`）
+1. チャンネル名が正確か確認（`memo`, `notifications`, `commands`）
 2. ボットにチャンネル表示権限があるか確認
 3. `DISCORD_GUILD_ID`が正しいか確認
 
@@ -135,11 +134,11 @@ USE_CHANNEL_NAMES_ONLY=true
 
 ボット起動時のログを確認：
 ```
-INFO: Auto-discovered channel channel_name=inbox channel_id=123456789
+INFO: Auto-discovered channel channel_name=memo channel_id=123456789
 INFO: Channel auto-discovery completed discovered_count=3 mode=name-only
 ```
 
-または、Pythonで確認：
+または、 Python で確認：
 ```python
 from src.bot.channel_config import ChannelConfig
 from src.config import get_settings
@@ -156,11 +155,11 @@ print(suggestions)
 
 ## 🔄 従来設定からの移行
 
-既にチャンネルIDで設定済みの場合：
+既にチャンネル ID で設定済みの場合：
 
 1. **そのまま使える**: 既存設定は動作し続けます
 2. **段階的移行**: `USE_CHANNEL_NAMES_ONLY=true`を追加するだけ
-3. **完全移行**: チャンネルIDの環境変数を削除可能
+3. **完全移行**: チャンネル ID の環境変数を削除可能
 
 ## 📚 より詳しく
 

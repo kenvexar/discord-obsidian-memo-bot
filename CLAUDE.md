@@ -140,7 +140,11 @@ The application follows a **layered architecture**:
 ```
 src/
 ├── config/              # Settings and configuration management
+│   ├── settings.py         # Main settings configuration
+│   └── secure_settings.py  # Secure settings with encryption
 ├── utils/               # Shared utilities and logging
+│   ├── logger.py           # Structured logging setup
+│   └── mixins.py           # Utility mixins
 ├── security/            # Security and authentication
 │   ├── secret_manager.py   # Secret management
 │   └── access_logger.py    # Access logging
@@ -152,11 +156,14 @@ src/
 │   │   ├── config_commands.py  # Configuration commands
 │   │   └── stats_commands.py   # Statistics commands
 │   ├── mixins/             # Reusable bot mixins
+│   │   └── command_base.py     # Command base class
 │   ├── message_processor.py # Message processing logic
 │   ├── notification_system.py # Notification management
 │   ├── review_system.py    # Review and feedback system
 │   ├── channel_config.py   # Channel configuration
+│   ├── config_manager.py   # Configuration management
 │   ├── backup_system.py    # Backup management
+│   ├── models.py           # Bot data models
 │   └── mock_client.py      # Mock client for testing
 ├── ai/                  # AI processing and analysis
 │   ├── processor.py        # Main AI processor
@@ -164,6 +171,7 @@ src/
 │   ├── note_analyzer.py    # Note analysis and categorization
 │   ├── vector_store.py     # Vector storage for similarity
 │   ├── url_processor.py    # URL content processing
+│   ├── models.py           # AI data models
 │   └── mock_processor.py   # Mock processor for testing
 ├── obsidian/            # Obsidian vault integration
 │   ├── core/               # Core vault operations
@@ -178,9 +186,10 @@ src/
 │   ├── analytics/          # Vault analytics
 │   │   ├── vault_statistics.py # Vault stats
 │   │   └── stats_models.py     # Statistics models
-│   ├── file_manager.py     # Legacy file operations
+│   ├── interfaces.py       # Abstract interfaces
+│   ├── models.py           # Obsidian data models
 │   ├── local_data_manager.py # Local data management
-│   ├── refactored_file_manager.py # Refactored file operations
+│   ├── refactored_file_manager.py # Modern file operations
 │   ├── template_system.py  # Advanced templating
 │   ├── daily_integration.py # Daily note features
 │   ├── organizer.py        # Vault organization
