@@ -6,22 +6,22 @@ from typing import Any
 import discord
 import structlog
 from discord import app_commands
+from discord.ext import commands
 
-from ..mixins.command_base import BaseCommandGroup
+from ..mixins.command_base import CommandMixin
 
 logger = structlog.get_logger(__name__)
 
 
-class StatsCommands(BaseCommandGroup):
+class StatsCommands(commands.Cog, CommandMixin):
     """Commands for displaying various statistics."""
 
     def __init__(self, bot: discord.Client):
-        super().__init__(name="stats", description="統計情報表示コマンド")
         self.bot = bot
         self.startup_time = datetime.now()
 
     @app_commands.command(name="bot", description="ボットの統計情報を表示")
-    async def bot_stats_command(self, interaction: discord.Interaction) -> None:
+    async def stats_bot_command(self, interaction: discord.Interaction) -> None:
         """Display bot statistics."""
         try:
             await self.defer_if_needed(interaction)

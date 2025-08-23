@@ -3,18 +3,18 @@
 import discord
 import structlog
 from discord import app_commands
+from discord.ext import commands
 
 from ..channel_config import ChannelConfig
-from ..mixins.command_base import BaseCommandGroup
+from ..mixins.command_base import CommandMixin
 
 logger = structlog.get_logger(__name__)
 
 
-class ConfigCommands(BaseCommandGroup):
+class ConfigCommands(commands.Cog, CommandMixin):
     """Commands for bot configuration management."""
 
     def __init__(self, bot: discord.Client, channel_config: ChannelConfig):
-        super().__init__(name="config", description="設定管理コマンド")
         self.bot = bot
         self.channel_config = channel_config
 

@@ -6,17 +6,17 @@ from typing import Any
 import discord
 import structlog
 from discord import app_commands
+from discord.ext import commands
 
-from ..mixins.command_base import BaseCommandGroup
+from ..mixins.command_base import CommandMixin
 
 logger = structlog.get_logger(__name__)
 
 
-class BasicCommands(BaseCommandGroup):
+class BasicCommands(commands.Cog, CommandMixin):
     """Basic bot commands like help, status, and search."""
 
     def __init__(self, bot: discord.Client):
-        super().__init__(name="basic", description="基本コマンド")
         self.bot = bot
 
     @app_commands.command(name="help", description="ボットのヘルプ情報を表示")
@@ -208,7 +208,7 @@ class BasicCommands(BaseCommandGroup):
 ### 📝 主な機能
 
 **メモ管理**
-- `#inbox` チャンネルでのメッセージ自動保存
+- `#memo` チャンネルでのメッセージ自動保存
 - `#voice` チャンネルでの音声メモ処理
 - AI による自動分類と要約
 

@@ -6,9 +6,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import discord
-    from discord.ext.commands import Bot as DiscordBot
+import discord
+from discord.ext.commands import Bot as DiscordBot
 
 from ..utils.mixins import LoggerMixin
 
@@ -143,6 +142,10 @@ class ChannelConfig(LoggerMixin):
             if channel_name == name_lower:
                 return channel_id
         return None
+
+    def get_channel(self, channel_name: str) -> discord.TextChannel | None:
+        """Get channel object by name (alias for get_channel_by_name)."""
+        return self.get_channel_by_name(channel_name)
 
     def get_all_monitored_channel_names(self) -> list[str]:
         """Get list of all monitored channel names"""

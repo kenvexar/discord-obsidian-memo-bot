@@ -94,21 +94,28 @@ async def main() -> None:
 
         bot = DiscordBot()
 
-        # Start health check server for Cloud Run
+        # Start health check server for Cloud Run with port conflict handling
+        health_server = None
         try:
             from monitoring import HealthServer
         except ImportError:
             from src.monitoring import HealthServer
 
-        health_server = HealthServer(bot_instance=bot, port=8080)
-        health_server.start()
+        try:
+            health_server = HealthServer(bot_instance=bot, port=8080)
+            health_server.start()
+            logger.info(f"Health server started on port {health_server.port}")
+        except OSError as e:
+            logger.warning(f"Health server startup failed: {e}")
+            logger.info("Bot will continue without health server")
 
         logger.info("Starting Discord bot...")
         try:
             await bot.start()
         finally:
             # Cleanup health server on shutdown
-            health_server.stop()
+            if health_server:
+                health_server.stop()
 
     except Exception as e:
         logger.error("Failed to start bot", error=str(e), exc_info=True)

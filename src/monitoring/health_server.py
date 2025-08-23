@@ -119,11 +119,24 @@ class HealthServer:
     """Health check server for Cloud Run deployment"""
 
     def __init__(self, bot_instance: Any = None, port: int = 8080) -> None:
+        import socket
         self.bot_instance = bot_instance
-        self.port = port
+        self.port = self._find_available_port(port)
         self.server: HTTPServer | None = None
         self.thread: Thread | None = None
         self.logger = get_logger("health_server")
+
+    def _find_available_port(self, start_port: int) -> int:
+        """Find an available port starting from start_port"""
+        import socket
+        for port in range(start_port, start_port + 10):
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(('', port))
+                    return port
+            except OSError:
+                continue
+        raise OSError(f"No available ports found in range {start_port}-{start_port + 9}")
 
     def start(self) -> None:
         """Start the health check server"""
