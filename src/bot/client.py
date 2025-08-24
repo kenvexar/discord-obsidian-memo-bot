@@ -131,6 +131,9 @@ class DiscordBot(LoggerMixin):
                 member_count=self.guild.member_count,
             )
 
+            # 🔧 FIX: Initialize channel configuration with bot instance
+            await self.channel_config.set_bot(self)
+
             # Validate channel configuration
             await self._validate_channels()
 
@@ -194,12 +197,29 @@ class DiscordBot(LoggerMixin):
         @self.client.event
         async def on_message(message: discord.Message) -> None:
             """Handle incoming messages"""
+            # DEBUG: Add temporary logging to verify message reception
+            self.logger.info(
+                "🔍 DEBUG: Message received in on_message",
+                message_id=message.id,
+                author=str(message.author),
+                channel_name=getattr(message.channel, "name", "unknown"),
+                channel_id=message.channel.id,
+                content_preview=message.content[:50] + "..."
+                if len(message.content) > 50
+                else message.content,
+                is_bot=message.author.bot,
+                bot_ready=self.is_ready,
+            )
+
             if not self.is_ready:
+                self.logger.warning("Bot not ready, skipping message processing")
                 return
 
             try:
                 # Process message through handler
+                self.logger.info("🚀 DEBUG: Calling message_handler.process_message")
                 result = await self.message_handler.process_message(message)
+                self.logger.info(f"🔄 DEBUG: Message handler returned: {result}")
 
                 if result:
                     self.logger.debug(

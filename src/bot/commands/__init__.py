@@ -17,13 +17,13 @@ async def setup_commands(bot: Any, channel_config: ChannelConfig) -> None:
     try:
         await bot.add_cog(BasicCommands(bot))
         logger.info("BasicCommands loaded successfully")
-        
+
         await bot.add_cog(ConfigCommands(bot, channel_config))
         logger.info("ConfigCommands loaded successfully")
-        
+
         await bot.add_cog(StatsCommands(bot))
         logger.info("StatsCommands loaded successfully")
-        
+
         logger.info("All command cogs loaded successfully")
     except Exception as e:
         logger.error(f"Failed to load command cogs: {e}", exc_info=True)

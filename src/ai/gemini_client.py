@@ -26,7 +26,7 @@ from .models import (
 
 
 class GeminiAPIError(Exception):
-    """Gemini API関連のエラー"""
+    """Gemini API 関連のエラー"""
 
     def __init__(
         self, message: str, error_code: str | None = None, retryable: bool = False
@@ -45,19 +45,19 @@ class RateLimitExceeded(GeminiAPIError):
 
 
 class GeminiClient(LoggerMixin):
-    """Google Gemini API クライアント（新しいgoogle-genai SDK使用）"""
+    """Google Gemini API クライアント（新しい google-genai SDK 使用）"""
 
     # プロンプトテンプレート
-    SUMMARY_PROMPT = """あなたは優秀なアシスタントです。以下のDiscordでの会話を、重要なポイントを箇条書き3つにまとめてください。
+    SUMMARY_PROMPT = """あなたは優秀なアシスタントです。以下の Discord での会話を、重要なポイントを箇条書き 3 つにまとめてください。
 
 テキスト:
 ---
 {text}
 ---
 
-要約（箇条書き3点）:"""
+要約（箇条書き 3 点）:"""
 
-    TAG_GENERATION_PROMPT = """あなたは情報を整理する専門家です。以下のテキストから最も重要なキーワードを5つ抽出し、Obsidianで使えるように '#' をつけたタグ形式で、カンマ区切りで出力してください。
+    TAG_GENERATION_PROMPT = """あなたは情報を整理する専門家です。以下のテキストから最も重要なキーワードを 5 つ抽出し、 Obsidian で使えるように '#' をつけたタグ形式で、カンマ区切りで出力してください。
 
 例: #Python, #AI, #プログラミング
 
@@ -70,7 +70,18 @@ class GeminiClient(LoggerMixin):
 
     CLASSIFICATION_PROMPT = """あなたはタスク管理のスペシャリストです。以下のテキストの内容を分析し、最も関連性の高いカテゴリを以下の選択肢から一つだけ選んでください。
 
-カテゴリ: [仕事, 学習, プロジェクト, 生活, アイデア, その他]
+カテゴリ: [仕事, 学習, プロジェクト, 生活, アイデア, 金融, タスク, 健康, その他]
+
+カテゴリの定義:
+- 金融: 支出・収入・家賃・料金・投資・購入など、お金に関する内容
+- タスク: TODO ・作業・締切・プロジェクト管理・進捗など、実行すべき事項
+- 健康: 体重・運動・睡眠・食事・医療・フィットネスなど、健康関連の記録
+- 学習: 読書・勉強・技術学習・知識習得・メモなど、学びに関する内容
+- 仕事: 業務・会議・報告・職場関連など、仕事に関する内容
+- プロジェクト: 特定のプロジェクトの進行・計画・開発作業など
+- アイデア: 新しいアイデア・発想・企画・コンセプトなど
+- 生活: 日常の出来事・雑記・その他の生活記録
+- その他: 上記に当てはまらない内容
 
 テキスト:
 ---
@@ -81,18 +92,18 @@ class GeminiClient(LoggerMixin):
 
     def __init__(self, model_config: AIModelConfig | None = None):
         """
-        Geminiクライアントの初期化
+        Gemini クライアントの初期化
 
         Args:
-            model_config: AIモデル設定
+            model_config: AI モデル設定
         """
         self.model_config = model_config or AIModelConfig()
         self.api_usage = APIUsageInfo()
         self._client: Any | None = None
         self._last_request_time = 0
-        self._min_request_interval = 4.0  # 15 RPM = 4秒間隔
+        self._min_request_interval = 4.0  # 15 RPM = 4 秒間隔
 
-        # APIキーの検証
+        # API キーの検証
         settings = get_settings()
         if not settings.gemini_api_key:
             raise ValueError("GEMINI_API_KEY is not set in environment variables")
@@ -100,7 +111,7 @@ class GeminiClient(LoggerMixin):
         self._initialize_client()
 
     def _initialize_client(self) -> None:
-        """Gemini APIクライアントの初期化"""
+        """Gemini API クライアントの初期化"""
         if not GENAI_AVAILABLE:
             raise ImportError(
                 "google-genai is not installed. "
@@ -108,13 +119,23 @@ class GeminiClient(LoggerMixin):
             )
 
         try:
-            # APIクライアント初期化
+            # API クライアント初期化
             settings = get_settings()
+            api_key = settings.gemini_api_key.get_secret_value()
+
+            # 🔍 DEBUG: API キーの存在確認
+            self.logger.info(
+                f"🔍 DEBUG: Initializing Gemini with API key length: {len(api_key)}"
+            )
+
+            if not api_key or api_key == "your_gemini_api_key_here":
+                raise ValueError(
+                    "Invalid GEMINI_API_KEY: appears to be placeholder or empty"
+                )
+
             from google import genai
 
-            self._client = genai.Client(
-                api_key=settings.gemini_api_key.get_secret_value()
-            )
+            self._client = genai.Client(api_key=api_key)
 
             self.logger.info(
                 "Gemini client initialized",
@@ -140,17 +161,17 @@ class GeminiClient(LoggerMixin):
 
     async def _call_gemini_api(self, prompt: str, retry_count: int = 3) -> str:
         """
-        Gemini APIを呼び出す共通関数
+        Gemini API を呼び出す共通関数
 
         Args:
             prompt: 送信するプロンプト
             retry_count: リトライ回数
 
         Returns:
-            APIレスポンステキスト
+            API レスポンステキスト
 
         Raises:
-            GeminiAPIError: API呼び出しエラー
+            GeminiAPIError: API 呼び出しエラー
         """
         if not self._client:
             raise GeminiAPIError("Gemini client not initialized")
@@ -170,7 +191,7 @@ class GeminiClient(LoggerMixin):
                         f"Prompt too long: {token_count} tokens (max: {self.model_config.max_tokens})"
                     )
 
-                # API呼び出し（新しいSDKの設定）
+                # API 呼び出し（新しい SDK の設定）
                 from google.genai import types
 
                 generation_config = types.GenerateContentConfig(
@@ -216,7 +237,7 @@ class GeminiClient(LoggerMixin):
                         continue
                     raise RateLimitExceeded() from e
 
-                # その他のAPIエラー
+                # その他の API エラー
                 self.logger.error(
                     "Gemini API call failed", attempt=attempt + 1, error=error_msg
                 )
@@ -338,7 +359,7 @@ class GeminiClient(LoggerMixin):
             processing_time = int((time.time() - start_time) * 1000)
 
             return TagResult(
-                tags=tags[:5],  # 最大5個まで
+                tags=tags[:5],  # 最大 5 個まで
                 raw_keywords=raw_keywords[:5],
                 processing_time_ms=processing_time,
                 model_used=self.model_config.model_name,
@@ -386,6 +407,13 @@ class GeminiClient(LoggerMixin):
                 "life": ProcessingCategory.LIFE,
                 "アイデア": ProcessingCategory.IDEA,
                 "idea": ProcessingCategory.IDEA,
+                "金融": ProcessingCategory.FINANCE,
+                "finance": ProcessingCategory.FINANCE,
+                "タスク": ProcessingCategory.TASKS,
+                "tasks": ProcessingCategory.TASKS,
+                "task": ProcessingCategory.TASKS,
+                "健康": ProcessingCategory.HEALTH,
+                "health": ProcessingCategory.HEALTH,
                 "その他": ProcessingCategory.OTHER,
                 "other": ProcessingCategory.OTHER,
             }
@@ -426,7 +454,7 @@ class GeminiClient(LoggerMixin):
         self, text: str
     ) -> tuple[SummaryResult, TagResult, CategoryResult]:
         """
-        すべてのAI処理を並列実行
+        すべての AI 処理を並列実行
 
         Args:
             text: 処理対象のテキスト
@@ -506,10 +534,10 @@ class GeminiClient(LoggerMixin):
             raise GeminiAPIError(f"Parallel processing failed: {str(e)}") from e
 
     def get_usage_info(self) -> APIUsageInfo:
-        """API使用量情報を取得"""
+        """API 使用量情報を取得"""
         return self.api_usage
 
     def reset_usage_info(self) -> None:
-        """API使用量情報をリセット"""
+        """API 使用量情報をリセット"""
         self.api_usage = APIUsageInfo()
         self.logger.info("API usage info reset")

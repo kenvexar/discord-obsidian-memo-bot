@@ -1,5 +1,5 @@
 """
-AI処理用のデータモデル
+AI 処理用のデータモデル
 """
 
 from datetime import datetime
@@ -17,6 +17,9 @@ class ProcessingCategory(Enum):
     PROJECT = "プロジェクト"
     LIFE = "生活"
     IDEA = "アイデア"
+    FINANCE = "金融"
+    TASKS = "タスク"
+    HEALTH = "健康"
     OTHER = "その他"
 
 
@@ -40,7 +43,7 @@ class AIModelConfig(BaseModel):
 
 
 class ProcessingSettings(BaseModel):
-    """AI処理設定"""
+    """AI 処理設定"""
 
     min_text_length: int = Field(default=50, ge=1)
     max_text_length: int = Field(default=8000, ge=1)
@@ -87,7 +90,7 @@ class TagResult(BaseModel):
             )
             if len(clean_tag) > 1:  # #だけでない場合
                 validated_tags.append(clean_tag)
-        return validated_tags[:10]  # 最大10個まで
+        return validated_tags[:10]  # 最大 10 個まで
 
 
 class CategoryResult(BaseModel):
@@ -102,7 +105,7 @@ class CategoryResult(BaseModel):
 
 
 class AIProcessingResult(BaseModel):
-    """AI処理の統合結果"""
+    """AI 処理の統合結果"""
 
     message_id: int
     processed_at: datetime
@@ -118,7 +121,7 @@ class AIProcessingResult(BaseModel):
 
 
 class ProcessingRequest(BaseModel):
-    """AI処理リクエスト"""
+    """AI 処理リクエスト"""
 
     message_id: int
     text_content: str
@@ -221,7 +224,7 @@ class ProcessingError(BaseModel):
 
 
 class APIUsageInfo(BaseModel):
-    """API使用量情報"""
+    """API 使用量情報"""
 
     requests_count: int = 0
     tokens_used: int = 0

@@ -10,7 +10,7 @@ from typing import Any, Protocol, cast
 
 import aiofiles
 
-from ..ai.models import AIProcessingResult
+from ..ai.models import AIProcessingResult, ProcessingCategory
 from ..utils.mixins import LoggerMixin
 from .models import NoteFrontmatter, ObsidianNote, VaultFolder
 
@@ -1781,6 +1781,57 @@ class TemplateEngine(LoggerMixin):
 
         return text
 
+    def _determine_folder_from_ai_category(
+        self, ai_result: AIProcessingResult | None
+    ) -> str:
+        """
+        AI分類結果に基づいてObsidianフォルダを決定
+
+        Args:
+            ai_result: AI処理結果
+
+        Returns:
+            フォルダパス文字列
+        """
+        if not ai_result or not ai_result.category:
+            self.logger.debug("No AI result or category, using INBOX")
+            return VaultFolder.INBOX.value
+
+        category = ai_result.category.category
+        
+        # デバッグ情報を詳細にログ出力
+        self.logger.info(
+            "Processing AI category for folder determination",
+            ai_category_type=type(category).__name__,
+            ai_category_value=category.value if hasattr(category, 'value') else str(category),
+            ai_category_raw=repr(category),
+            confidence=ai_result.category.confidence_score
+        )
+
+        # AI分類カテゴリからObsidianフォルダへのマッピング
+        category_to_folder = {
+            ProcessingCategory.FINANCE: VaultFolder.FINANCE,
+            ProcessingCategory.TASKS: VaultFolder.TASKS,
+            ProcessingCategory.HEALTH: VaultFolder.HEALTH,
+            ProcessingCategory.LEARNING: VaultFolder.KNOWLEDGE,  # LEARNINGはKNOWLEDGEフォルダに
+            ProcessingCategory.PROJECT: VaultFolder.PROJECTS,
+            ProcessingCategory.WORK: VaultFolder.PROJECTS,  # 仕事関連はプロジェクトフォルダに
+            ProcessingCategory.IDEA: VaultFolder.IDEAS,
+            ProcessingCategory.LIFE: VaultFolder.DAILY_NOTES,  # 生活関連はDAILY_NOTESに
+            ProcessingCategory.OTHER: VaultFolder.INBOX,
+        }
+
+        folder = category_to_folder.get(category, VaultFolder.INBOX)
+
+        self.logger.info(
+            "Determined folder from AI category",
+            ai_category=category.value if hasattr(category, 'value') else str(category),
+            obsidian_folder=folder.value,
+            confidence=ai_result.category.confidence_score,
+        )
+
+        return folder.value
+
     async def generate_note_from_template(
         self,
         template_name: str,
@@ -1806,9 +1857,23 @@ class TemplateEngine(LoggerMixin):
             if not template_content:
                 return None
 
+            # AI分類結果からターゲットフォルダを事前に決定
+            target_folder = self._determine_folder_from_ai_category(ai_result)
+
             # コンテキストを作成
             context = await self.create_template_context(
                 message_data, ai_result, additional_context
+            )
+            
+            # AI分類によるフォルダ情報をコンテキストに追加
+            context["target_folder"] = target_folder
+            
+            self.logger.error(
+                "=== TEMPLATE PROCESSING DEBUG START ===",
+                template_name=template_name,
+                target_folder=target_folder,
+                ai_category=ai_result.category.category.value if ai_result and ai_result.category else None,
+                context_target_folder=context.get("target_folder")
             )
 
             # テンプレートをレンダリング
@@ -1816,10 +1881,23 @@ class TemplateEngine(LoggerMixin):
 
             # フロントマターと本文を分離
             frontmatter_dict, content = self._parse_template_content(rendered_content)
+            
+            self.logger.error(
+                "=== AFTER TEMPLATE PARSING ===",
+                frontmatter_keys=list(frontmatter_dict.keys()),
+                obsidian_folder_in_frontmatter=frontmatter_dict.get("obsidian_folder"),
+                target_folder_in_context=context.get("target_folder")
+            )
 
             # NoteFrontmatter オブジェクトを作成
             # 必要なフィールドが不足している場合はデフォルト値を設定
             self._prepare_frontmatter_dict(frontmatter_dict, context)
+            
+            self.logger.error(
+                "=== AFTER PREPARE_FRONTMATTER_DICT ===",
+                final_obsidian_folder=frontmatter_dict.get("obsidian_folder")
+            )
+            
             frontmatter = NoteFrontmatter(**frontmatter_dict)
 
             # ファイル名とパスを生成
@@ -1829,11 +1907,12 @@ class TemplateEngine(LoggerMixin):
             if not filename.endswith(".md"):
                 filename += ".md"
 
-            # カスタムファイルパスが指定されている場合はそれを使用、そうでなければ INBOX
+            # カスタムファイルパスが指定されている場合はそれを使用
             if additional_context and "file_path" in additional_context:
                 file_path = additional_context["file_path"]
             else:
-                file_path = self.vault_path / VaultFolder.INBOX.value / filename
+                # AI 分類結果に基づいてフォルダを決定
+                file_path = self.vault_path / target_folder / filename
 
             # ObsidianNote オブジェクトを作成
             note = ObsidianNote(
@@ -1849,6 +1928,10 @@ class TemplateEngine(LoggerMixin):
                 "Note generated from template",
                 template=template_name,
                 filename=filename,
+                target_folder=target_folder if ai_result else "INBOX",
+                ai_category=ai_result.category.category.value
+                if ai_result and ai_result.category
+                else None,
             )
 
             return note
@@ -2098,52 +2181,54 @@ class TemplateEngine(LoggerMixin):
         self, frontmatter_dict: dict[str, Any], context: dict[str, Any]
     ) -> None:
         """フロントマターディクショナリを NoteFrontmatter モデルに適合するよう準備"""
-        # 必須フィールドの設定
-        if "obsidian_folder" not in frontmatter_dict:
-            # note type に基づいてフォルダを決定
+        # デバッグ用ログ（errorレベルで確実に表示）
+        self.logger.error(
+            "=== FRONTMATTER DEBUG START ===",
+            existing_obsidian_folder=frontmatter_dict.get("obsidian_folder"),
+            target_folder_from_context=context.get("target_folder"),
+            frontmatter_keys=list(frontmatter_dict.keys()),
+            context_keys=list(context.keys())
+        )
+        
+        # AI分類による target_folder が利用可能な場合は常にそれを優先
+        if "target_folder" in context and context["target_folder"]:
+            previous_value = frontmatter_dict.get("obsidian_folder", "None")
+            frontmatter_dict["obsidian_folder"] = context["target_folder"]
+            self.logger.error(
+                "=== AI FOLDER OVERRIDE APPLIED ===",
+                target_folder=context["target_folder"],
+                previous_value=previous_value,
+                final_value=frontmatter_dict["obsidian_folder"]
+            )
+        elif "obsidian_folder" not in frontmatter_dict:
+            # note type に基づいてフォルダを決定（フォールバック）
             note_type = frontmatter_dict.get("type", "general")
             folder_mapping = {
                 "idea": VaultFolder.IDEAS.value,
-                "task": VaultFolder.TASKS.value,
+                "task": VaultFolder.TASKS.value,  
                 "meeting": VaultFolder.PROJECTS.value,
-                "daily": VaultFolder.DAILY_NOTES.value,
+                "daily": VaultFolder.INBOX.value,  # daily_noteテンプレートでもAI分類を優先
             }
             frontmatter_dict["obsidian_folder"] = folder_mapping.get(
                 note_type, VaultFolder.INBOX.value
             )
-
-        # 日時フィールドの文字列化
-        for field in ["created", "modified"]:
-            if field in frontmatter_dict:
-                value = frontmatter_dict[field]
-                if isinstance(value, datetime):
-                    frontmatter_dict[field] = value.isoformat()
-                elif not isinstance(value, str):
-                    frontmatter_dict[field] = str(value)
-
-        # 必須の created フィールドがない場合は現在時刻を設定
-        if "created" not in frontmatter_dict:
-            frontmatter_dict["created"] = datetime.now().isoformat()
-
-        # modified フィールドがない場合は created と同じ値を設定
-        if "modified" not in frontmatter_dict:
-            frontmatter_dict["modified"] = frontmatter_dict["created"]
-
-        # tags リストの清理 (None を除去)
-        if "tags" in frontmatter_dict and isinstance(frontmatter_dict["tags"], list):
-            frontmatter_dict["tags"] = [
-                tag for tag in frontmatter_dict["tags"] if tag is not None and tag != ""
-            ]
-
-        # ai_tags リストの清理
-        if "ai_tags" in frontmatter_dict and isinstance(
-            frontmatter_dict["ai_tags"], list
-        ):
-            frontmatter_dict["ai_tags"] = [
-                tag
-                for tag in frontmatter_dict["ai_tags"]
-                if tag is not None and tag != ""
-            ]
+            self.logger.error(
+                "=== USING FALLBACK FOLDER MAPPING ===",
+                note_type=note_type,
+                obsidian_folder=frontmatter_dict["obsidian_folder"]
+            )
+        else:
+            self.logger.error(
+                "=== OBSIDIAN FOLDER ALREADY EXISTS - NO OVERRIDE ===",
+                existing_value=frontmatter_dict["obsidian_folder"],
+                target_folder_available=bool(context.get("target_folder")),
+                target_folder_value=context.get("target_folder")
+            )
+            
+        self.logger.error(
+            "=== FRONTMATTER DEBUG END ===",
+            final_obsidian_folder=frontmatter_dict.get("obsidian_folder")
+        )
 
     async def ensure_template_directory(self) -> bool:
         """テンプレートディレクトリが存在することを確認"""

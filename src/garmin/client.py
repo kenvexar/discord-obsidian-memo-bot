@@ -404,7 +404,7 @@ class GarminClient(LoggerMixin):
             loop = asyncio.get_event_loop()
 
             # 睡眠データの取得（タイムアウト付き）
-            sleep_data = await asyncio.wait_for(
+            raw_sleep_data = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
                     lambda: self.client.get_sleep_data(target_date.isoformat()),  # type: ignore
@@ -412,15 +412,46 @@ class GarminClient(LoggerMixin):
                 timeout=self.api_timeout,
             )
 
-            if not sleep_data:
+            if not raw_sleep_data:
                 raise GarminDataRetrievalError("No sleep data available")
 
-            # データの変換
-            total_sleep_seconds = sleep_data.get("totalSleepTimeSeconds", 0)
-            deep_sleep_seconds = sleep_data.get("deepSleepSeconds", 0)
-            light_sleep_seconds = sleep_data.get("lightSleepSeconds", 0)
-            rem_sleep_seconds = sleep_data.get("remSleepSeconds", 0)
-            awake_seconds = sleep_data.get("awakeDuration", 0)
+            # 🔧 修正: 正しいデータ構造からデータを取得
+            # GarminのSleep APIは dailySleepDTO キーに実際の睡眠データが格納されている
+            daily_sleep_dto = raw_sleep_data.get("dailySleepDTO")
+            if not daily_sleep_dto:
+                # フォールバック: 古い形式も試す
+                daily_sleep_dto = raw_sleep_data
+
+            # データの変換（正しいキー名を使用）
+            total_sleep_seconds = daily_sleep_dto.get("sleepTimeSeconds", 0)
+            deep_sleep_seconds = daily_sleep_dto.get("deepSleepSeconds", 0)
+            light_sleep_seconds = daily_sleep_dto.get("lightSleepSeconds", 0)
+            rem_sleep_seconds = daily_sleep_dto.get("remSleepSeconds", 0)
+            awake_seconds = daily_sleep_dto.get("awakeSleepSeconds", 0)
+
+            # 睡眠スコアの取得
+            sleep_score = None
+            sleep_scores = daily_sleep_dto.get("sleepScores")
+            if sleep_scores and isinstance(sleep_scores, dict):
+                overall_score = sleep_scores.get("overall")
+                if overall_score and isinstance(overall_score, dict):
+                    sleep_score = overall_score.get("value")
+
+            # タイムスタンプの取得（ミリ秒単位をsecondに変換）
+            sleep_start_ts = daily_sleep_dto.get("sleepStartTimestampGMT")
+            sleep_end_ts = daily_sleep_dto.get("sleepEndTimestampGMT")
+
+            # タイムスタンプをdatetimeに変換
+            bedtime = None
+            wake_time = None
+
+            if sleep_start_ts:
+                # ミリ秒をsecondに変換
+                bedtime = self._parse_timestamp(sleep_start_ts / 1000)
+
+            if sleep_end_ts:
+                # ミリ秒をsecondに変換
+                wake_time = self._parse_timestamp(sleep_end_ts / 1000)
 
             return SleepData(
                 date=target_date,
@@ -435,11 +466,9 @@ class GarminClient(LoggerMixin):
                 ),
                 rem_sleep_hours=rem_sleep_seconds / 3600 if rem_sleep_seconds else None,
                 awake_hours=awake_seconds / 3600 if awake_seconds else None,
-                sleep_score=sleep_data.get("sleepScores", {})
-                .get("overall", {})
-                .get("value"),
-                bedtime=self._parse_datetime(sleep_data.get("sleepStartTimestampGMT")),
-                wake_time=self._parse_datetime(sleep_data.get("sleepEndTimestampGMT")),
+                sleep_score=sleep_score,
+                bedtime=bedtime,
+                wake_time=wake_time,
             )
 
         except Exception as e:
@@ -475,30 +504,43 @@ class GarminClient(LoggerMixin):
         try:
             loop = asyncio.get_event_loop()
 
-            # 歩数データの取得（タイムアウト付き）
-            steps_data = await asyncio.wait_for(
+            # 🔧 修正: ユーザーサマリーから日次集計データを取得
+            # Steps APIは15分間隔のタイムスロットデータを返すため、
+            # ユーザーサマリーから日次集計値を直接取得する方が効率的
+            user_summary = await asyncio.wait_for(
                 loop.run_in_executor(
                     None,
-                    lambda: self.client.get_steps_data(target_date.isoformat()),  # type: ignore
+                    lambda: self.client.get_user_summary(target_date.isoformat()),  # type: ignore
                 ),
                 timeout=self.api_timeout,
             )
 
-            if not steps_data:
-                raise GarminDataRetrievalError("No steps data available")
+            if not user_summary:
+                raise GarminDataRetrievalError("No user summary data available")
+
+            # ユーザーサマリーから必要なデータを抽出
+            total_steps = user_summary.get("totalSteps")
+            total_distance_meters = user_summary.get("totalDistanceMeters")
+            active_calories = user_summary.get("activeKilocalories")
+            total_calories = user_summary.get("totalKilocalories")
+            floors_ascended = user_summary.get("floorsAscended")
+
+            # アクティブ分数の計算（カロリーベースで推定）
+            # activeKilocalories から概算でアクティブ時間を推定
+            active_minutes = None
+            if active_calories and active_calories > 0:
+                # 1分あたり約0.5kcalと仮定してアクティブ分数を推定
+                active_minutes = int(active_calories / 0.5)
 
             return StepsData(
                 date=target_date,
-                total_steps=steps_data.get("totalSteps"),
+                total_steps=total_steps,
                 distance_km=(
-                    steps_data.get("totalDistanceMeters", 0) / 1000
-                    if steps_data.get("totalDistanceMeters")
-                    else None
+                    total_distance_meters / 1000 if total_distance_meters else None
                 ),
-                calories_burned=steps_data.get("totalCalories"),
-                floors_climbed=steps_data.get("floorsClimbed"),
-                active_minutes=steps_data.get("moderateIntensityMinutes", 0)
-                + steps_data.get("vigorousIntensityMinutes", 0),
+                calories_burned=total_calories,  # 総カロリー消費
+                floors_climbed=floors_ascended,
+                active_minutes=active_minutes,
             )
 
         except Exception as e:
@@ -679,6 +721,22 @@ class GarminClient(LoggerMixin):
         except Exception as e:
             self.logger.warning(
                 "Failed to parse datetime", timestamp=timestamp, error=str(e)
+            )
+            return None
+
+    def _parse_timestamp(self, timestamp_seconds: float | None) -> datetime | None:
+        """Unix タイムスタンプを datetime に変換"""
+        if not timestamp_seconds:
+            return None
+
+        try:
+            # Unix タイムスタンプから datetime を作成
+            dt = datetime.fromtimestamp(timestamp_seconds, tz=None)
+            return dt
+
+        except Exception as e:
+            self.logger.warning(
+                "Failed to parse timestamp", timestamp=timestamp_seconds, error=str(e)
             )
             return None
 

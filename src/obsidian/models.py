@@ -141,6 +141,19 @@ class NoteFrontmatter(BaseModel):
 
     model_config = ConfigDict()
 
+    @field_validator("created", "modified", mode="before")
+    @classmethod
+    def validate_datetime_fields(cls, v: Any) -> str:
+        """datetime フィールドの適切な文字列変換"""
+        if isinstance(v, datetime):
+            return v.isoformat()
+        elif isinstance(v, str):
+            # 既に文字列の場合はそのまま返す
+            return v
+        else:
+            # その他の型の場合は現在時刻を返す
+            return datetime.now().isoformat()
+
     @field_validator("ai_tags")
     @classmethod
     def validate_ai_tags(cls, v: list[str]) -> list[str]:

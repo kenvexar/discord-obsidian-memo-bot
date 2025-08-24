@@ -86,6 +86,47 @@ async def main() -> None:
             "Obsidian vault path", path=str(settings_instance.obsidian_vault_path)
         )
 
+        # Initialize health analysis components
+        logger.info("Initializing health analysis scheduler...")
+        try:
+            from ai.processor import AIProcessor
+            from garmin import GarminClient
+            from health_analysis.analyzer import HealthDataAnalyzer
+            from health_analysis.integrator import HealthActivityIntegrator
+            from health_analysis.scheduler import HealthAnalysisScheduler
+            from obsidian.daily_integration import DailyNoteIntegration
+        except ImportError:
+            from src.ai.processor import AIProcessor
+            from src.garmin import GarminClient
+            from src.health_analysis.analyzer import HealthDataAnalyzer
+            from src.health_analysis.integrator import HealthActivityIntegrator
+            from src.health_analysis.scheduler import HealthAnalysisScheduler
+            from src.obsidian.daily_integration import DailyNoteIntegration
+
+        # Initialize components for health analysis
+        garmin_client = GarminClient()
+        ai_processor = AIProcessor()
+        analyzer = HealthDataAnalyzer(ai_processor=ai_processor)
+        
+        # Initialize file manager for integrator
+        try:
+            from obsidian.refactored_file_manager import ObsidianFileManager
+        except ImportError:
+            from src.obsidian.refactored_file_manager import ObsidianFileManager
+        
+        file_manager = ObsidianFileManager()
+        integrator = HealthActivityIntegrator(file_manager=file_manager)
+        daily_integration = DailyNoteIntegration(file_manager=file_manager)
+
+        health_scheduler = HealthAnalysisScheduler(
+            garmin_client=garmin_client,
+            analyzer=analyzer,
+            integrator=integrator,
+            daily_integration=daily_integration,
+        )
+
+        logger.info("Health analysis scheduler initialized successfully")
+
         # Initialize and start Discord bot
         try:
             from bot import DiscordBot
@@ -109,13 +150,27 @@ async def main() -> None:
             logger.warning(f"Health server startup failed: {e}")
             logger.info("Bot will continue without health server")
 
-        logger.info("Starting Discord bot...")
+        logger.info("Starting Discord bot and health scheduler...")
+
+        # Start health scheduler in background
+        health_scheduler_task = asyncio.create_task(health_scheduler.start_scheduler())
+        logger.info("Health analysis scheduler started in background")
+
         try:
             await bot.start()
         finally:
-            # Cleanup health server on shutdown
+            # Cleanup health server and scheduler on shutdown
+            logger.info("Shutting down services...")
+            health_scheduler.stop_scheduler()
+            health_scheduler_task.cancel()
+            try:
+                await health_scheduler_task
+            except asyncio.CancelledError:
+                pass
+
             if health_server:
                 health_server.stop()
+            logger.info("All services stopped")
 
     except Exception as e:
         logger.error("Failed to start bot", error=str(e), exc_info=True)

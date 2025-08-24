@@ -4,7 +4,6 @@ Channel configuration and categorization for Discord bot
 
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
 
 import discord
 from discord.ext.commands import Bot as DiscordBot
@@ -51,7 +50,10 @@ class ChannelConfig(LoggerMixin):
     async def set_bot(self, bot: "DiscordBot") -> None:
         """Set the bot instance and discover channels"""
         self.bot = bot
-        self.guild = bot.get_guild(bot.guilds[0].id) if bot.guilds else None
+        # 🔧 FIX: Use bot.client.guilds instead of bot.guilds
+        self.guild = (
+            bot.client.get_guild(bot.client.guilds[0].id) if bot.client.guilds else None
+        )
 
         if self._discover_channels_by_names():
             self.logger.info("Successfully initialized channels using channel names")
@@ -73,8 +75,21 @@ class ChannelConfig(LoggerMixin):
         required_channels = ["memo", "notifications", "commands"]
         found_required = 0
 
+        # 🔍 DEBUG: Add detailed channel discovery logging
+        self.logger.info(
+            f"🔍 DEBUG: Starting channel discovery in guild {self.guild.name}"
+        )
+        self.logger.info(
+            f"🔍 DEBUG: Available text channels: {[c.name for c in self.guild.text_channels]}"
+        )
+
         for channel in self.guild.text_channels:
+            channel_name_original = channel.name
             channel_name = channel.name.lower().replace("-", "").replace("_", "")
+
+            self.logger.info(
+                f"🔍 DEBUG: Checking channel '{channel_name_original}' -> '{channel_name}' (ID: {channel.id})"
+            )
 
             # Check for exact matches only
             if channel_name in self.standard_channel_names:
@@ -86,14 +101,19 @@ class ChannelConfig(LoggerMixin):
                     description=f"Auto-discovered {category.value} channel",
                 )
                 self.logger.info(
-                    f"Discovered channel: #{channel.name} (ID: {channel.id})"
+                    f"✅ Discovered channel: #{channel.name} (ID: {channel.id}) -> {category.value}"
                 )
 
                 if channel_name in required_channels:
                     found_required += 1
+            else:
+                self.logger.info(
+                    f"❌ Channel '{channel_name}' not in standard names: {list(self.standard_channel_names.keys())}"
+                )
 
         # Update the channels dict
         self.channels.update(discovered_channels)
+        self.logger.info(f"🔍 DEBUG: Final channels dict: {list(self.channels.keys())}")
 
         # Check if we found the minimum required channels
         success = found_required >= len(required_channels)

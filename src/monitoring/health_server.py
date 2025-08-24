@@ -129,14 +129,17 @@ class HealthServer:
     def _find_available_port(self, start_port: int) -> int:
         """Find an available port starting from start_port"""
         import socket
+
         for port in range(start_port, start_port + 10):
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                    s.bind(('', port))
+                    s.bind(("", port))
                     return port
             except OSError:
                 continue
-        raise OSError(f"No available ports found in range {start_port}-{start_port + 9}")
+        raise OSError(
+            f"No available ports found in range {start_port}-{start_port + 9}"
+        )
 
     def start(self) -> None:
         """Start the health check server"""

@@ -36,8 +36,10 @@
     },
     "discord": {
       "command": "node",
-      "args": ["/Users/kent/Dev/github.com/barryyip0625/mcp-discord/build/index.js", "--config", "${DISCORD_BOT_TOKEN}"],
-      "env": {}
+      "args": ["/Users/kent/Dev/github.com/v-3/discordmcp/build/index.js"],
+      "env": {
+        "DISCORD_TOKEN": "${DISCORD_TOKEN}"
+      }
     }
   }
 }

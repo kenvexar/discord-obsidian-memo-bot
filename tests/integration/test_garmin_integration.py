@@ -33,7 +33,7 @@ async def test_cache_functionality() -> None:
         cache_stats = cache.get_cache_stats()
         print(f"Cache stats: {cache_stats}")
 
-        # テスト用のHealthDataオブジェクトを作成してキャッシュ機能をテスト
+        # テスト用の HealthData オブジェクトを作成してキャッシュ機能をテスト
         print("\n--- Cache Save/Load Test ---")
         test_date = date.today()
         test_health_data = HealthData(
@@ -78,7 +78,7 @@ async def test_cache_functionality() -> None:
         cleaned_count = cache.cleanup_old_cache(days_to_keep=0)  # 全て削除
         print(f"Cleaned {cleaned_count} cache files")
 
-        print("\n✓ Cache tests completed successfully!")
+        print("\n ✓ Cache tests completed successfully!")
 
     except Exception as e:
         print(f"✗ Cache test failed with error: {e}")
@@ -88,7 +88,7 @@ async def test_cache_functionality() -> None:
 
 
 async def test_health_data_models() -> None:
-    """HealthDataモデルのテスト"""
+    """HealthData モデルのテスト"""
     print("\n=== Testing Health Data Models ===")
 
     from typing import cast
@@ -96,7 +96,7 @@ async def test_health_data_models() -> None:
     from src.garmin.models import DataError, DataSource
 
     try:
-        # エラー付きHealthDataの作成
+        # エラー付き HealthData の作成
         health_data = HealthData(
             date=date.today(),
             detailed_errors=[
@@ -105,7 +105,7 @@ async def test_health_data_models() -> None:
                     error_type="ConnectionError",
                     message="Failed to connect to Garmin",
                     is_recoverable=True,
-                    user_message="Garminサーバーとの接続に問題があります。",
+                    user_message="Garmin サーバーとの接続に問題があります。",
                 ),
                 DataError(
                     source=DataSource.STEPS,
@@ -131,7 +131,7 @@ async def test_health_data_models() -> None:
         print(f"  - Is cached: {health_data.is_cached_data}")
         print(f"  - Cache age: {health_data.cache_age_hours} hours")
 
-        print("\n✓ Model tests completed successfully!")
+        print("\n ✓ Model tests completed successfully!")
 
     except Exception as e:
         print(f"✗ Model test failed with error: {e}")
@@ -145,7 +145,7 @@ async def test_formatter() -> None:
     print("\n=== Testing Formatter ===")
 
     try:
-        from garmin.formatter import format_health_data_for_markdown
+        from src.garmin.formatter import format_health_data_for_markdown
 
         # テストデータの作成
         health_data = HealthData(
@@ -162,7 +162,7 @@ async def test_formatter() -> None:
             cache_age_hours=1.5,
         )
 
-        # Markdownフォーマット
+        # Markdown フォーマット
         markdown_output = format_health_data_for_markdown(health_data)
 
         print("✓ Markdown formatting successful")
