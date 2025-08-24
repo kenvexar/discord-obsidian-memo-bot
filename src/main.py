@@ -107,13 +107,13 @@ async def main() -> None:
         garmin_client = GarminClient()
         ai_processor = AIProcessor()
         analyzer = HealthDataAnalyzer(ai_processor=ai_processor)
-        
+
         # Initialize file manager for integrator
         try:
             from obsidian.refactored_file_manager import ObsidianFileManager
         except ImportError:
             from src.obsidian.refactored_file_manager import ObsidianFileManager
-        
+
         file_manager = ObsidianFileManager()
         integrator = HealthActivityIntegrator(file_manager=file_manager)
         daily_integration = DailyNoteIntegration(file_manager=file_manager)

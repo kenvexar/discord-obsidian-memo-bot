@@ -119,7 +119,6 @@ class HealthServer:
     """Health check server for Cloud Run deployment"""
 
     def __init__(self, bot_instance: Any = None, port: int = 8080) -> None:
-        import socket
         self.bot_instance = bot_instance
         self.port = self._find_available_port(port)
         self.server: HTTPServer | None = None

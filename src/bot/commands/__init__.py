@@ -1,6 +1,7 @@
 """Refactored Discord command modules."""
 
 from typing import Any
+
 import structlog
 
 from ..channel_config import ChannelConfig
