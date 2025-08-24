@@ -452,53 +452,63 @@ class MessageHandler(LoggerMixin):
                 self.logger.error("Failed to create Obsidian note", error=str(e))
 
         # 音声添付ファイルの処理（メッセージ処理の最後に実行）
-        from ..bot.channel_config import ChannelInfo, ChannelCategory
+        from ..bot.channel_config import ChannelCategory, ChannelInfo
+
         channel_info_dict = message_data.get("channel_info", {})
         if channel_info_dict and original_message:
             # ChannelInfo オブジェクトを再構築
             category_str = channel_info_dict.get("category", "capture")
-            category = ChannelCategory.CAPTURE if category_str == "capture" else ChannelCategory.SYSTEM
-            
+            category = (
+                ChannelCategory.CAPTURE
+                if category_str == "capture"
+                else ChannelCategory.SYSTEM
+            )
+
             channel_info = ChannelInfo(
                 id=original_message.channel.id,
                 name=channel_info_dict.get("name", "unknown"),
                 category=category,
-                description=channel_info_dict.get("description", "")
+                description=channel_info_dict.get("description", ""),
             )
-            await self._handle_audio_attachments(message_data, channel_info, original_message)
-            await self._handle_document_attachments(message_data, channel_info, original_message)
+            await self._handle_audio_attachments(
+                message_data, channel_info, original_message
+            )
+            await self._handle_document_attachments(
+                message_data, channel_info, original_message
+            )
 
-    async def _organize_note_by_ai_category(
-        self, note, ai_result
-    ) -> None:
+    async def _organize_note_by_ai_category(self, note, ai_result) -> None:
         """AI 分類結果に基づいてノートを適切なフォルダに移動"""
         if not ai_result or not ai_result.category:
             self.logger.debug(
                 "No AI category found, keeping note in current location",
-                note_path=str(note.file_path)
+                note_path=str(note.file_path),
             )
             return
 
         try:
             from ..obsidian.models import FolderMapping
-            from pathlib import Path
 
             # AI 分類結果から目標フォルダを決定
             category = ai_result.category.category
-            subcategory = getattr(ai_result.category, 'subcategory', None)
-            
+            subcategory = getattr(ai_result.category, "subcategory", None)
+
             target_folder = FolderMapping.get_folder_for_category(category, subcategory)
-            
+
             # 現在のフォルダパスを確認
+            if self.obsidian_manager is None:
+                self.logger.warning("Obsidian manager not available for organization")
+                return
+
             current_folder = note.file_path.parent
             target_path = self.obsidian_manager.vault_path / target_folder.value
-            
+
             # 既に適切なフォルダにある場合はスキップ
             if current_folder == target_path:
                 self.logger.debug(
                     "Note already in correct folder",
                     current_folder=str(current_folder),
-                    target_folder=target_folder.value
+                    target_folder=target_folder.value,
                 )
                 # obsidian_folder メタデータを正しい値に更新
                 note.frontmatter.obsidian_folder = target_folder.value
@@ -507,45 +517,47 @@ class MessageHandler(LoggerMixin):
 
             # ファイル移動を実行
             new_file_path = target_path / note.file_path.name
-            
+
             # 移動先ディレクトリを作成
             target_path.mkdir(parents=True, exist_ok=True)
-            
+
             # ファイルを移動
             note.file_path.rename(new_file_path)
-            
+
             # ノートオブジェクトのパスとメタデータを更新
             note.file_path = new_file_path
             note.frontmatter.obsidian_folder = target_folder.value
             note.frontmatter.modified = datetime.now().isoformat()
-            
+
             # 階層構造メタデータの追加
             note.frontmatter.vault_hierarchy = target_folder.value
             if subcategory:
                 note.frontmatter.organization_level = "subcategory"
             else:
                 note.frontmatter.organization_level = "category"
-            
+
             # フロントマターを更新
             await self.obsidian_manager.update_note(note.file_path, note)
-            
+
             self.logger.info(
                 "Note organized by AI category",
                 note_title=note.title,
-                from_folder=str(current_folder.relative_to(self.obsidian_manager.vault_path)),
+                from_folder=str(
+                    current_folder.relative_to(self.obsidian_manager.vault_path)
+                ),
                 to_folder=target_folder.value,
                 category=category,
                 subcategory=subcategory,
-                confidence=ai_result.category.confidence_score
+                confidence=ai_result.category.confidence_score,
             )
 
         except Exception as e:
             self.logger.error(
                 "Failed to organize note by AI category",
                 note_title=note.title,
-                category=category if 'category' in locals() else 'unknown',
+                category=category if "category" in locals() else "unknown",
                 error=str(e),
-                exc_info=True
+                exc_info=True,
             )
 
     async def _handle_daily_note_integration(

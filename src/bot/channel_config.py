@@ -4,9 +4,12 @@ Channel configuration and categorization for Discord bot
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
 import discord
-from discord.ext.commands import Bot as DiscordBot
+
+if TYPE_CHECKING:
+    from .client import DiscordBot
 
 from ..utils.mixins import LoggerMixin
 
@@ -50,10 +53,8 @@ class ChannelConfig(LoggerMixin):
     async def set_bot(self, bot: "DiscordBot") -> None:
         """Set the bot instance and discover channels"""
         self.bot = bot
-        # 🔧 FIX: Use bot.client.guilds instead of bot.guilds
-        self.guild = (
-            bot.client.get_guild(bot.client.guilds[0].id) if bot.client.guilds else None
-        )
+        # Get the guild from bot's client guilds
+        self.guild = bot.client.guilds[0] if bot.client.guilds else None
 
         if self._discover_channels_by_names():
             self.logger.info("Successfully initialized channels using channel names")
@@ -164,8 +165,15 @@ class ChannelConfig(LoggerMixin):
         return None
 
     def get_channel(self, channel_name: str) -> discord.TextChannel | None:
-        """Get channel object by name (alias for get_channel_by_name)."""
-        return self.get_channel_by_name(channel_name)
+        """Get channel object by name."""
+        channel_id = self.get_channel_by_name(channel_name)
+        if channel_id is None or self.guild is None:
+            return None
+
+        channel = self.guild.get_channel(channel_id)
+        if isinstance(channel, discord.TextChannel):
+            return channel
+        return None
 
     def get_all_monitored_channel_names(self) -> list[str]:
         """Get list of all monitored channel names"""
