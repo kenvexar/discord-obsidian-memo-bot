@@ -1785,10 +1785,10 @@ class TemplateEngine(LoggerMixin):
         self, ai_result: AIProcessingResult | None
     ) -> str:
         """
-        AI分類結果に基づいてObsidianフォルダを決定
+        AI 分類結果に基づいて Obsidian フォルダを決定
 
         Args:
-            ai_result: AI処理結果
+            ai_result: AI 処理結果
 
         Returns:
             フォルダパス文字列
@@ -1810,16 +1810,16 @@ class TemplateEngine(LoggerMixin):
             confidence=ai_result.category.confidence_score,
         )
 
-        # AI分類カテゴリからObsidianフォルダへのマッピング
+        # AI 分類カテゴリから Obsidian フォルダへのマッピング
         category_to_folder = {
             ProcessingCategory.FINANCE: VaultFolder.FINANCE,
             ProcessingCategory.TASKS: VaultFolder.TASKS,
             ProcessingCategory.HEALTH: VaultFolder.HEALTH,
-            ProcessingCategory.LEARNING: VaultFolder.KNOWLEDGE,  # LEARNINGはKNOWLEDGEフォルダに
+            ProcessingCategory.LEARNING: VaultFolder.KNOWLEDGE,  # LEARNING は KNOWLEDGE フォルダに
             ProcessingCategory.PROJECT: VaultFolder.PROJECTS,
             ProcessingCategory.WORK: VaultFolder.PROJECTS,  # 仕事関連はプロジェクトフォルダに
             ProcessingCategory.IDEA: VaultFolder.IDEAS,
-            ProcessingCategory.LIFE: VaultFolder.DAILY_NOTES,  # 生活関連はDAILY_NOTESに
+            ProcessingCategory.LIFE: VaultFolder.DAILY_NOTES,  # 生活関連は DAILY_NOTES に
             ProcessingCategory.OTHER: VaultFolder.INBOX,
         }
 
@@ -1859,7 +1859,7 @@ class TemplateEngine(LoggerMixin):
             if not template_content:
                 return None
 
-            # AI分類結果からターゲットフォルダを事前に決定
+            # AI 分類結果からターゲットフォルダを事前に決定
             target_folder = self._determine_folder_from_ai_category(ai_result)
 
             # コンテキストを作成
@@ -1867,7 +1867,7 @@ class TemplateEngine(LoggerMixin):
                 message_data, ai_result, additional_context
             )
 
-            # AI分類によるフォルダ情報をコンテキストに追加
+            # AI 分類によるフォルダ情報をコンテキストに追加
             context["target_folder"] = target_folder
 
             self.logger.error(
@@ -2185,7 +2185,7 @@ class TemplateEngine(LoggerMixin):
         self, frontmatter_dict: dict[str, Any], context: dict[str, Any]
     ) -> None:
         """フロントマターディクショナリを NoteFrontmatter モデルに適合するよう準備"""
-        # デバッグ用ログ（errorレベルで確実に表示）
+        # デバッグ用ログ（ error レベルで確実に表示）
         self.logger.error(
             "=== FRONTMATTER DEBUG START ===",
             existing_obsidian_folder=frontmatter_dict.get("obsidian_folder"),
@@ -2194,7 +2194,7 @@ class TemplateEngine(LoggerMixin):
             context_keys=list(context.keys()),
         )
 
-        # AI分類による target_folder が利用可能な場合は常にそれを優先
+        # AI 分類による target_folder が利用可能な場合は常にそれを優先
         if "target_folder" in context and context["target_folder"]:
             previous_value = frontmatter_dict.get("obsidian_folder", "None")
             frontmatter_dict["obsidian_folder"] = context["target_folder"]
@@ -2211,7 +2211,7 @@ class TemplateEngine(LoggerMixin):
                 "idea": VaultFolder.IDEAS.value,
                 "task": VaultFolder.TASKS.value,
                 "meeting": VaultFolder.PROJECTS.value,
-                "daily": VaultFolder.INBOX.value,  # daily_noteテンプレートでもAI分類を優先
+                "daily": VaultFolder.INBOX.value,  # daily_note テンプレートでも AI 分類を優先
             }
             frontmatter_dict["obsidian_folder"] = folder_mapping.get(
                 note_type, VaultFolder.INBOX.value
@@ -2666,7 +2666,9 @@ type: idea
 created: {{date_iso}}
 tags:
   - idea
+{{#if ai_category}}
   - {{ai_category}}
+{{/if}}
 {{#if ai_tags}}
 {{#each ai_tags}}
   - {{@item}}

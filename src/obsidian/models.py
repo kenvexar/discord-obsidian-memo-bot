@@ -160,7 +160,7 @@ class NoteFrontmatter(BaseModel):
         """AI タグの正規化"""
         validated_tags = []
         for tag in v:
-            if tag and isinstance(tag, str):
+            if tag is not None and isinstance(tag, str):
                 # #を確実に付ける
                 if not tag.startswith("#"):
                     tag = f"#{tag}"
@@ -173,7 +173,7 @@ class NoteFrontmatter(BaseModel):
         """タグの正規化（#なし）"""
         validated_tags = []
         for tag in v:
-            if tag and isinstance(tag, str):
+            if tag is not None and isinstance(tag, str):
                 # #を除去
                 clean_tag = tag.lstrip("#")
                 if clean_tag:

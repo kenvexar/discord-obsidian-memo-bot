@@ -131,18 +131,24 @@ class MessageHandler(LoggerMixin):
             f"🔍 DEBUG: process_message called for channel {message.channel.id} (#{getattr(message.channel, 'name', 'unknown')})"
         )
 
-        # Skip bot messages (TEMPORARILY DISABLED FOR TESTING)
-        # if message.author.bot:
-        #     return None
+        # Skip bot messages
+        if message.author.bot:
+            return None
 
         # Check if channel is monitored
         is_monitored = self.channel_config.is_monitored_channel(message.channel.id)
         self.logger.info(
             f"🔍 DEBUG: is_monitored_channel({message.channel.id}) = {is_monitored}"
         )
-        self.logger.info(
-            f"🔍 DEBUG: Available channels: {list(self.channel_config.channels.keys())}"
-        )
+        try:
+            channels_info = (
+                list(self.channel_config.channels.keys())
+                if hasattr(self.channel_config, "channels")
+                else []
+            )
+            self.logger.info(f"🔍 DEBUG: Available channels: {channels_info}")
+        except Exception as e:
+            self.logger.info(f"🔍 DEBUG: Could not list channels: {e}")
 
         if not is_monitored:
             self.logger.warning(
