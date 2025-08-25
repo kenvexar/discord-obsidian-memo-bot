@@ -18,10 +18,31 @@ from .handlers import MessageHandler
 class DiscordBot(LoggerMixin):
     """Main Discord bot client"""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        ai_processor,
+        vault_manager,
+        note_template: str,
+        daily_integration,
+        template_engine,
+        note_analyzer,
+        speech_processor=None,
+    ) -> None:
         # Initialize components first
         self.channel_config = ChannelConfig()
-        self.message_handler = MessageHandler(self.channel_config)
+
+        # 🔧 FIX: 同一の ChannelConfig インスタンスを MessageHandler に渡す
+        # Create MessageHandler with all required dependencies and shared ChannelConfig
+        self.message_handler = MessageHandler(
+            ai_processor=ai_processor,
+            obsidian_manager=vault_manager,
+            note_template=note_template,
+            daily_integration=daily_integration,
+            template_engine=template_engine,
+            note_analyzer=note_analyzer,
+            speech_processor=speech_processor,
+            channel_config=self.channel_config,  # 同一インスタンスを共有
+        )
 
         self.settings = get_settings()
 

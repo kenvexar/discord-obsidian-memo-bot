@@ -127,13 +127,43 @@ async def main() -> None:
 
         logger.info("Health analysis scheduler initialized successfully")
 
+        # Initialize additional components needed for MessageHandler
+        try:
+            from ai.note_analyzer import AdvancedNoteAnalyzer
+            from audio import SpeechProcessor
+            from obsidian.template_system import TemplateEngine
+        except ImportError:
+            from src.ai.note_analyzer import AdvancedNoteAnalyzer
+            from src.audio import SpeechProcessor
+            from src.obsidian.template_system import TemplateEngine
+
+        # Create additional dependencies
+        template_engine = TemplateEngine(
+            vault_path=settings_instance.obsidian_vault_path
+        )
+        note_analyzer = AdvancedNoteAnalyzer(
+            obsidian_file_manager=file_manager, ai_processor=ai_processor
+        )
+        speech_processor = (
+            SpeechProcessor() if not settings_instance.is_mock_mode else None
+        )
+        note_template = "# {title}\n\n{content}\n\n---\nCreated: {timestamp}"
+
         # Initialize and start Discord bot
         try:
             from bot import DiscordBot
         except ImportError:
             from src.bot import DiscordBot
 
-        bot = DiscordBot()
+        bot = DiscordBot(
+            ai_processor=ai_processor,
+            vault_manager=file_manager,  # 🔧 FIX: ObsidianFileManager を使用（ save_note メソッドがある）
+            note_template=note_template,
+            daily_integration=daily_integration,
+            template_engine=template_engine,
+            note_analyzer=note_analyzer,
+            speech_processor=speech_processor,
+        )
 
         # Start health check server for Cloud Run with port conflict handling
         health_server = None

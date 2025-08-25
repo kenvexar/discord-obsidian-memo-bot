@@ -116,7 +116,7 @@ class TestAIProcessor:
             min_text_length=10, max_text_length=1000, timeout_seconds=5
         )
 
-        # AI処理システムはGemini APIが利用できない場合の対応が必要
+        # AI 処理システムは Gemini API が利用できない場合の対応が必要
         # テスト環境ではモックを使用
         with patch("src.ai.processor.GeminiClient"):
             self.ai_processor = AIProcessor(settings=self.settings)
@@ -286,7 +286,27 @@ async def test_ai_processing_integration() -> None:
 
     # Create message handler with AI processing
     with patch("src.ai.processor.GeminiClient"):
-        handler = MessageHandler(mock_channel_config)
+        from src.ai.mock_processor import MockAIProcessor
+        from src.ai.note_analyzer import AdvancedNoteAnalyzer
+        from src.obsidian import ObsidianFileManager
+        from src.obsidian.daily_integration import DailyNoteIntegration
+        from src.obsidian.template_system import TemplateEngine
+
+        mock_ai_processor = MockAIProcessor()
+        mock_obsidian_manager = Mock(spec=ObsidianFileManager)
+        mock_daily_integration = Mock(spec=DailyNoteIntegration)
+        mock_template_engine = Mock(spec=TemplateEngine)
+        mock_note_analyzer = Mock(spec=AdvancedNoteAnalyzer)
+
+        handler = MessageHandler(
+            ai_processor=mock_ai_processor,
+            obsidian_manager=mock_obsidian_manager,
+            note_template="Test template",
+            daily_integration=mock_daily_integration,
+            template_engine=mock_template_engine,
+            note_analyzer=mock_note_analyzer,
+            channel_config=mock_channel_config,
+        )
 
     # Verify AI processor is initialized
     assert hasattr(handler, "ai_processor")

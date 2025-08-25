@@ -37,7 +37,7 @@ class TestChannelConfig:
         """Test basic channel configuration initialization"""
         config = ChannelConfig()
 
-        # 新しいアーキテクチャでは、実際のDiscordチャンネルが存在しないと
+        # 新しいアーキテクチャでは、実際の Discord チャンネルが存在しないと
         # チャンネルは発見されないため、基本的な機能をテスト
         assert hasattr(config, "channels")
         assert hasattr(config, "is_monitored_channel")
@@ -72,7 +72,28 @@ class TestMessageHandler:
             False  # Default to unmonitored
         )
         self.channel_config.get_channel_info.return_value = None
-        self.handler = MessageHandler(self.channel_config)
+        # Create mock dependencies
+        from src.ai.mock_processor import MockAIProcessor
+        from src.ai.note_analyzer import AdvancedNoteAnalyzer
+        from src.obsidian import ObsidianFileManager
+        from src.obsidian.daily_integration import DailyNoteIntegration
+        from src.obsidian.template_system import TemplateEngine
+
+        mock_ai_processor = MockAIProcessor()
+        mock_obsidian_manager = Mock(spec=ObsidianFileManager)
+        mock_daily_integration = Mock(spec=DailyNoteIntegration)
+        mock_template_engine = Mock(spec=TemplateEngine)
+        mock_note_analyzer = Mock(spec=AdvancedNoteAnalyzer)
+
+        self.handler = MessageHandler(
+            ai_processor=mock_ai_processor,
+            obsidian_manager=mock_obsidian_manager,
+            note_template="Test template",
+            daily_integration=mock_daily_integration,
+            template_engine=mock_template_engine,
+            note_analyzer=mock_note_analyzer,
+            channel_config=self.channel_config,
+        )
 
     @pytest.mark.asyncio
     async def test_bot_message_ignored(self) -> None:

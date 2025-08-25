@@ -1636,8 +1636,18 @@ class TemplateEngine(LoggerMixin):
             timing_info = metadata.get("timing", {})
             attachments = metadata.get("attachments", [])
 
-            # コンテンツの適切な抽出と清潔化
-            raw_content = content_info.get("raw_content", "")
+            # 🔧 FIX: 音声文字起こしが統合された cleaned_content を優先使用
+            # cleaned_content があれば使用、なければ raw_content を使用
+            raw_content = content_info.get("cleaned_content") or content_info.get(
+                "raw_content", ""
+            )
+
+            # 🔧 DEBUG: コンテンツ抽出をデバッグ
+            self.logger.info(
+                f"🔧 DEBUG: Content extraction - cleaned_content: '{content_info.get('cleaned_content')}', "
+                f"raw_content: '{content_info.get('raw_content')}', final raw_content: '{raw_content}'"
+            )
+
             if isinstance(raw_content, dict):
                 # content が dict 形式の場合、実際のテキストを抽出
                 if "content" in raw_content:
@@ -1647,6 +1657,11 @@ class TemplateEngine(LoggerMixin):
 
             # エスケープ文字の処理
             clean_content = self._clean_content_text(raw_content)
+
+            # 🔧 DEBUG: 最終的なクリーンコンテンツをデバッグ
+            self.logger.info(
+                f"🔧 DEBUG: Final clean_content: '{clean_content}' (length: {len(clean_content)})"
+            )
 
             # 作成者名の取得 (display_name または name)
             author_info = basic_info.get("author", {})

@@ -7,16 +7,16 @@ from typing import Any
 
 import discord
 
-from ..ai import AIProcessor, ProcessingSettings
+from ..ai import AIProcessor
 from ..ai.mock_processor import MockAIProcessor
 from ..ai.models import AIProcessingResult
 from ..ai.note_analyzer import AdvancedNoteAnalyzer
 from ..audio import SpeechProcessor
-from ..obsidian import ObsidianFileManager, TemplateEngine
+from ..obsidian import ObsidianFileManager
 from ..obsidian.daily_integration import DailyNoteIntegration
+from ..obsidian.template_system import TemplateEngine
 from ..utils.mixins import LoggerMixin
 from .channel_config import ChannelCategory, ChannelConfig
-from .message_processor import MessageProcessor
 
 
 class MessageHandler(LoggerMixin):
@@ -24,7 +24,7 @@ class MessageHandler(LoggerMixin):
 
     ai_processor: AIProcessor | MockAIProcessor
     obsidian_manager: ObsidianFileManager | None
-    note_template: None  # 古いテンプレートシステムは無効化
+    note_template: str | None  # 古いテンプレートシステムは無効化
     daily_integration: DailyNoteIntegration | None
     template_engine: TemplateEngine | None
     note_analyzer: AdvancedNoteAnalyzer | None
@@ -37,73 +37,72 @@ class MessageHandler(LoggerMixin):
         self.system_metrics = system_metrics
         self.api_usage_monitor = api_usage_monitor
 
-    def __init__(self, channel_config: ChannelConfig) -> None:
-        self.channel_config = channel_config
+    def __init__(
+        self,
+        ai_processor: AIProcessor | MockAIProcessor,
+        obsidian_manager: ObsidianFileManager,
+        note_template: str,
+        daily_integration: DailyNoteIntegration,
+        template_engine: TemplateEngine,
+        note_analyzer: AdvancedNoteAnalyzer,
+        speech_processor: SpeechProcessor | None = None,
+        channel_config: ChannelConfig | None = None,
+    ) -> None:
+        """Initialize message handler with dependencies"""
+        # 🔧 FIX: 処理済みメッセージを追跡するためのセット追加（重複処理防止）
+        self._processed_messages: set[int] = set()
+        self._max_processed_messages = 1000  # メモリ管理のため最大数を制限
+
+        self.ai_processor = ai_processor
+        self.obsidian_manager = obsidian_manager
+        self.note_template = note_template
+        self.daily_integration = daily_integration
+        self.template_engine = template_engine
+        self.note_analyzer = note_analyzer
+        self.speech_processor = speech_processor
+
+        # Logger is already available through LoggerMixin
+
+        # Initialize dependencies
+        from src.bot.message_processor import MessageProcessor
+
+        # 🔧 FIX: 共有された ChannelConfig インスタンスを使用、または新規作成
+        if channel_config is not None:
+            self.channel_config = channel_config
+        else:
+            from src.bot.channel_config import ChannelConfig
+
+            self.channel_config = ChannelConfig()
+
         self.message_processor = MessageProcessor()
 
-        # AI 処理システムの初期化（モック対応）
-        processing_settings = ProcessingSettings(
-            min_text_length=30,
-            max_text_length=4000,
-            enable_summary=True,
-            enable_tags=True,
-            enable_categorization=True,
-        )
+        # Optional monitoring systems (will be set by main.py if available)
+        # Note: These are already defined in set_monitoring_systems method
 
-        # モードに応じて AI プロセッサーを初期化
-        from ..config import get_settings
+        self.logger.info("MessageHandler initialized")
 
-        settings = get_settings()
-
-        if settings.is_mock_mode:
-            self.logger.info("Initializing AI processor in MOCK mode")
-            self.ai_processor = MockAIProcessor(settings=processing_settings)
-        else:
-            self.logger.info("Initializing AI processor in PRODUCTION mode")
-            self.ai_processor = AIProcessor(settings=processing_settings)
-
-        # Obsidian ファイル管理システムの初期化
+        # Initialize message processing components
         try:
-            self.obsidian_manager = ObsidianFileManager()
-            self.note_template = None  # 古いテンプレートシステムは無効化
-            self.daily_integration = DailyNoteIntegration(self.obsidian_manager)
-            self.template_engine = TemplateEngine(self.obsidian_manager.vault_path)
-
-            # 高度なノート分析システムの初期化
-            self.note_analyzer = AdvancedNoteAnalyzer(
-                obsidian_file_manager=self.obsidian_manager,
-                ai_processor=self.ai_processor,
-            )
-
+            # Test basic functionality
+            test_channel_id = 123456789  # Dummy channel ID for testing
+            is_monitored = self.channel_config.is_monitored_channel(test_channel_id)
             self.logger.info(
-                "Obsidian components with advanced AI features initialized"
+                f"Channel config test: is_monitored({test_channel_id}) = {is_monitored}"
             )
-        except Exception as e:
-            self.obsidian_manager = None
-            self.note_template = None
-            self.daily_integration = None
-            self.template_engine = None
-            self.note_analyzer = None
-            self.logger.error("Failed to initialize Obsidian manager", error=str(e))
 
-        # 音声処理システムの初期化（モック対応）
-        try:
-            if settings.is_mock_mode:
-                self.logger.info("Speech processor disabled in mock mode")
-                self.speech_processor = None
-            else:
-                self.speech_processor = SpeechProcessor()
-                self.logger.info("Speech processor initialized")
-        except Exception as e:
-            self.speech_processor = None
-            self.logger.error("Failed to initialize speech processor", error=str(e))
+            # Test message processor
+            test_result = self.message_processor._clean_content("Test content   ")
+            self.logger.info(
+                f"Message processor test: cleaned_content = '{test_result}'"
+            )
 
-        self.logger.info(
-            "Message handler initialized",
-            ai_mock_mode=settings.is_mock_mode,
-            obsidian_enabled=self.obsidian_manager is not None,
-            speech_enabled=self.speech_processor is not None,
-        )
+        except Exception as e:
+            self.logger.error(
+                f"Error during MessageHandler initialization testing: {e}"
+            )
+            # Continue initialization despite test failures
+
+        self.logger.info("MessageHandler fully initialized with all components")
 
     async def initialize(self) -> None:
         """非同期初期化処理"""
@@ -125,6 +124,26 @@ class MessageHandler(LoggerMixin):
             Dictionary containing processed message data or None if ignored
         """
         processing_start = datetime.now()
+
+        # 🔧 FIX: 重複処理防止 - 既に処理済みのメッセージをスキップ
+        if message.id in self._processed_messages:
+            self.logger.info(
+                f"🔄 DEBUG: Message {message.id} already processed, skipping duplicate processing"
+            )
+            return None
+
+        # 🔧 FIX: メッセージを処理済みとして記録（処理開始時に追加）
+        self._processed_messages.add(message.id)
+
+        # メモリ管理：処理済みメッセージ数が上限を超えた場合、古いものを削除
+        if len(self._processed_messages) > self._max_processed_messages:
+            # セットから最初の 100 個を削除（ FIFO 的な動作）
+            old_messages = list(self._processed_messages)[:100]
+            for old_msg_id in old_messages:
+                self._processed_messages.discard(old_msg_id)
+            self.logger.debug(
+                f"Cleaned up {len(old_messages)} old processed message IDs"
+            )
 
         # 🔍 DEBUG: Add detailed logging for channel monitoring check
         self.logger.info(
@@ -289,6 +308,34 @@ class MessageHandler(LoggerMixin):
             channel_name=message_data["channel_info"]["name"],
         )
 
+        # 🔧 FIX: 音声添付ファイルの処理をノート生成の前に実行（転写内容をノートに含めるため）
+        from ..bot.channel_config import ChannelCategory, ChannelInfo
+
+        channel_info_dict = message_data.get("channel_info", {})
+        if channel_info_dict and original_message:
+            # ChannelInfo オブジェクトを再構築
+            category_str = channel_info_dict.get("category", "capture")
+            category = (
+                ChannelCategory.CAPTURE
+                if category_str == "capture"
+                else ChannelCategory.SYSTEM
+            )
+
+            channel_info = ChannelInfo(
+                id=original_message.channel.id,
+                name=channel_info_dict.get("name", "unknown"),
+                category=category,
+                description=channel_info_dict.get("description", ""),
+            )
+
+            # 音声処理を先に実行して message_data を更新
+            await self._handle_audio_attachments(
+                message_data, channel_info, original_message
+            )
+            await self._handle_document_attachments(
+                message_data, channel_info, original_message
+            )
+
         # AI 処理結果を取得
         ai_processing = message_data.get("ai_processing")
 
@@ -352,24 +399,30 @@ class MessageHandler(LoggerMixin):
                             )
 
                             # Discord メタデータを構築
-                            discord_metadata = (
-                                {
-                                    "channel_name": message_data["channel_info"][
-                                        "name"
-                                    ],
-                                    "channel_category": message_data["channel_info"][
-                                        "category"
-                                    ],
-                                    "timestamp": message_data["metadata"]["basic"][
-                                        "timestamp"
-                                    ],
-                                    "user_id": message_data["metadata"]["basic"][
-                                        "author"
-                                    ]["id"],
-                                }
-                                if original_message
-                                else None
-                            )
+                            discord_metadata = None
+                            if original_message:
+                                try:
+                                    discord_metadata = {
+                                        "channel_name": message_data["channel_info"][
+                                            "name"
+                                        ],
+                                        "channel_category": message_data[
+                                            "channel_info"
+                                        ]["category"],
+                                        # 🔧 FIX: timing 構造を使用（ basic ではなく）
+                                        "timestamp": message_data["metadata"]
+                                        .get("timing", {})
+                                        .get("created_at", {})
+                                        .get("timestamp", None),
+                                        "user_id": message_data["metadata"]["basic"][
+                                            "author"
+                                        ]["id"],
+                                    }
+                                except KeyError as e:
+                                    self.logger.warning(
+                                        f"Failed to construct Discord metadata: missing key {e}"
+                                    )
+                                    discord_metadata = None
 
                             # 包括的なノート分析を実行
                             analysis_result = await self.note_analyzer.analyze_note_content(
@@ -435,12 +488,15 @@ class MessageHandler(LoggerMixin):
                     # Daily Integration の実行
                     if self.daily_integration:
                         try:
+                            # 🔧 FIX: より意味のある Activity Log エントリタイトルを生成
+                            activity_title = self._generate_activity_log_title(
+                                message_data, ai_result, note
+                            )
+
                             # メモ保存を Activity Log に追加するためのメッセージデータを構築
                             activity_data = {
                                 "metadata": {
-                                    "content": {
-                                        "raw_content": f"📝 {note.title} - Saved memo from Discord #{message_data['channel_info']['name']}"
-                                    },
+                                    "content": {"raw_content": activity_title},
                                     "timing": message_data["metadata"].get(
                                         "timing", {}
                                     ),
@@ -457,31 +513,77 @@ class MessageHandler(LoggerMixin):
             except Exception as e:
                 self.logger.error("Failed to create Obsidian note", error=str(e))
 
-        # 音声添付ファイルの処理（メッセージ処理の最後に実行）
-        from ..bot.channel_config import ChannelCategory, ChannelInfo
+    def _generate_activity_log_title(
+        self,
+        message_data: dict[str, Any],
+        ai_result: AIProcessingResult | None,
+        note: Any,
+    ) -> str:
+        """Activity Log エントリの意味のあるタイトルを生成"""
+        try:
+            # 音声文字起こし内容を確認
+            content_info = message_data.get("metadata", {}).get("content", {})
+            has_audio = content_info.get("has_audio_transcription", False)
+            channel_name = message_data["channel_info"]["name"]
 
-        channel_info_dict = message_data.get("channel_info", {})
-        if channel_info_dict and original_message:
-            # ChannelInfo オブジェクトを再構築
-            category_str = channel_info_dict.get("category", "capture")
-            category = (
-                ChannelCategory.CAPTURE
-                if category_str == "capture"
-                else ChannelCategory.SYSTEM
-            )
+            if has_audio:
+                # 音声メッセージの場合、転写内容から短い要約を作成
+                cleaned_content = content_info.get("cleaned_content", "")
 
-            channel_info = ChannelInfo(
-                id=original_message.channel.id,
-                name=channel_info_dict.get("name", "unknown"),
-                category=category,
-                description=channel_info_dict.get("description", ""),
+                # 音声転写部分を抽出
+                transcription_text = ""
+                if "🎤 音声文字起こし" in cleaned_content:
+                    # 音声セクションから実際の転写テキストを抽出
+                    import re
+
+                    pattern = r"🎤 音声文字起こし\s*(.*?)\s*\*\*信頼度\*\*"
+                    match = re.search(pattern, cleaned_content, re.DOTALL)
+                    if match:
+                        transcription_text = match.group(1).strip()
+
+                if transcription_text:
+                    # 転写内容から適切な長さの要約を作成
+                    if len(transcription_text) > 30:
+                        # 最初の文またはフレーズを使用
+                        summary = transcription_text[:30].rsplit("。", 1)[0]
+                        if not summary.endswith("。"):
+                            summary += "..."
+                    else:
+                        summary = transcription_text
+
+                    return f"🎤 音声メモ: {summary} - #{channel_name}"
+
+            # AI 要約がある場合
+            if ai_result and ai_result.summary:
+                summary_text = ai_result.summary.summary
+                if len(summary_text) > 40:
+                    summary_text = summary_text[:40] + "..."
+                return f"📝 {summary_text} - #{channel_name}"
+
+            # AI 分類がある場合
+            if ai_result and ai_result.category:
+                category = ai_result.category.category
+                return f"📝 {category}メモ - #{channel_name}"
+
+            # 通常のテキストメッセージ
+            raw_content = content_info.get("raw_content", "").strip()
+            if raw_content and len(raw_content) > 10:
+                if len(raw_content) > 30:
+                    preview = raw_content[:30] + "..."
+                else:
+                    preview = raw_content
+                return f"📝 {preview} - #{channel_name}"
+
+            # フォールバック: ノートタイトルを使用
+            return f"📝 {note.title} - #{channel_name}"
+
+        except Exception as e:
+            self.logger.warning(
+                "Failed to generate activity log title, using fallback", error=str(e)
             )
-            await self._handle_audio_attachments(
-                message_data, channel_info, original_message
-            )
-            await self._handle_document_attachments(
-                message_data, channel_info, original_message
-            )
+            # エラー時のフォールバック
+            channel_name = message_data.get("channel_info", {}).get("name", "unknown")
+            return f"📝 メモ - #{channel_name}"
 
     async def _organize_note_by_ai_category(self, note, ai_result) -> None:
         """AI 分類結果に基づいてノートを適切なフォルダに移動"""
@@ -626,6 +728,19 @@ class MessageHandler(LoggerMixin):
             metadata = message_data.get("metadata", {})
             attachments = metadata.get("attachments", [])
 
+            # 🔧 DEBUG: 添付ファイル情報をログ出力
+            self.logger.info(
+                f"🎵 DEBUG: _handle_audio_attachments called with {len(attachments)} total attachments"
+            )
+
+            for i, att in enumerate(attachments):
+                self.logger.info(
+                    f"🎵 DEBUG: Attachment {i}: filename={att.get('filename', 'N/A')}, "
+                    f"file_category={att.get('file_category', 'N/A')}, "
+                    f"content_type={att.get('content_type', 'N/A')}, "
+                    f"extension={att.get('file_extension', 'N/A')}"
+                )
+
             # 音声ファイルをフィルタリング
             audio_attachments = [
                 att
@@ -637,7 +752,14 @@ class MessageHandler(LoggerMixin):
                 )
             ]
 
+            self.logger.info(
+                f"🎵 DEBUG: Found {len(audio_attachments)} audio attachments after filtering"
+            )
+
             if not audio_attachments:
+                self.logger.info(
+                    "🎵 DEBUG: No audio attachments found, returning early"
+                )
                 return
 
             self.logger.info(
@@ -647,6 +769,9 @@ class MessageHandler(LoggerMixin):
             )
 
             for attachment in audio_attachments:
+                self.logger.info(
+                    f"🎵 DEBUG: Processing audio attachment: {attachment.get('filename', 'N/A')}"
+                )
                 await self._process_single_audio_attachment(
                     attachment, message_data, channel_info, original_message
                 )
@@ -892,6 +1017,19 @@ class MessageHandler(LoggerMixin):
             # コンテンツを更新
             enhanced_content = original_content + audio_section
             content_info["raw_content"] = enhanced_content
+
+            # 🔧 FIX: cleaned_content も更新して、 Obsidian ノートに音声内容を反映
+            if self.message_processor:
+                content_info["cleaned_content"] = self.message_processor._clean_content(
+                    enhanced_content
+                )
+            else:
+                # message_processor がない場合の fallback
+                import re
+
+                cleaned = re.sub(r"\s+", " ", enhanced_content).strip()
+                content_info["cleaned_content"] = cleaned
+
             content_info["has_audio_transcription"] = True
             content_info["audio_confidence"] = audio_result.transcription.confidence
 

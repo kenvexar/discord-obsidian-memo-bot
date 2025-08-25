@@ -243,7 +243,24 @@ class MessageProcessor(LoggerMixin):
         """Extract detailed attachment metadata"""
         attachments = []
 
+        # 🔧 DEBUG: 添付ファイル情報を詳しくログ出力
+        if message.attachments:
+            self.logger.info(
+                f"🎵 DEBUG: Found {len(message.attachments)} attachments in message {message.id}"
+            )
+
         for attachment in message.attachments:
+            # 🔧 DEBUG: 各添付ファイルの詳細情報をログ出力
+            self.logger.info(
+                f"🎵 DEBUG: Processing attachment: {attachment.filename} "
+                f"(content_type={attachment.content_type}, size={attachment.size})"
+            )
+
+            file_category = self._categorize_file(attachment)
+            self.logger.info(
+                f"🎵 DEBUG: File categorized as: {file_category} for {attachment.filename}"
+            )
+
             attachment_data: AttachmentMetadata = {
                 "id": attachment.id,
                 "filename": attachment.filename,
@@ -256,7 +273,7 @@ class MessageProcessor(LoggerMixin):
                 "ephemeral": attachment.ephemeral,
                 "description": attachment.description,
                 "file_extension": Path(attachment.filename).suffix.lower(),
-                "file_category": self._categorize_file(attachment),
+                "file_category": file_category,
                 "is_spoiler": attachment.is_spoiler(),
                 "image_info": None,  # デフォルト値を追加
             }

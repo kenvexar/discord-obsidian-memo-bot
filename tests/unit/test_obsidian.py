@@ -383,7 +383,28 @@ async def test_obsidian_integration_with_message_handler() -> None:
             )
             channel_config.get_channel_info.return_value = mock_channel_info
 
-            handler = MessageHandler(channel_config)
+            # Create mock dependencies
+            from src.ai.mock_processor import MockAIProcessor
+            from src.ai.note_analyzer import AdvancedNoteAnalyzer
+            from src.obsidian import ObsidianFileManager
+            from src.obsidian.daily_integration import DailyNoteIntegration
+            from src.obsidian.template_system import TemplateEngine
+
+            mock_ai_processor = MockAIProcessor()
+            mock_obsidian_manager = Mock(spec=ObsidianFileManager)
+            mock_daily_integration = Mock(spec=DailyNoteIntegration)
+            mock_template_engine = Mock(spec=TemplateEngine)
+            mock_note_analyzer = Mock(spec=AdvancedNoteAnalyzer)
+
+            handler = MessageHandler(
+                ai_processor=mock_ai_processor,
+                obsidian_manager=mock_obsidian_manager,
+                note_template="Test template",
+                daily_integration=mock_daily_integration,
+                template_engine=mock_template_engine,
+                note_analyzer=mock_note_analyzer,
+                channel_config=channel_config,
+            )
 
             # Verify Obsidian integration is available
             assert handler.obsidian_manager is not None
